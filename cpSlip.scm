@@ -31,9 +31,13 @@
 
 (begin
   
+  ;
+  ;hashing
+  ;
+  
   (define (make-hash hash-size hash-fun comparison-fun)
-    (let ((hash-vector (make-vector hash-size '())))
-      (vector hash-vector hash-fun hash-size comparison-fun)))
+    (define hash-vector (make-vector hash-size '()))
+    (vector hash-vector hash-fun hash-size comparison-fun))
   
   (define (get-hash-vector hash)
     (vector-ref hash 0))
@@ -52,25 +56,30 @@
   (define get-value cdr)
   
   (define (hash-get hash key)
-    (let* ((comparison-fun (get-comparison-fun hash))
-           (hash-fun (get-hash-fun hash))
-           (hash-result (hash-fun key))
-           (hash-vector (get-hash-vector hash)))
-      (define (loop external-chain)
-        (cond ((null? external-chain) #f)
-              ((comparison-fun key (get-key (car external-chain))) (get-value (car external-chain)))
-              (else (loop (cdr external-chain)))))
-      (loop (vector-ref hash-vector hash-result))))
+    (define comparison-fun (get-comparison-fun hash))
+    (define hash-fun (get-hash-fun hash))
+    (define hash-result (hash-fun key))
+    (define hash-vector (get-hash-vector hash))
+    (define (loop external-chain)
+      (cond ((null? external-chain) #f)
+            ((comparison-fun key (get-key (car external-chain))) (get-value (car external-chain)))
+            (else (loop (cdr external-chain)))))
+    (loop (vector-ref hash-vector hash-result)))
   
   (define (hash-set! hash key value)
-    (let* ((assoc (make-assoc key value))
-           (hash-fun (get-hash-fun hash))
-           (hash-result (hash-fun key))
-           (hash-vector (get-hash-vector hash)))
-      (vector-set! hash-vector hash-result (cons assoc (vector-ref hash-vector hash-result)))))
+    (define assoc (make-assoc key value))
+    (define hash-fun (get-hash-fun hash))
+    (define hash-result (hash-fun key))
+    (define hash-vector (get-hash-vector hash))
+    (vector-set! hash-vector hash-result (cons assoc (vector-ref hash-vector hash-result))))
   
   
   (define meta-level-eval eval)
+  
+  
+  ;
+  ;tracing
+  ;
   
   (define (print s)
     (display s)
@@ -156,7 +165,7 @@
     (define (iterate items values)
       (if (null? items)
         (continue (reverse values) environment tracer-context)
-        (let ((head (car items))
+        (let* ((head (car items))
               (tail (cdr items)))
           (define (continue-after-item value environment tracer-context)
             (iterate tail (cons value values)))
@@ -170,7 +179,7 @@
     (define (iterate items)
       (if (null? items)
         (continue '() environment tracer-context)
-        (let ((head (car items))
+        (let* ((head (car items))
               (tail (cdr items)))
           (define (continue-after-item value environment tracer-context)
             (iterate tail))
@@ -260,7 +269,7 @@
                 (evaluate-operands (cdr operands) (cons value arguments) environment-with-operands))
               (display "in evaluate-operands: ") (print tracer-context)
               (if (null? operands)
-                  (procedure (reverse arguments) continue environment tailcall (let ((base-tracer-context (add-function-call operator tracer-context)))
+                  (procedure (reverse arguments) continue environment tailcall (let* ((base-tracer-context (add-function-call operator tracer-context)))
                                                                                  (if (> (get-number-of-function-calls operator tracer-context) 3)
                                                                                      (start-tracing base-tracer-context)
                                                                                      base-tracer-context)))
@@ -292,6 +301,20 @@
       (lambda (continue environment tailcall tracer-context)
         (print-if-tracing "evaluate-begin" tracer-context)
         (evaluate-sequence expressions continue environment tailcall tracer-context)))
+    
+    (define (evaluate-cond . expressions)
+      (lambda (continue environment tailcall tracer-context)
+        (define (evaluate-expressions expressions)
+          (define (continue-after-predicate boolean environment-after-predicate tracer-context)
+            (if (eq? boolean #t)
+                (evaluate-sequence (cdar expressions) continue environment-after-predicate tailcall tracer-context)
+                (evaluate-expressions (cdr expressions))))
+          (cond ((null? expressions) (continue '() environment tracer-context))
+                ((eq? (caar expressions) 'else) (evaluate-sequence (cdar expressions) continue environment tailcall tracer-context))
+                (else (evaluate (caar expressions) continue-after-predicate environment #f tracer-context))))
+        (print-if-tracing "evaluate-cond" tracer-context)
+        (evaluate-expressions expressions)))
+        
 
     (define (evaluate-define pattern . expressions)
       (lambda (continue environment tailcall tracer-context)
@@ -321,6 +344,21 @@
     (define (evaluate-lambda parameters . expressions)
       (lambda (continue environment tailcall tracer-context)
         (continue (make-procedure parameters expressions environment tracer-context) environment tracer-context)))
+    
+    (define (evaluate-let* . expressions)
+      (lambda (continue environment tailcall tracer-context)
+        (let* ((bindings (car expressions))
+               (body (cdr expressions)))
+          (define (evaluate-bindings bindings environment)
+            (define (continue-after-binding value environment-after-binding tracer-context)
+              (let* ((variable-name (caar bindings))
+                     (binding (cons variable-name value))
+                     (new-environment (cons binding environment)))
+                (evaluate-bindings (cdr bindings) new-environment)))
+            (if (null? bindings)
+                (evaluate-sequence body continue environment tailcall tracer-context)
+                (evaluate (cadar bindings) continue-after-binding environment #f tracer-context)))
+          (evaluate-bindings bindings environment))))
 
     (define (evaluate-quote expression)
       (lambda (continue environment tailcall tracer-context)
@@ -343,7 +381,7 @@
       (print-if-tracing "evaluate-variable" tracer-context)
       (if binding
           (continue (cdr binding) environment tracer-context)
-          (let ((native-value (meta-level-eval variable (interaction-environment))))
+          (let* ((native-value (meta-level-eval variable (interaction-environment))))
             (if (procedure? native-value)
                 (continue (wrap-native-procedure native-value) environment tracer-context)
                 (continue native-value environment tracer-context)))))
@@ -367,24 +405,22 @@
   
     (define (evaluate expression continue environment tailcall tracer-context)
       (print-if-tracing "evaluate" tracer-context)
-      (cond
-        ((symbol? expression)
-         (evaluate-variable expression continue environment tracer-context))
-        ((pair? expression)
-         (let ((operator (car expression))
-               (operands (cdr expression)))
-           ((apply
-              (case operator
-                ((begin)  evaluate-begin )
-                ((define) evaluate-define)
-                ((if)     evaluate-if    )
-                ((lambda) evaluate-lambda)
-                ((quote)  evaluate-quote ) 
-                ((set!)   evaluate-set!  )
-                ((while)  evaluate-while )
-                (else     (evaluate-application operator))) operands) continue environment tailcall tracer-context)))
-        (else
-          (continue expression environment tracer-context))))
+      (cond ((symbol? expression) (evaluate-variable expression continue environment tracer-context))
+            ((pair? expression)
+                 (define operator (car expression))
+                 (define operands (cdr expression))
+                 ((apply
+                   (cond ((eq? operator 'begin) evaluate-begin)
+                         ((eq? operator 'cond) evaluate-cond)
+                         ((eq? operator 'define) evaluate-define)
+                         ((eq? operator 'if) evaluate-if)
+                         ((eq? operator 'lambda) evaluate-lambda)
+                         ((eq? operator 'let*) evaluate-let*)
+                         ((eq? operator 'quote) evaluate-quote)
+                         ((eq? operator 'set!) evaluate-set!)
+                         ((eq? operator 'while) evaluate-while)
+                         (else (evaluate-application operator))) operands) continue environment tailcall tracer-context))
+            (else (continue expression environment tracer-context))))
 
 ;
 ; read-eval-print
