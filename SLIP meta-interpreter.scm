@@ -29,7 +29,11 @@
 
 ; don't use syntactic constructs (e.g. cond, do, ...)
 
+;(define (fac x) (if (< x 2) 1 (* x (fac (- x 1)))))
+
 (define meta-level 0)
+
+(define meta-level-apply apply)
 
 (begin
   (define meta-level-eval eval)
@@ -40,7 +44,8 @@
 
   (define (wrap-native-procedure native-procedure)
     (lambda (arguments continue environment tailcall)
-      (define native-value (apply native-procedure arguments))
+      ;(define native-value (apply native-procedure arguments))
+      (define native-value (meta-level-apply native-procedure arguments))
       (continue native-value environment)))
 
   (define (cps-apply expression continue environment tailcall)
@@ -156,9 +161,9 @@
       (lambda (continue environment tailcall)
         (define (evaluate-expressions expressions)
           (define (continue-after-predicate boolean environment-after-predicate)
-            (if (eq? boolean #t)
-                (evaluate-sequence (cdar expressions) continue environment-after-predicate tailcall)
-                (evaluate-expressions (cdr expressions))))
+            (if (eq? boolean #f)
+                (evaluate-expressions (cdr expressions))
+                (evaluate-sequence (cdar expressions) continue environment-after-predicate tailcall)))
           (cond ((null? expressions) (continue '() environment))
                 ((eq? (caar expressions) 'else) (evaluate-sequence (cdar expressions) continue environment tailcall))
                 (else (eval (caar expressions) continue-after-predicate environment #f))))
