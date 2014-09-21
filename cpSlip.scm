@@ -56,22 +56,22 @@
   (define get-value cdr)
   
   (define (hash-get hash key)
-    (define comparison-fun (get-comparison-fun hash))
-    (define hash-fun (get-hash-fun hash))
-    (define hash-result (hash-fun key))
-    (define hash-vector (get-hash-vector hash))
-    (define (loop external-chain)
-      (cond ((null? external-chain) #f)
-            ((comparison-fun key (get-key (car external-chain))) (get-value (car external-chain)))
-            (else (loop (cdr external-chain)))))
-    (loop (vector-ref hash-vector hash-result)))
+    (let* ((comparison-fun (get-comparison-fun hash))
+           (hash-fun (get-hash-fun hash))
+           (hash-result (hash-fun key))
+           (hash-vector (get-hash-vector hash)))
+      (define (loop external-chain)
+        (cond ((null? external-chain) #f)
+              ((comparison-fun key (get-key (car external-chain))) (get-value (car external-chain)))
+              (else (loop (cdr external-chain)))))
+      (loop (vector-ref hash-vector hash-result))))
   
   (define (hash-set! hash key value)
-    (define assoc (make-assoc key value))
-    (define hash-fun (get-hash-fun hash))
-    (define hash-result (hash-fun key))
-    (define hash-vector (get-hash-vector hash))
-    (vector-set! hash-vector hash-result (cons assoc (vector-ref hash-vector hash-result))))
+    (let* ((assoc (make-assoc key value))
+           (hash-fun (get-hash-fun hash))
+           (hash-result (hash-fun key))
+           (hash-vector (get-hash-vector hash)))
+      (vector-set! hash-vector hash-result (cons assoc (vector-ref hash-vector hash-result)))))
   
   
   (define meta-level-eval eval)
@@ -156,7 +156,7 @@
   (define (cps-apply expression continue environment tailcall tracer-context)
     (define procedure (car expression))
     (define arguments (cadr expression))
-      (print-if-tracing "cps-apply" tracer-context)
+    (print-if-tracing "cps-apply" tracer-context)
     (procedure arguments continue environment tailcall tracer-context))
 
   (define (cps-map expression continue environment tailcall tracer-context)
@@ -233,8 +233,8 @@
         (evaluate-sequence tail continue environment tailcall tracer-context))
       (print-if-tracing "evaluate-sequence" tracer-context)
       (if (null? tail)
-        (evaluate head continue environment tailcall tracer-context)
-        (evaluate head continue-with-sequence environment #f tracer-context)))
+        (eval head continue environment tailcall tracer-context)
+        (eval head continue-with-sequence environment #f tracer-context)))
 
     (define (make-procedure parameters expressions environment lexical-tracer-context)
       (print-if-tracing "make-procedure" lexical-tracer-context)
@@ -252,7 +252,9 @@
 ;
     
     (define (is-recursable-function? operator environment)
-      (and (symbol? operator) (assoc operator environment)))
+      (if (symbol? operator)  ;Can't use 'and' here because it's a special form in Racket
+          (assoc operator environment)
+          #f))
     
     (define (is-looping? function-call-stack)
       (if (null? function-call-stack)
@@ -273,7 +275,7 @@
                                                                                  (if (> (get-number-of-function-calls operator tracer-context) 3)
                                                                                      (start-tracing base-tracer-context)
                                                                                      base-tracer-context)))
-                  (evaluate (car operands) continue-with-operands environment #f (add-function-call operator tracer-context))))
+                  (eval (car operands) continue-with-operands environment #f (add-function-call operator tracer-context))))
             (if (exists-function-call operator tracer-context)
                 (increment-number-of-function-calls! operator tracer-context)
                 (set-number-of-function-calls! operator 1 tracer-context))
@@ -288,10 +290,10 @@
                 (evaluate-operands (cdr operands) (cons value arguments) environment-with-operands))
               (if (null? operands)
                   (procedure (reverse arguments) continue environment tailcall tracer-context)
-                  (evaluate (car operands) continue-with-operands environment #f tracer-context)))
+                  (eval (car operands) continue-with-operands environment #f tracer-context)))
             (evaluate-operands operands '() environment-after-operator))
           (print-if-tracing "evaluate-application" tracer-context)
-          (evaluate operator (if (is-recursable-function? operator environment)
+          (eval operator (if (is-recursable-function? operator environment)
                                  continue-after-recursable-operator
                                  continue-after-non-recursable-operator)
                     environment #f tracer-context))))
@@ -311,10 +313,9 @@
                 (evaluate-expressions (cdr expressions))))
           (cond ((null? expressions) (continue '() environment tracer-context))
                 ((eq? (caar expressions) 'else) (evaluate-sequence (cdar expressions) continue environment tailcall tracer-context))
-                (else (evaluate (caar expressions) continue-after-predicate environment #f tracer-context))))
+                (else (eval (caar expressions) continue-after-predicate environment #f tracer-context))))
         (print-if-tracing "evaluate-cond" tracer-context)
         (evaluate-expressions expressions)))
-        
 
     (define (evaluate-define pattern . expressions)
       (lambda (continue environment tailcall tracer-context)
@@ -323,7 +324,7 @@
           (continue value (cons binding environment-after-expression) tracer-context))
         (print-if-tracing "evaluate-define" tracer-context)
         (if (symbol? pattern)
-            (evaluate (car expressions) continue-after-expression environment #f tracer-context)
+            (eval (car expressions) continue-after-expression environment #f tracer-context)
             (let* ((binding (cons (car pattern) '()))
                    (environment (cons binding environment))
                    (procedure (make-procedure (cdr pattern) expressions environment tracer-context)))
@@ -336,10 +337,10 @@
           (if (eq? boolean #f) 
             (if (null? alternative)
               (continue '() environment-after-predicate tracer-context)
-              (evaluate (car alternative) continue environment-after-predicate tailcall tracer-context))
-            (evaluate consequent continue environment-after-predicate tailcall tracer-context)))
+              (eval (car alternative) continue environment-after-predicate tailcall tracer-context))
+            (eval consequent continue environment-after-predicate tailcall tracer-context)))
         (print-if-tracing "evaluate-if" tracer-context)
-        (evaluate predicate continue-after-predicate environment #f tracer-context)))
+        (eval predicate continue-after-predicate environment #f tracer-context)))
 
     (define (evaluate-lambda parameters . expressions)
       (lambda (continue environment tailcall tracer-context)
@@ -357,7 +358,7 @@
                 (evaluate-bindings (cdr bindings) new-environment)))
             (if (null? bindings)
                 (evaluate-sequence body continue environment tailcall tracer-context)
-                (evaluate (cadar bindings) continue-after-binding environment #f tracer-context)))
+                (eval (cadar bindings) continue-after-binding environment #f tracer-context)))
           (evaluate-bindings bindings environment))))
 
     (define (evaluate-quote expression)
@@ -374,7 +375,7 @@
             (error "inaccessible variable: " variable))
           (continue value environment-after-expression tracer-context))
         (print-if-tracing "evaluate-set!" tracer-context)
-        (evaluate expression continue-after-expression environment #f tracer-context)))
+        (eval expression continue-after-expression environment #f tracer-context)))
 
     (define (evaluate-variable variable continue environment tracer-context)
       (define binding (assoc variable environment))
@@ -395,7 +396,7 @@
             (if (eq? boolean #f)
               (continue value environment tracer-context)
               (evaluate-sequence expressions continue-after-sequence environment #f tracer-context)))
-          (evaluate predicate continue-after-predicate environment #f tracer-context))
+          (eval predicate continue-after-predicate environment #f tracer-context))
         (print-if-tracing "evaluate-while" tracer-context)
         (iterate '() environment tracer-context)))
 
@@ -403,23 +404,23 @@
 ; evaluator
 ;
   
-    (define (evaluate expression continue environment tailcall tracer-context)
+    (define (eval expression continue environment tailcall tracer-context)
       (print-if-tracing "evaluate" tracer-context)
       (cond ((symbol? expression) (evaluate-variable expression continue environment tracer-context))
             ((pair? expression)
-                 (define operator (car expression))
-                 (define operands (cdr expression))
-                 ((apply
-                   (cond ((eq? operator 'begin) evaluate-begin)
-                         ((eq? operator 'cond) evaluate-cond)
-                         ((eq? operator 'define) evaluate-define)
-                         ((eq? operator 'if) evaluate-if)
-                         ((eq? operator 'lambda) evaluate-lambda)
-                         ((eq? operator 'let*) evaluate-let*)
-                         ((eq? operator 'quote) evaluate-quote)
-                         ((eq? operator 'set!) evaluate-set!)
-                         ((eq? operator 'while) evaluate-while)
-                         (else (evaluate-application operator))) operands) continue environment tailcall tracer-context))
+             (define operator (car expression))
+             (define operands (cdr expression))
+             ((apply
+               (cond ((eq? operator 'begin) evaluate-begin)
+                     ((eq? operator 'cond) evaluate-cond)
+                     ((eq? operator 'define) evaluate-define)
+                     ((eq? operator 'if) evaluate-if)
+                     ((eq? operator 'lambda) evaluate-lambda)
+                     ((eq? operator 'let*) evaluate-let*)
+                     ((eq? operator 'quote) evaluate-quote)
+                     ((eq? operator 'set!) evaluate-set!)
+                     ((eq? operator 'while) evaluate-while)
+                     (else (evaluate-application operator))) operands) continue environment tailcall tracer-context))
             (else (continue expression environment tracer-context))))
 
 ;
@@ -429,7 +430,7 @@
     (display output)
     (newline)
     (display ">>>")
-    (evaluate (read) loop environment #f (new-tracer-context)))
+    (eval (read) loop environment #f (new-tracer-context)))
 
   (loop "cpSlip* version 3"
         (list (cons 'apply    cps-apply   ) 
