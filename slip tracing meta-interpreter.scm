@@ -1,342 +1,230 @@
-;
-; Slip: Lisp in 100 lines - Theo D'Hondt: SOFT: VUB - 2010
-;
-;       CPS* version
-;
-;       Version 3 - proper tail recursion
-;                   
-; <expression>  ::= <computation>|<lambda>|<quote>|<variable>|
-;                   <literal>|<null> 
-; <computation> ::= <definition>|<assignment>|<sequence>|
-;                   <conditional>|<iteration>|<application>
-; <definition>  ::= (define <variable> <expression>)
-; <definition>  ::= (define <pattern> <expression>+)
-; <assignment>  ::= (set! <variable> <expression>)
-; <sequence>    ::= (begin <expression>+)
-; <conditional> ::= (if <expression> <expression> <expression>)
-; <conditional> ::= (if <expression> <expression>)
-; <iteration>   ::= (while <expression> <expression>+)
-; <application> ::= (<expression>+)
-; <lambda>      ::= (lambda () <expression>+)
-; <lambda>      ::= (lambda <variable> <expression>+)
-; <lambda>      ::= (lambda (<pattern>) <expression>+)
-; <quote>       ::= '[s-expression]
-; <variable>    ::= [symbol]
-; <pattern>     ::= (<variable>+)
-; <pattern>     ::= (<variable>+ . <variable>)
-; <literal>     ::= [number]|[character]|[string]|#t|#f
-; <null>        ::= ()
-
-; don't use syntactic constructs (e.g. cond, do, ...)
-
-;(define (fac x) (if (< x 2) 1 (* x (fac (- x 1)))))
+#lang racket
 
 (define meta-level-apply apply)
 
+(define meta-level-eval eval)
+
+(define ns (make-base-namespace))
+(struct ev (e ρ σ κ)) ;state: (expression environment store list-of-continuations)
+(struct ko (φ v σ κ)) ;continuation: (current-continuation value store list-of-continuations)
+(struct ap (v vs ρ σ κ)) ;application: (operator valies environment store continuation)
+(struct definevk (x ρ)) ;define variable
+(struct haltk ()) ;halting continuation
+(struct ifk (e1 e2 ρ)) ;if continuation
+(struct letk (a es ρ)) ;let continuation
+(struct can-start-loopk (ρ))
+(struct randk (xs vs ρ))
+(struct seqk (es ρ)) ;sequence continuation
+(struct setk (x ρ)) ;set! continuation
+(struct clo (λ ρ)) ;closure
+(struct lam (x es)) ;lambda
+
+;
+;tracing
+;
+
+(define global-tracer-context #f) ;TODO debugging
+
 (define list-of-expressions '())
 
-(define a-procedure #f)
+(struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced trace) #:transparent)
 
-(begin
-  (define meta-level-eval eval)
+(define (new-tracer-context)
+    (tracer-context #f #f '() '()))
+
+(define is-tracing? tracer-context-is-tracing?)
   
-;  
-;tracing-context
-;
-  
-  (define (make-tracer-context is-tracing? expression-to-be-traced expressions-already-traced)
-    (vector is-tracing? expression-to-be-traced expressions-already-traced))
-            
-  (define (new-tracer-context)
-    (make-tracer-context #f #f '()))
-  
-  (define (is-tracing? tracer-context)
-    (vector-ref tracer-context 0))
-  
-  (define (is-tracing-expression? tracer-context expression)
-    (eq? (vector-ref tracer-context 1) expression))
-  
-  (define (start-tracing-expression! tracer-context expression)
-    (vector-set! tracer-context 0 #t)
-    (vector-set! tracer-context 1 expression))
-  
-  (define (stop-tracing! tracer-context)
-    (vector-set! tracer-context 2 (cons (vector-ref tracer-context 1) (vector-ref tracer-context 2)))
-    (vector-set! tracer-context 0 #f)
-    (vector-set! tracer-context 1 #f))
-  
-  (define (is-expression-traced? tracer-context expression)
-    (member expression (vector-ref tracer-context 2)))
-  
-  (define (add-expression-traced! tracer-context expression)
-    (vector-set! tracer-context 2 (cons expression (vector-ref tracer-context 2))))
-  
-;
-; natives
-;
+(define (is-tracing-expression? tracer-context expression)
+  (eq? (tracer-context-expression-to-be-traced tracer-context) expression))
 
-  (define (wrap-native-procedure native-procedure)
-    (lambda (arguments continue environment tailcall tracer-context)
-      (let* ((native-value (meta-level-apply native-procedure arguments)))
-          (if (is-tracing? tracer-context)
-              (begin (display "(")
-                     (display native-procedure)
-                     (for-each (lambda (argument)
-                                 (display " " ) (display argument))
-                               arguments)
-                     (display ")")
-                     (newline)))
-        (continue native-value environment tracer-context))))
+(define (start-tracing-expression old-tracer-context expression)
+  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (expression-to-be-traced expression)))
 
-  (define (cps-apply expression continue environment tailcall tracer-context)
-    (define procedure (car expression))
-    (define arguments (cadr expression))
-    (procedure arguments continue environment tailcall tracer-context))
+(define (stop-tracing old-tracer-context)
+  (struct-copy tracer-context old-tracer-context
+               (expressions-already-traced (cons (cons (tracer-context-expression-to-be-traced old-tracer-context) (tracer-context-trace old-tracer-context))
+                                                 (tracer-context-expressions-already-traced old-tracer-context))) ;TODO assumes that the expression hasn't been traced already
+               (is-tracing? #f)
+               (expression-to-be-traced #f)
+               (trace '())))
 
-  (define (cps-map expression continue environment tailcall tracer-context)
-    (define procedure (car expression))
-    (define items (cadr expression))
-    (define (iterate items values)
-      (if (null? items)
-        (continue (reverse values) environment tracer-context)
-        (let* ((head (car items))
-              (tail (cdr items)))
-          (define (continue-after-item value environment tracer-context)
-            (iterate tail (cons value values)))
-          (procedure (list head) continue-after-item environment #f tracer-context))))
-    (iterate items '()))
+(define (expression-traced? tracer-context expression)
+  (assoc expression (tracer-context-expressions-already-traced tracer-context)))
 
- (define (cps-for-each expression continue environment tailcall tracer-context)
-    (define procedure (car expression))
-    (define items (cadr expression))
-    (define (iterate items)
-      (if (null? items)
-        (continue '() environment tracer-context)
-        (let* ((head (car items))
-              (tail (cdr items)))
-          (define (continue-after-item value environment tracer-context)
-            (iterate tail))
-          (procedure (list head) continue-after-item environment #f tracer-context))))
-    (iterate items))
+(define (add-to-trace old-tracer-context expression)
+  (struct-copy tracer-context old-tracer-context (trace (cons expression (tracer-context-trace old-tracer-context)))))
 
-  (define (cps-call-cc expression continue environment tailcall tracer-context)
-    (define procedure (car expression))
-    (define (continuation arguments dynamic-continue dynamic-environment tailcall)
-      (continue (car arguments) environment tracer-context))
-    (procedure (list continuation) continue environment tailcall tracer-context))
+;(define (add-expression-traced old-tracer-context expression) TODO redundant?
+ ; (struct-copy tracer-context old-tracer-context (expressions-already-traced (cons expression (vector-ref tracer-context 2)))))
 
 ;
-; read-eval-print
+;evaluation
 ;
 
-  (define (loop output environment)
-    
-    (define eval '())
-    
-    (define rollback environment)
+(struct evaluated-expression (expression tracer-context))
 
-    (define (error message qualifier)
-      (display message)
-      (loop qualifier rollback))
+(define (eval-seq es ρ σ κ)
+  (match es
+    ((list e) (ev e ρ σ κ))
+    ((cons e es) (ev e ρ σ (cons (seqk es ρ) κ)))))
 
-;
-; functions
-;
+(define (step state)
+  (match state
+    ((ev (and x (? symbol?)) ρ σ (cons φ κ))
+     (ko φ (match (assoc x ρ)
+             ((cons _ a) (cdr (assoc a σ)))
+             (_ (eval x ns))) σ κ)) ;symbol wasn't found in environment -> check in Racket namespace
+    ((ev `(can-start-loop ,e) ρ σ κ)
+     (ev e ρ σ (cons (can-start-loopk ρ) κ)))
+    ((ev `(define ,pattern . ,expressions) ρ σ (cons φ κ))
+     (if (symbol? pattern)
+          (let* ((fresh (gensym))
+                 (ρ* (cons (cons pattern fresh) ρ)))
+            (ev (car expressions) ρ* σ (cons (definevk fresh ρ*) (cons φ κ)))) ;TODO find a better solution for match of (cons φ κ)?
+          (let* ((fresh (gensym))
+                 (ρ* (cons (cons (car pattern) fresh) ρ))
+                 (procedure (clo (lam (cdr pattern) expressions) ρ*))
+                 (σ* (cons (cons fresh procedure) σ)))
+              (ko φ procedure σ* κ))))
+    ((ev `(lambda ,x ,es ...) ρ σ (cons φ κ))
+     (ko φ (clo (lam x es) ρ) σ κ))
+    ((ev `(if ,e ,e1 ,e2) ρ σ κ)
+     (ev e ρ σ (cons (ifk e1 e2 ρ) κ)))
+    ((ev `(letrec ((,x ,e)) ,es ...) ρ σ κ)
+     (let* ((fresh (gensym))
+            (ρ* (cons (cons x fresh) ρ)))
+       (ev e ρ* σ (cons (letk fresh es ρ*) κ))))
+    ((ev `(quote ,e) ρ σ (cons φ κ))
+     (ko φ e σ κ))
+    ((ev `(set! ,x ,e) ρ σ κ)
+     (ev e ρ σ (cons (setk x ρ) κ)))
+    ((ev `(begin ,es ...) ρ σ κ)
+     (eval-seq es ρ σ κ))
+    ((ev `(,rator . ,rands) ρ σ κ)
+     (ev rator ρ σ (cons (randk rands '() ρ) κ)))
+    ((ev e ρ σ (cons φ κ)) ;literal
+     (ko φ e σ κ))
+    ((ko (definevk x ρ) v σ (cons φ κ))
+     (let ((σ* (cons (cons x v) σ)))
+       (ko φ v σ* κ)))
+    ((ko (letk a es ρ) v σ κ)
+     (let ((σ* (cons (cons a v) σ)))
+       (eval-seq es ρ σ* κ)))
+    ((ko (setk x ρ) v σ (cons φ κ))
+     (match (assoc x ρ)
+       ((cons name a) (ko φ v (cons (cons a v) σ) κ))))
+    ((ko (randk '() vs ρ) v σ κ)
+     (let ((vs (reverse (cons v vs))))
+       (ap (car vs) (cdr vs) ρ σ κ)))
+    ((ap (clo (lam x es) ρ*) rands ρ σ κ)
+     (let loop ((x x) (rands rands) (ρ ρ*) (σ σ))
+       (match x
+         ('() (eval-seq es ρ σ κ))
+         ((cons x xs)
+          (let ((fresh (gensym)))
+            (loop xs (cdr rands)
+                  (cons (cons x fresh) ρ)
+                  (cons (cons fresh (car rands)) σ))))
+         ((and x (? symbol?))
+          (let ((fresh (gensym)))
+            (eval-seq es
+                      (cons (cons x fresh) ρ)
+                      (cons (cons fresh rands) σ) κ))))))
+    ((ap rator rands _ σ (cons φ κ))
+     (ko φ (apply rator rands) σ κ))
+    ((ko (randk rands vs ρ) v σ κ)
+     (ev (car rands) ρ σ (cons (randk (cdr rands) (cons v vs) ρ) κ)))
+    ((ko (ifk _ e2 ρ) #f σ κ)
+     (ev e2 ρ σ κ))
+    ((ko (ifk e1 _ ρ) _ σ κ)
+     (ev e1 ρ σ κ))
+    ((ko (seqk (list e) ρ) _ σ κ)
+     (ev e ρ σ κ))
+    ((ko (seqk (cons e exps) ρ) _ σ κ)
+     (ev e ρ σ (cons (seqk exps ρ) κ)))
+    ((ko (haltk) v _ _)
+     #f)))
 
-    (define (bind-variable variable value environment)
-      (define binding (cons variable value))
-      (cons binding environment))
+(define (extract s)
+  (match s
+    ((finished-run (ko (haltk) v _ _) tracer-context) (finished-run v tracer-context))
+    (_ 'error)))
 
-    (define (bind-parameters parameters arguments environment)
-      (if (symbol? parameters)
-        (bind-variable parameters arguments environment)
-        (if (pair? parameters)
-          (let*
-            ((variable (car parameters))
-             (value (car arguments ))
-             (environment (bind-variable variable value environment)))
-            (bind-parameters (cdr parameters) (cdr arguments) environment))
-          environment)))
+(define (state-eval e tracer-context)
+  (extract (run (inject e) tracer-context)))
 
-    (define (evaluate-sequence expressions continue environment tailcall tracer-context)
-      (define head (car expressions))
-      (define tail (cdr expressions))
-      (define (continue-with-sequence value environment tracer-context)
-        (evaluate-sequence tail continue environment tailcall tracer-context))
-      (if (null? tail)
-        (eval head continue environment tailcall tracer-context)
-        (eval head continue-with-sequence environment #f tracer-context)))
+#|
 
-    (define (make-procedure parameters expressions environment)
-      (lambda (arguments continue dynamic-environment tailcall tracer-context)
-        (define (continue-after-sequence value environment-after-sequence tracer-context)
-          (continue value dynamic-environment tracer-context))
-        (define lexical-environment (bind-parameters parameters arguments environment))
-        (if tailcall
-          (evaluate-sequence expressions continue lexical-environment #t tracer-context)
-          (evaluate-sequence expressions continue-after-sequence lexical-environment #t tracer-context))))
+We can also gather the visited states in a list.
 
-;
-; evaluation functions
-;
+And use it to create a trace of the program.
 
-    (define (evaluate-application operator)
-      (lambda operands
-        (lambda (continue environment tailcall tracer-context)
-          (define (continue-after-operator procedure environment-after-operator tracer-context)
-            (define (evaluate-operands operands arguments environment)
-              (define (continue-with-operands value environment-with-operands tracer-context)
-                (evaluate-operands (cdr operands) (cons value arguments) environment-with-operands))
-              (if (null? operands)
-                (procedure (reverse arguments) continue environment tailcall tracer-context)
-                (eval (car operands) continue-with-operands environment #f tracer-context)))
-            (if (not a-procedure)
-                (set! a-procedure procedure))
-            (evaluate-operands operands '() environment-after-operator))
-          (eval operator continue-after-operator environment #f tracer-context))))
+(define s0 (inject e)) ; initial state
+(define τ (trace s0)) ; trace it
 
-    (define (evaluate-begin . expressions)
-      (lambda (continue environment tailcall tracer-context)
-        (evaluate-sequence expressions continue environment tailcall tracer-context)))
-    
-    (define (evaluate-can-start-loop expression)
-      (lambda (continue environment tailcall tracer-context)
-        (define (continue-after-expression expression environment-after-continuation tracer-context)
-          (cond ((is-expression-traced? tracer-context expression) (display "expression already traced!") (newline))
-                ((is-tracing-expression? tracer-context expression) (display "stop looping!") (newline) (stop-tracing! tracer-context))
-                ((member expression list-of-expressions) (display "looping!") (newline) (start-tracing-expression! tracer-context expression))
-                (else (set! list-of-expressions (cons expression list-of-expressions))))
-          (continue '() environment tracer-context))
-        (display list-of-expressions) (newline)
-        (display "number of distinct expressions: ") (display (length list-of-expressions)) (newline)
-        (eval expression continue-after-expression environment tailcall tracer-context)))
-    
-    (define (evaluate-cond . expressions)
-      (lambda (continue environment tailcall tracer-context)
-        (define (evaluate-expressions expressions)
-          (define (continue-after-predicate boolean environment-after-predicate tracer-context)
-            (if (eq? boolean #f)
-                (evaluate-expressions (cdr expressions))
-                (evaluate-sequence (cdar expressions) continue environment-after-predicate tailcall tracer-context)))
-          (cond ((null? expressions) (continue '() environment tracer-context))
-                ((eq? (caar expressions) 'else) (evaluate-sequence (cdar expressions) continue environment tailcall tracer-context))
-                (else (eval (caar expressions) continue-after-predicate environment #f tracer-context))))
-        (evaluate-expressions expressions)))
+|#
 
-    (define (evaluate-define pattern . expressions)
-      (lambda (continue environment tailcall tracer-context)
-        (define (continue-after-expression value environment-after-expression tracer-context)
-          (define binding (cons pattern value))
-          (continue value (cons binding environment-after-expression) tracer-context))
-        (if (symbol? pattern)
-          (eval (car expressions) continue-after-expression environment #f tracer-context)
-          (let* ((binding (cons (car pattern) '()))
-                 (environment (cons binding environment))
-                 (procedure (make-procedure (cdr pattern) expressions environment)))
-              (set-cdr! binding procedure)
-              (continue procedure environment tracer-context)))))
+(define (trace s)
+  (if s
+      (append `(,s) (trace (step s)))
+      '()))
 
-    (define (evaluate-if predicate consequent . alternative) ;beware of guards
-      (lambda (continue environment tailcall tracer-context)
-        (define (continue-after-predicate boolean environment-after-predicate tracer-context)
-          (if (eq? boolean #f) 
-            (if (null? alternative)
-              (continue '() environment-after-predicate tracer-context)
-              (eval (car alternative) continue environment-after-predicate tailcall tracer-context))
-            (eval consequent continue environment-after-predicate tailcall tracer-context)))
-        (eval predicate continue-after-predicate environment #f tracer-context)))
+; inject expression into eval state
+(define (inject e)
+  (ev e '() '() `(,(haltk))))
 
-    (define (evaluate-lambda parameters . expressions)
-      (lambda (continue environment tailcall tracer-context)
-        (continue (make-procedure parameters expressions environment) environment tracer-context)))
-    
-    (define (evaluate-let* . expressions)
-      (lambda (continue environment tailcall tracer-context)
-        (let* ((bindings (car expressions))
-               (body (cdr expressions)))
-          (define (evaluate-bindings bindings environment)
-            (define (continue-after-binding value environment-after-binding tracer-context)
-              (let* ((variable-name (caar bindings))
-                     (binding (cons variable-name value))
-                     (new-environment (cons binding environment)))
-                (evaluate-bindings (cdr bindings) new-environment)))
-            (if (null? bindings)
-                (evaluate-sequence body continue environment tailcall tracer-context)
-                (eval (cadar bindings) continue-after-binding environment #f tracer-context)))
-          (evaluate-bindings bindings environment))))
+(struct finished-run (value tracer-context))
 
-    (define (evaluate-quote expression)
-      (lambda (continue environment tailcall tracer-context)
-        (continue expression environment tracer-context)))
+; run
+(define (run s tracer-context)
+  (match s
+    ((ko (haltk) v _ _)
+     (finished-run s tracer-context)) ; exit
+    ((ko (can-start-loopk ρ) v σ κ) ; intercept "loop" annotation
+     (let ((s* (ev v ρ σ κ)))
+       (cond ((expression-traced? tracer-context v) ; if compiled trace
+              (run (run-trace tracer-context s*) tracer-context)) ; run compiled trace with fallback
+             ((is-tracing-expression? tracer-context v)
+              (let ((compiled-tracer-context (compile-trace (reverse tracer-context))))
+                (run s compiled-tracer-context)))
+             (else (run s* (start-tracing-expression tracer-context v)))))) ; run with tracing on
+    (s
+     (run (step s) (if (is-tracing? tracer-context) ;add the state to the trace if tracing, otherwise just step
+                       (add-to-trace tracer-context s)
+                       tracer-context)))))
 
-    (define (evaluate-set! variable expression)
-      (lambda (continue environment tailcall tracer-context)
-        (define (continue-after-expression value environment-after-expression tracer-context)
-          (define binding (assoc variable environment-after-expression))
-          (if binding
-            (set-cdr! binding value)
-            (error "inaccessible variable: " variable))
-          (continue value environment-after-expression tracer-context))
-        (eval expression continue-after-expression environment #f tracer-context)))
+#|
+; run with tracing
+(define (trace-run s expression tracer-context τ)
+  (match s
+    ((ko (haltk) v _ _)
+     (cons v (stop-tracing tracer-context))) ;exit
+    ((ev `(loop ,e) ρ σ κ) ;doesn't check whether the loop is actually closed
+     (if (is-tracing-expression? tracer-context e)
+         (let ((c (compile-trace (reverse τ))))
+           (run s c))
+         'TODO)) ; back to regular running
+    (s (trace-run (step s) (cons s τ))))) ; continue tracing
 
-    (define (evaluate-variable variable continue environment tracer-context)
-      (define binding (assoc variable environment))
-      (cond (binding (continue (cdr binding) environment tracer-context))
-            (else (let* ((native-value (meta-level-eval variable (interaction-environment))))
-                    (if (procedure? native-value)
-                        (continue (wrap-native-procedure native-value) environment tracer-context)
-                        (continue native-value environment tracer-context))))))
+|#
 
-    (define (evaluate-while predicate . expressions)
-      (lambda (continue environment tailcall tracer-context)
-        (define (iterate value environment)
-          (define (continue-after-predicate boolean environment-after-predicate tracer-context)
-            (define (continue-after-sequence value environment-after-sequence tracer-context)
-              (iterate value environment))
-            (if (eq? boolean #f)
-              (continue value environment tracer-context)
-              (evaluate-sequence expressions continue-after-sequence environment #f tracer-context)))
-          (eval predicate continue-after-predicate environment #f tracer-context))
-        (iterate '() environment)))
+; dummy compiler
+(define (compile-trace tracer-context)
+  (display "COMPILED ") (display (tracer-context-trace tracer-context)) (newline)
+  tracer-context)
 
-;
-; evaluator
-;
-  
-    (define (evaluate expression continue environment tailcall tracer-context)
-      (cond
-        ((symbol? expression)
-         (evaluate-variable expression continue environment tracer-context))
-        ((pair? expression)
-         (let* ((operator (car expression))
-               (operands (cdr expression)))
-           ((apply
-             (cond ((eq? operator 'begin) evaluate-begin)
-                   ((eq? operator 'can-start-loop) evaluate-can-start-loop)
-                   ((eq? operator 'cond) evaluate-cond)
-                   ((eq? operator 'define) evaluate-define)
-                   ((eq? operator 'if) evaluate-if)
-                   ((eq? operator 'lambda) evaluate-lambda)
-                   ((eq? operator 'let*) evaluate-let*)
-                   ((eq? operator 'quote) evaluate-quote)
-                   ((eq? operator 'set!) evaluate-set!)
-                   ((eq? operator 'while) evaluate-while)
-                   (else (evaluate-application operator))) operands) continue environment tailcall tracer-context)))
-        (else
-          (continue expression environment tracer-context))))
+; dummy trace runner that falls back to regular interpreter
+(define (run-trace c s)
+  (display "RUN") (newline)
+  s)
 
-;
-; read-eval-print
-;
-    
-    (set! eval evaluate) 
+(define (loop value tracer-context)
+  (newline)
+  (display value) (newline)
+  (display ">>>")
+  (let* ((finished-run (state-eval (read) tracer-context))
+         (new-tracer-context (finished-run-tracer-context finished-run)))
+    (set! global-tracer-context new-tracer-context)
+    (loop (finished-run-value finished-run) new-tracer-context)))
 
-    (display output)
-    (newline)
-    (display ">>>")
-    (eval (read) loop environment #f (new-tracer-context)))
-
-  (loop "cpSlip* version 3" (list (cons 'apply    cps-apply   ) 
-                                  (cons 'map      cps-map     ) 
-                                  (cons 'for-each cps-for-each) 
-                                  (cons 'call-cc  cps-call-cc ))))
+(define fib-t '(letrec ((fib (lambda (n) (loop (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))))) (fib 10)))
