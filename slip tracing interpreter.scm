@@ -162,7 +162,7 @@
     ((ko (seqk (list e) ρ) _ ρ* σ κ)
      (ev e ρ* σ κ))
     ((ko (seqk (cons e exps) ρ) _ ρ* σ κ)
-     (ev e ρ σ (cons (seqk exps ρ) κ)))
+     (ev e ρ* σ (cons (seqk exps ρ*) κ)))
     ((ko (haltk) v _ _ _)
      #f)))
 
