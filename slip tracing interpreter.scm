@@ -65,6 +65,8 @@
 
 (struct evaluated-expression (expression tracer-context))
 
+(define clo-apply (clo (lam 'operands '(apply (car operands) (cdr operands))) '()))
+
 (define (eval-seq es ρ σ κ)
   (match es
     ((list e) (ev e ρ σ κ))
@@ -134,7 +136,7 @@
     ((ko (setk x ρ) v ρ σ (cons φ κ))
      (match (assoc x ρ)
        ((cons name a) (ko φ v ρ (cons (cons a v) σ) κ))))
-    ((ko (randk '() vs ρ) v ρ σ κ)
+    ((ko (randk '() vs ρ) v ρ* σ κ)
      (let ((vs (reverse (cons v vs))))
        (ap (car vs) (cdr vs) ρ σ κ)))
     ((ap (clo (lam x es) ρ*) rands ρ σ κ)
@@ -192,7 +194,8 @@ And use it to create a trace of the program.
 
 ; inject expression into eval state
 (define (inject e)
-  (ev e '() '() `(,(haltk))))
+  (let ((apply-sym (gensym)))
+    (ev e (list (cons 'apply apply-sym)) (list (cons apply-sym clo-apply)) `(,(haltk)))))
 
 (struct finished-run (value tracer-context))
 
@@ -201,13 +204,13 @@ And use it to create a trace of the program.
   (match s
     ((ko (haltk) v _ _ _)
      (finished-run s tracer-context)) ; exit
-    ((ko (can-start-loopk ρ) v ρ* σ κ) ; intercept "loop" annotation
-     (let ((s* (ev v ρ σ κ)))
+    ((ko (can-start-loopk ρ) v ρ* σ (cons φ κ)) ; intercept "loop" annotation
+     (let ((s* (ko φ '() ρ* σ κ)))
        (cond ((expression-traced? tracer-context v) ; if compiled trace
               (run (run-trace tracer-context s*) tracer-context)) ; run compiled trace with fallback
              ((is-tracing-expression? tracer-context v)
-              (let ((compiled-tracer-context (compile-trace (reverse tracer-context))))
-                (run s compiled-tracer-context)))
+              (let ((compiled-tracer-context (compile-trace tracer-context)))
+                (run s* (stop-tracing compiled-tracer-context))))
              (else (run s* (start-tracing-expression tracer-context v)))))) ; run with tracing on
     (s
      (run (step s) (if (is-tracing? tracer-context) ;add the state to the trace if tracing, otherwise just step
