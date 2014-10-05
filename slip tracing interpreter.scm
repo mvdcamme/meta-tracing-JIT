@@ -67,7 +67,7 @@
   (struct-copy tracer-context old-tracer-context (trace (append (tracer-context-trace old-tracer-context) (list expression)))))
 
 (define (add-trace-transition old-tracer-context transition)
-  (struct-copy tracer-context old-tracer-context (trace-transitions (cons transition (tracer-context-trace-transitions old-tracer-context)))))
+  (struct-copy tracer-context old-tracer-context (trace-transitions (append (tracer-context-trace-transitions old-tracer-context) (list transition)))))
 
 ;(define (add-expression-traced old-tracer-context expression) TODO redundant?
  ; (struct-copy tracer-context old-tracer-context (expressions-already-traced (cons expression (vector-ref tracer-context 2)))))
@@ -145,6 +145,7 @@
      (set! tracer-context (add-trace-transition tracer-context (put-val e)))
      (ko φ e ρ σ κ))
     ((ko (condk pred-expressions expressions ρ) pred-value ρ* σ κ)
+     (set! tracer-context (add-trace-transition tracer-context (rem-val)))
      (if pred-value
          (eval-seq pred-expressions ρ σ κ)
          (ev `(cond ,@expressions) ρ σ κ)))
@@ -199,8 +200,10 @@
      ;(set! tracer-context (add-trace-transition tracer-context (put-val ρ σ))) TODO not necessary since it should already be done in an earlier step?
      (ev (car rands) ρ σ (cons (randk (cdr rands) (cons v vs) ρ) κ)))
     ((ko (ifk _ e2 ρ) #f ρ* σ κ)
+     (set! tracer-context (add-trace-transition tracer-context (rem-val)))
      (ev e2 ρ σ κ))
     ((ko (ifk e1 _ ρ) _ ρ* σ κ)
+     (set! tracer-context (add-trace-transition tracer-context (rem-val)))
      (ev e1 ρ σ κ))
     ((ko (seqk (list e) ρ) _ ρ* σ κ)
      (set! tracer-context (add-trace-transition tracer-context (set-env-store ρ* σ)))
@@ -230,15 +233,21 @@
     ((set-env-store ρ* σ*)
      (struct-copy traced-state s (ρ ρ*) (σ σ*)))
     ((apply-nat-fun nat-fun n)
+     (print nat-fun)
      (let* ((vals (take (traced-state-values s) n))
             (result (apply nat-fun vals)))
      (struct-copy traced-state s (values (cons result (drop (traced-state-values s) n))))))
     ((put-val val)
      (struct-copy traced-state s (values (cons val (traced-state-values s)))))
     ((put-var-lookup var-name)
-     (let* ((symbol (cdr (assoc var-name (traced-state-ρ s))))
-            (value (cdr (assoc symbol (traced-state-ρ s)))))
-       (struct-copy traced-state s (values (cons value (traced-state-values s))))))
+     (let ((binding (assoc var-name (traced-state-ρ s)))
+           (val '()))
+       (if binding
+           (let* ((symbol (cdr binding))            
+                  (value (cdr (assoc symbol (traced-state-σ s)))))
+             (set! val value))
+           (set! val (eval var-name (make-base-namespace))))
+       (struct-copy traced-state s (values (cons val (traced-state-values s))))))
     ((rem-val)
      (struct-copy traced-state s (values (cdr (traced-state-values s)))))))
 
