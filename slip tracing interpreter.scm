@@ -7,6 +7,7 @@
 (define ns (make-base-namespace))
 (struct ev (e κ) #:transparent)
 (struct ko (φ κ) #:transparent)
+(struct definevk (x)) ;define variable
 (struct letk (x es))
 (struct setk (x))
 (struct ifk (e1 e2))
@@ -104,6 +105,17 @@
      (execute
       (lookup-var x))
       (ko φ κ))
+    ((ev `(define ,pattern . ,expressions) κ)
+     (if (symbol? pattern)
+         (begin (execute
+                 (save-env))
+                (ev (car expressions) (cons (definevk pattern) κ)))
+         (begin (execute
+                 (alloc-var (car pattern))
+                 (create-closure (cdr pattern) expressions)
+                 (set-var (car pattern)))
+                (match κ
+                  ((cons φ κ) (ko φ κ))))))
     ((ev `(lambda ,x ,es ...) (cons φ κ))
      (execute
       (create-closure x es))
@@ -140,6 +152,12 @@
     ((ev e (cons φ κ))
      (execute
       (literal-value e))
+     (ko φ κ))
+    ((ko (definevk x) (cons φ κ))
+     (execute
+      (restore-env)
+      (alloc-var x)
+      (set-var x))
      (ko φ κ))
     ((ko (letk x es) κ)
      (execute
