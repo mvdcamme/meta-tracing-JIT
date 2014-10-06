@@ -212,10 +212,10 @@
      (if v
          (ev e1 κ)
          (ev e2 κ)))
-    ((ko (seqk (list e)) κ)
+    ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
      (execute
       (restore-env))
-     (ev e κ))
+     (ko φ κ))
     ((ko (seqk (cons e exps)) κ)
      (ev e (cons (seqk exps) κ)))
     ((ko (haltk) _)
