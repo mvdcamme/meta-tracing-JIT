@@ -20,8 +20,6 @@
 (struct clo (λ ρ))
 (struct lam (x es))
 
-(struct state (e ρ σ κ))
-
 (struct save-val () #:transparent)
 (struct restore-val () #:transparent)
 (struct restore-vals (i) #:transparent)
@@ -44,8 +42,44 @@
 (define v #f) ; value
 (define τ #f) ; trace
 
+(struct state (e ρ σ κ))
+
 (define (generate-state e κ)
   (state e ρ σ κ))
+
+;
+;tracing
+;
+
+(define global-tracer-context #f) ;TODO debugging
+
+(struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced) #:transparent)
+
+(define (new-tracer-context)
+  (tracer-context #t #f '())) ;TODO debugging: should actually start from is-tracing? = #f
+
+(define is-tracing? tracer-context-is-tracing?)
+
+(define (is-tracing-expression? tracer-context expression)
+  (eq? (tracer-context-expression-to-be-traced tracer-context) expression))
+
+(define (start-tracing-expression old-tracer-context expression)
+  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (expression-to-be-traced expression)))
+
+(define (stop-tracing old-tracer-context)
+  (struct-copy tracer-context old-tracer-context
+               (expressions-already-traced
+                (cons (cons (tracer-context-expression-to-be-traced old-tracer-context) τ)
+                      (tracer-context-expressions-already-traced old-tracer-context))) ;TODO assumes that the expression hasn't been traced already
+               (is-tracing? #f)
+               (expression-to-be-traced #f)))
+
+(define (expression-traced? tracer-context expression)
+  (assoc expression (tracer-context-expressions-already-traced tracer-context)))
+
+;
+;evaluation
+;
 
 (define (step-trace m)
   (match m
@@ -105,175 +139,184 @@
 (define (append-trace ms)
   (and τ (set! τ (append τ ms))))
 
-(define (execute . ms)
-  (append-trace ms)
+(define (execute tracer-context . ms)
+  (and (is-tracing? tracer-context)
+       (append-trace ms))
   (run-trace ms))
 
-(define (eval-seq es κ)
+(define (eval-seq tracer-context es κ)
   (match es
     ((list e)
      (ev e κ))
     ((cons e es)
-     (execute
-      (save-env))
+     (execute tracer-context
+              (save-env))
      (ev e (cons (seqk es) κ)))))
 
-(define (step state)
-  (match state
-    ((ev (? symbol? x) (cons φ κ))
-     (execute
-      (lookup-var x))
+(define (step state tracer-context)
+  (cons
+   (match state
+     ((ev (? symbol? x) (cons φ κ))
+      (execute tracer-context
+               (lookup-var x))
       (ko φ κ))
-    ((ev `(begin ,es ...) κ)
-     (eval-seq es κ))
-    ((ev `(cond) (cons φ κ))
-     (execute
-      (literal-value '()))
-     (ko φ κ))
-    ((ev `(cond (else . ,es)) κ)
-     (eval-seq es κ))
-    ((ev `(cond (,pred . ,pes) . ,es) κ)
-     (execute
-      (save-env))
-     (ev pred (cons (condk pes es) κ)))
-    ((ev `(define ,pattern . ,expressions) κ)
-     (if (symbol? pattern)
-         (begin (execute
-                 (save-env))
-                (ev (car expressions) (cons (definevk pattern) κ)))
-         (begin (execute
-                 (alloc-var (car pattern))
-                 (create-closure (cdr pattern) expressions)
-                 (set-var (car pattern)))
-                (match κ
-                  ((cons φ κ) (ko φ κ))))))
-    ((ev `(if ,e ,e1 ,e2) κ)
-     (execute
-      (save-env))
-     (ev e (cons (ifk e1 e2) κ)))
-    ((ev `(lambda ,x ,es ...) (cons φ κ))
-     (execute
-      (create-closure x es))
-     (ko φ κ))
-    ((ev `(let* () . ,expressions) κ)
-     (eval-seq expressions κ))
-    ((ev `(let* ((,var-name ,value) . ,other-bindings) . ,expressions) κ)
-     (execute
-      (save-env))
-     (ev value (cons (let*k var-name other-bindings expressions) κ)))
-    ((ev `(letrec ((,x ,e)) ,es ...) κ)
-     (execute
-      (literal-value 'undefined)
-      (alloc-var x)
-      (save-env))
-     (ev e (cons (letk x es) κ)))
-    ((ev `(quote ,e) (cons φ κ))
-     (execute
-      (quote-value e))
-     (ko φ κ))
-    ((ev `(set! ,x ,e) κ)
-     (execute
-      (save-env))
-     (ev e (cons (setk x) κ)))
-    ((ev `(,rator) κ)
-     (execute
-      (save-env))
-     (ev rator (cons (ratork 0) κ)))
-    ((ev `(,rator . ,rands) κ)
-     (execute
-      (save-env))
-     (let ((rrands (reverse rands)))
-       (ev (car rrands) (cons (randk rator (cdr rrands) 1) κ))))
-    ((ev e (cons φ κ))
-     (execute
-      (literal-value e))
-     (ko φ κ))
-    ((ko (condk pes es) κ)
-     (execute 
-      (restore-env))
-     (if v
-         (begin (execute 
-                 (put-guard-true (generate-state `(cond ,@es) κ)))
-                (eval-seq pes κ))
-         (begin (execute
-                 (put-guard-false (generate-state `(begin ,@pes) κ)))
-                (ev `(cond ,@es) κ))))
-    ((ko (definevk x) (cons φ κ))
-     (execute
-      (restore-env)
-      (alloc-var x)
-      (set-var x))
-     (ko φ κ))
-    ((ko (letk x es) κ)
-     (execute
-      (restore-env)
-      (set-var x))
-     (eval-seq es κ))
-    ((ko (let*k x bds es) κ)
-     (execute (restore-env)
-              (alloc-var x)
-              (set-var x))
-     (ev `(let* ,bds ,@es) κ))
-    ((ko (setk x) (cons φ κ))
-     (execute
-      (restore-env)
-      (set-var x))
-     (ko φ κ))
-    ((ko (randk rator '() i) κ)
-     (execute
-      (restore-env)
-      (save-val)
-      (save-env))
-     (ev rator (cons (ratork i) κ)))
-    ((ko (randk rator rands i) κ)
-     (execute
-      (restore-env)
-      (save-val)
-      (save-env))
-     (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
-    ((ko (ratork i) κ)
-     (execute
-      (restore-env))
-     (match v
-       ((clo (lam x es) ρ)
-        (execute
-         (set-env ρ))
-        (let loop ((i i) (x x))
-          (match x
-            ('()
-             (eval-seq es κ))
-            ((cons x xs)
-             (execute
-              (restore-val)
-              (alloc-var x))
+     ((ev `(begin ,es ...) κ)
+      (eval-seq tracer-context es κ))
+     ((ev `(can-start-loop ,e) κ)
+      (cond ((expression-traced? tracer-context e) (display "TODO Switch to trace-execution!") (newline))
+            ((is-tracing-expression? tracer-context e) (set! tracer-context (stop-tracing tracer-context)))
+            ((not (is-tracing? tracer-context)) (set! tracer-context (start-tracing-expression tracer-context e))))
+      (ev e κ))
+     ((ev `(cond) (cons φ κ))
+      (execute tracer-context
+               (literal-value '()))
+      (ko φ κ))
+     ((ev `(cond (else . ,es)) κ)
+      (eval-seq tracer-context es κ))
+     ((ev `(cond (,pred . ,pes) . ,es) κ)
+      (execute tracer-context
+               (save-env))
+      (ev pred (cons (condk pes es) κ)))
+     ((ev `(define ,pattern . ,expressions) κ)
+      (if (symbol? pattern)
+          (begin (execute tracer-context
+                          (save-env))
+                 (ev (car expressions) (cons (definevk pattern) κ)))
+          (begin (execute tracer-context
+                          (alloc-var (car pattern))
+                          (create-closure (cdr pattern) expressions)
+                          (set-var (car pattern)))
+                 (match κ
+                   ((cons φ κ) (ko φ κ))))))
+     ((ev `(if ,e ,e1 ,e2) κ)
+      (execute tracer-context
+               (save-env))
+      (ev e (cons (ifk e1 e2) κ)))
+     ((ev `(lambda ,x ,es ...) (cons φ κ))
+      (execute tracer-context
+               (create-closure x es))
+      (ko φ κ))
+     ((ev `(let* () . ,expressions) κ)
+      (eval-seq tracer-context expressions κ))
+     ((ev `(let* ((,var-name ,value) . ,other-bindings) . ,expressions) κ)
+      (execute tracer-context
+               (save-env))
+      (ev value (cons (let*k var-name other-bindings expressions) κ)))
+     ((ev `(letrec ((,x ,e)) ,es ...) κ)
+      (execute tracer-context
+               (literal-value 'undefined)
+               (alloc-var x)
+               (save-env))
+      (ev e (cons (letk x es) κ)))
+     ((ev `(quote ,e) (cons φ κ))
+      (execute tracer-context
+               (quote-value e))
+      (ko φ κ))
+     ((ev `(set! ,x ,e) κ)
+      (execute tracer-context
+               (save-env))
+      (ev e (cons (setk x) κ)))
+     ((ev `(,rator) κ)
+      (execute tracer-context
+               (save-env))
+      (ev rator (cons (ratork 0) κ)))
+     ((ev `(,rator . ,rands) κ)
+      (execute tracer-context
+               (save-env))
+      (let ((rrands (reverse rands)))
+        (ev (car rrands) (cons (randk rator (cdr rrands) 1) κ))))
+     ((ev e (cons φ κ))
+      (execute tracer-context
+               (literal-value e))
+      (ko φ κ))
+     ((ko (condk pes es) κ)
+      (execute tracer-context
+               (restore-env))
+      (if v
+          (begin (execute tracer-context
+                          (put-guard-true (generate-state `(cond ,@es) κ)))
+                 (eval-seq tracer-context pes κ))
+          (begin (execute tracer-context
+                          (put-guard-false (generate-state `(begin ,@pes) κ)))
+                 (ev `(cond ,@es) κ))))
+     ((ko (definevk x) (cons φ κ))
+      (execute tracer-context
+               (restore-env)
+               (alloc-var x)
+               (set-var x))
+      (ko φ κ))
+     ((ko (letk x es) κ)
+      (execute tracer-context
+               (restore-env)
+               (set-var x))
+      (eval-seq tracer-context es κ))
+     ((ko (let*k x bds es) κ)
+      (execute tracer-context
+               (restore-env)
+               (alloc-var x)
+               (set-var x))
+      (ev `(let* ,bds ,@es) κ))
+     ((ko (setk x) (cons φ κ))
+      (execute tracer-context
+               (restore-env)
+               (set-var x))
+      (ko φ κ))
+     ((ko (randk rator '() i) κ)
+      (execute tracer-context
+               (restore-env)
+               (save-val)
+               (save-env))
+      (ev rator (cons (ratork i) κ)))
+     ((ko (randk rator rands i) κ)
+      (execute tracer-context
+               (restore-env)
+               (save-val)
+               (save-env))
+      (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
+     ((ko (ratork i) κ)
+      (execute tracer-context
+               (restore-env))
+      (match v
+        ((clo (lam x es) ρ)
+         (execute tracer-context
+                  (set-env ρ))
+         (let loop ((i i) (x x))
+           (match x
+             ('()
+              (eval-seq tracer-context es κ))
+             ((cons x xs)
+              (execute tracer-context
+                       (restore-val)
+                       (alloc-var x))
               (loop (- i 1) xs))
-            ((? symbol? x)
-             (execute
-              (restore-vals i)
-              (alloc-var x))
-             (eval-seq es κ)))))
-       (_
-        (execute
-         (apply-native i))
-        (ko (car κ) (cdr κ)))))
-    ((ko (ifk e1 e2) κ)
-     (execute
-      (restore-env))
-     (if v
-         (begin (execute
-                 (put-guard-true (generate-state e2 κ))) ;If the guard fails, the predicate was false, so e2 should be evaluated
-                (ev e1 κ))
-         (begin (execute
-                 (put-guard-false (generate-state e1 κ))) ;If the guard fails, the predicate was true, so e1 should be evaluated
-                (ev e2 κ))))
-    ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
-     (execute
-      (restore-env))
-     (ko φ κ))
-    ((ko (seqk (cons e exps)) κ)
-     (ev e (cons (seqk exps) κ)))
-    ((ko (haltk) _)
-     #f)))
+             ((? symbol? x)
+              (execute tracer-context
+                       (restore-vals i)
+                       (alloc-var x))
+              (eval-seq tracer-context es κ)))))
+        (_
+         (execute tracer-context
+                  (apply-native i))
+         (ko (car κ) (cdr κ)))))
+     ((ko (ifk e1 e2) κ)
+      (execute tracer-context
+               (restore-env))
+      (if v
+          (begin (execute tracer-context
+                  (put-guard-true (generate-state e2 κ))) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                 (ev e1 κ))
+          (begin (execute tracer-context
+                  (put-guard-false (generate-state e1 κ))) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                 (ev e2 κ))))
+     ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
+      (execute tracer-context
+               (restore-env))
+      (ko φ κ))
+     ((ko (seqk (cons e exps)) κ)
+      (ev e (cons (seqk exps) κ)))
+     ((ko (haltk) _)
+      #f))
+   tracer-context))
 
 (define (inject e)
   (ev e `(,(haltk))))
@@ -286,8 +329,14 @@
 
 (define (run s)
   (reset)
-  (let loop ((s s))
+  (let loop ((s s)
+             (tracer-context (new-tracer-context)))
     (match s
       ((ko (haltk) _)
+       (set! global-tracer-context tracer-context)
        v)
-      (_ (loop (step s))))))
+      (_
+       (let* ((result (step s tracer-context))
+              (new-state (car result))
+              (new-tracer-context (cdr result)))
+         (loop new-state new-tracer-context))))))
