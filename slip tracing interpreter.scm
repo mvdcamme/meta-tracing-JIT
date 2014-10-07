@@ -35,6 +35,7 @@
 (struct apply-native (i) #:transparent)
 (struct put-guard-false (state) #:transparent)
 (struct put-guard-true (state) #:transparent)
+(struct load-state (ρ σ) #:transparent)
 
 (define ρ #f) ; env
 (define σ #f) ; store
@@ -56,7 +57,7 @@
 (struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced) #:transparent)
 
 (define (new-tracer-context)
-  (tracer-context #t #f '())) ;TODO debugging: should actually start from is-tracing? = #f
+  (tracer-context #f #f '())) ;TODO except for debugging, is-tracing? should always start from #f
 
 (define is-tracing? tracer-context-is-tracing?)
 
@@ -126,7 +127,12 @@
     ((apply-native i)
      (let ((rands (take θ i)))
        (set! θ (drop θ i))
-       (set! v (apply v rands))))))
+       (set! v (apply v rands))))
+    ((load-state ρ* σ*)
+     (set! ρ ρ*)
+     (set! σ σ*)
+     (set! θ '())
+     (set! v #f))))
   ;(display θ) (newline) (display "-------------------------------------------") (newline))
 
 (define (run-trace ms)
@@ -162,11 +168,6 @@
       (ko φ κ))
      ((ev `(begin ,es ...) κ)
       (eval-seq tracer-context es κ))
-     ((ev `(can-start-loop ,e) κ)
-      (cond ((expression-traced? tracer-context e) (display "TODO Switch to trace-execution!") (newline))
-            ((is-tracing-expression? tracer-context e) (set! tracer-context (stop-tracing tracer-context)))
-            ((not (is-tracing? tracer-context)) (set! tracer-context (start-tracing-expression tracer-context e))))
-      (ev e κ))
      ((ev `(cond) (cons φ κ))
       (execute tracer-context
                (literal-value '()))
@@ -335,6 +336,34 @@
       ((ko (haltk) _)
        (set! global-tracer-context tracer-context)
        v)
+      ((ev `(can-start-loop ,e) κ)
+       (cond ((expression-traced? tracer-context e)
+              (display "TODO Switch to trace-execution!")
+              (newline)
+              ;TODO switch to run-trace
+              (let* ((result (step (ev e κ) tracer-context))
+                     (new-state (car result))
+                     (new-tracer-context (cdr result)))
+                (loop new-state new-tracer-context)))
+             ((is-tracing-expression? tracer-context e)
+              (set! tracer-context (stop-tracing tracer-context))
+              ;TODO switch to run-trace
+              (let* ((result (step (ev e κ) tracer-context))
+                     (new-state (car result))
+                     (new-tracer-context (cdr result)))
+                (loop new-state new-tracer-context)))
+             ((not (is-tracing? tracer-context))
+              (set! tracer-context (start-tracing-expression tracer-context e))
+              (append-trace (list (load-state ρ σ)))
+              (let* ((result (step (ev e κ) tracer-context))
+                     (new-state (car result))
+                     (new-tracer-context (cdr result)))
+                (loop new-state new-tracer-context)))
+             (else
+              (let* ((result (step (ev e κ) tracer-context))
+                     (new-state (car result))
+                     (new-tracer-context (cdr result)))
+                (loop new-state new-tracer-context)))))
       (_
        (let* ((result (step s tracer-context))
               (new-state (car result))
