@@ -20,6 +20,8 @@
 (struct clo (λ ρ))
 (struct lam (x es))
 
+(struct state (e ρ σ κ))
+
 (struct save-val () #:transparent)
 (struct restore-val () #:transparent)
 (struct restore-vals (i) #:transparent)
@@ -33,6 +35,8 @@
 (struct literal-value (e) #:transparent)
 (struct quote-value (e) #:transparent)
 (struct apply-native (i) #:transparent)
+(struct put-guard-false (state) #:transparent)
+(struct put-guard-true (state) #:transparent)
 
 (define ρ #f) ; env
 (define σ #f) ; store
@@ -40,8 +44,19 @@
 (define v #f) ; value
 (define τ #f) ; trace
 
+(define (generate-state e κ)
+  (state e ρ σ κ))
+
 (define (step-trace m)
   (match m
+    ((put-guard-false state)
+     (if v
+         (begin (display "Guard failed") (newline))
+         (begin (display "Guard passed") (newline))))
+    ((put-guard-true state)
+     (if v
+         (begin (display "Guard passed") (newline))
+         (begin (display "Guard failed") (newline))))
     ((save-val)
      (set! θ (cons v θ)))
     ((save-env)
@@ -77,8 +92,8 @@
     ((apply-native i)
      (let ((rands (take θ i)))
        (set! θ (drop θ i))
-       (set! v (apply v rands)))))
-  (display θ) (newline) (display "-------------------------------------------") (newline))
+       (set! v (apply v rands))))))
+  ;(display θ) (newline) (display "-------------------------------------------") (newline))
 
 (define (run-trace ms)
   (if (pair? ms)
@@ -177,8 +192,12 @@
      (execute 
       (restore-env))
      (if v
-         (eval-seq pes κ)
-         (ev `(cond ,@es) κ)))
+         (begin (execute 
+                 (put-guard-true (generate-state `(cond ,@es) κ)))
+                (eval-seq pes κ))
+         (begin (execute
+                 (put-guard-false (generate-state `(begin ,@pes) κ)))
+                (ev `(cond ,@es) κ))))
     ((ko (definevk x) (cons φ κ))
      (execute
       (restore-env)
@@ -241,8 +260,12 @@
      (execute
       (restore-env))
      (if v
-         (ev e1 κ)
-         (ev e2 κ)))
+         (begin (execute
+                 (put-guard-true (generate-state e2 κ))) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                (ev e1 κ))
+         (begin (execute
+                 (put-guard-false (generate-state e1 κ))) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                (ev e2 κ))))
     ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
      (execute
       (restore-env))
