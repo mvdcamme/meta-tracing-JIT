@@ -35,7 +35,6 @@
 (struct apply-native (i) #:transparent)
 (struct put-guard-false (state) #:transparent)
 (struct put-guard-true (state) #:transparent)
-(struct load-state (ρ σ) #:transparent)
 
 (define ρ #f) ; env
 (define σ #f) ; store
@@ -83,6 +82,8 @@
 ;
 
 (define (step-trace m)
+  (display θ) (newline)
+  (display m) (newline)
   (match m
     ((put-guard-false state)
      (if v
@@ -127,13 +128,8 @@
     ((apply-native i)
      (let ((rands (take θ i)))
        (set! θ (drop θ i))
-       (set! v (apply v rands))))
-    ((load-state ρ* σ*)
-     (set! ρ ρ*)
-     (set! σ σ*)
-     (set! θ '())
-     (set! v #f))))
-  ;(display θ) (newline) (display "-------------------------------------------") (newline))
+       (set! v (apply v rands)))))
+  (display θ) (newline) (display "-------------------------------------------") (newline))
 
 (define (run-trace ms)
   (if (pair? ms)
@@ -354,7 +350,6 @@
                 (loop new-state new-tracer-context)))
              ((not (is-tracing? tracer-context))
               (set! tracer-context (start-tracing-expression tracer-context e))
-              (append-trace (list (load-state ρ σ)))
               (let* ((result (step (ev e κ) tracer-context))
                      (new-state (car result))
                      (new-tracer-context (cdr result)))
