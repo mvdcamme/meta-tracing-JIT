@@ -7,14 +7,16 @@
 (define ns (make-base-namespace))
 (struct ev (e κ) #:transparent)
 (struct ko (φ κ) #:transparent)
+(struct condk (pes es))
 (struct definevk (x)) ;define variable
-(struct letk (x es))
-(struct setk (x))
-(struct ifk (e1 e2))
-(struct seqk (es))
-(struct ratork (i))
-(struct randk (e es i))
 (struct haltk ())
+(struct ifk (e1 e2))
+(struct letk (x es))
+(struct let*k (x bds es))
+(struct randk (e es i))
+(struct ratork (i))
+(struct seqk (es))
+(struct setk (x))
 (struct clo (λ ρ))
 (struct lam (x es))
 
@@ -75,7 +77,8 @@
     ((apply-native i)
      (let ((rands (take θ i)))
        (set! θ (drop θ i))
-       (set! v (apply v rands))))))
+       (set! v (apply v rands)))))
+  (display θ) (newline) (display "-------------------------------------------") (newline))
 
 (define (run-trace ms)
   (if (pair? ms)
@@ -99,12 +102,25 @@
      (execute
       (save-env))
      (ev e (cons (seqk es) κ)))))
+
 (define (step state)
   (match state
     ((ev (? symbol? x) (cons φ κ))
      (execute
       (lookup-var x))
       (ko φ κ))
+    ((ev `(begin ,es ...) κ)
+     (eval-seq es κ))
+    ((ev `(cond) (cons φ κ))
+     (execute
+      (literal-value '()))
+     (ko φ κ))
+    ((ev `(cond (else . ,es)) κ)
+     (eval-seq es κ))
+    ((ev `(cond (,pred . ,pes) . ,es) κ)
+     (execute
+      (save-env))
+     (ev pred (cons (condk pes es) κ)))
     ((ev `(define ,pattern . ,expressions) κ)
      (if (symbol? pattern)
          (begin (execute
@@ -116,30 +132,34 @@
                  (set-var (car pattern)))
                 (match κ
                   ((cons φ κ) (ko φ κ))))))
-    ((ev `(lambda ,x ,es ...) (cons φ κ))
-     (execute
-      (create-closure x es))
-     (ko φ κ))
-    ((ev `(quote ,e) (cons φ κ))
-     (execute
-      (quote-value e))
-     (ko φ κ))
     ((ev `(if ,e ,e1 ,e2) κ)
      (execute
       (save-env))
      (ev e (cons (ifk e1 e2) κ)))
+    ((ev `(lambda ,x ,es ...) (cons φ κ))
+     (execute
+      (create-closure x es))
+     (ko φ κ))
+    ((ev `(let* () . ,expressions) κ)
+     (eval-seq expressions κ))
+    ((ev `(let* ((,var-name ,value) . ,other-bindings) . ,expressions) κ)
+     (execute
+      (save-env))
+     (ev value (cons (let*k var-name other-bindings expressions) κ)))
     ((ev `(letrec ((,x ,e)) ,es ...) κ)
      (execute
       (literal-value 'undefined)
       (alloc-var x)
       (save-env))
      (ev e (cons (letk x es) κ)))
+    ((ev `(quote ,e) (cons φ κ))
+     (execute
+      (quote-value e))
+     (ko φ κ))
     ((ev `(set! ,x ,e) κ)
      (execute
       (save-env))
      (ev e (cons (setk x) κ)))
-    ((ev `(begin ,es ...) κ)
-     (eval-seq es κ))
     ((ev `(,rator) κ)
      (execute
       (save-env))
@@ -153,6 +173,12 @@
      (execute
       (literal-value e))
      (ko φ κ))
+    ((ko (condk pes es) κ)
+     (execute 
+      (restore-env))
+     (if v
+         (eval-seq pes κ)
+         (ev `(cond ,@es) κ)))
     ((ko (definevk x) (cons φ κ))
      (execute
       (restore-env)
@@ -164,6 +190,11 @@
       (restore-env)
       (set-var x))
      (eval-seq es κ))
+    ((ko (let*k x bds es) κ)
+     (execute (restore-env)
+              (alloc-var x)
+              (set-var x))
+     (ev `(let* ,bds ,@es) κ))
     ((ko (setk x) (cons φ κ))
      (execute
       (restore-env)
