@@ -351,22 +351,26 @@
 (define (inject e)
   (ev e `(,(haltk))))
 
-(define (reset)
+(define (reset!)
   (set! ρ '())
   (set! σ '())
   (set! θ '())
   (set! τ '())
   (set! τ-κ `(,(haltk))))
 
+(define (clear-trace!)
+  (set! τ '()))
+
 (define (bootstrap e tracer-context)
-    (global-continuation (list (ev e τ-κ) tracer-context))) ;step* called with the correct arguments
+  (global-continuation (list (ev e τ-κ) tracer-context))) ;step* called with the correct arguments
     
 (define (step* s tracer-context)
   (match s
       ((ko (haltk) _)
        (set! global-tracer-context tracer-context)
        v)
-      ((ev `(can-start-loop ,e) κ)
+      ((ev `(can-start-loop ,e ,debug-info) κ)
+       (display "tracing loop ") (display debug-info) (newline)
        (cond ((expression-traced? tracer-context e)
               (display "----------- EXECUTING TRACE -----------") (newline)
               (let ((trace (expression-trace tracer-context e)))
@@ -390,12 +394,14 @@
                 ;(step* new-state new-tracer-context)))
              ((not (is-tracing? tracer-context))
               (display "----------- STARTED TRACING -----------") (newline)
+              (clear-trace!)
               (set! tracer-context (start-tracing-expression tracer-context e))
               (let* ((result (step (ev e κ) tracer-context))
                      (new-state (car result))
                      (new-tracer-context (cdr result)))
                 (step* new-state new-tracer-context)))
              (else
+              (display "----------- ALREADY TRACING ANOTHER EXPRESSION -----------") (newline)
               (let* ((result (step (ev e κ) tracer-context))
                      (new-state (car result))
                      (new-tracer-context (cdr result)))
@@ -407,6 +413,6 @@
          (step* new-state new-tracer-context)))))
 
 (define (run s)
-  (reset)
+  (reset!)
   (apply step* (call/cc (lambda (k) (set! global-continuation k) (list s (new-tracer-context))))))
   ;(step* s new-tracer-context))
