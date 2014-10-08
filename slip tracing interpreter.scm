@@ -20,6 +20,11 @@
 (struct clo (λ ρ))
 (struct lam (x es))
 
+(define (clo-equal? clo1 clo2)
+  (and (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
+       (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2)))
+       (equal? (clo-ρ clo1) (clo-ρ clo2))))
+
 (struct save-val () #:transparent)
 (struct restore-val () #:transparent)
 (struct restore-vals (i) #:transparent)
@@ -35,6 +40,8 @@
 (struct apply-native (i) #:transparent)
 (struct put-guard-false (e) #:transparent)
 (struct put-guard-true (e) #:transparent)
+(struct put-guard-same-closure (clo e) #:transparent)
+(struct put-guard-same-native (nat e) #:transparent)
 
 (struct add-continuation (φ) #:transparent)
 (struct remove-continuation () #:transparent)
@@ -98,6 +105,12 @@
      (if v
          (begin (display "Guard passed") (newline))
          (begin (display "Guard failed") (newline) (bootstrap e tracer-context))))
+    ((put-guard-same-closure clo e)
+     (and (not (clo-equal? v clo))
+          (begin (display "Closure guard failed") (newline) (bootstrap e tracer-context))))
+    ((put-guard-same-native nat e)
+     (and (not (eq? v nat))
+          (begin (display "Native guard failed") (newline) (bootstrap e tracer-context))))
     ((save-val)
      (set! θ (cons v θ)))
     ((save-env)
@@ -305,6 +318,7 @@
       (match v
         ((clo (lam x es) ρ)
          (execute tracer-context
+                  ;(put-guard-same-closure v ?) TODO which expression should be used to proceed?
                   (set-env ρ))
          (let loop ((i i) (x x))
            (match x
@@ -322,6 +336,7 @@
               (eval-seq tracer-context es κ)))))
         (_
          (execute tracer-context
+                  ;(put-guard-same-native v ?) TODO which expression should be used to proceed?
                   (apply-native i)
                   (remove-continuation))
          (ko (car κ) (cdr κ)))))
