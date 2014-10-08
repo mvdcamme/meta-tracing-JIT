@@ -42,10 +42,15 @@
 (define v #f) ; value
 (define τ #f) ; trace
 
-(struct state (e ρ σ κ))
+(struct state (e ρ σ κ) #:transparent)
 
 (define (generate-state e κ)
   (state e ρ σ κ))
+
+(struct guard-failure ()) ;can be returned by step-trace, signifies that a guard failure has occurred and hence that the interpreter was bootstrapped -> stop further interpretation
+                          ;TODO should be redundant, use call/cc instead of checking whether this structure was returned
+
+(define global-continuation #f) ;This continuation should be called when the interpreter is being bootstrapped
 
 ;
 ;tracing
@@ -77,22 +82,25 @@
 (define (expression-traced? tracer-context expression)
   (assoc expression (tracer-context-expressions-already-traced tracer-context)))
 
+(define (expression-trace tracer-context expression)
+  (cdr (assoc expression (tracer-context-expressions-already-traced tracer-context))))
+
 ;
 ;evaluation
 ;
 
-(define (step-trace m)
+(define (step-trace tracer-context m)
   (display θ) (newline)
   (display m) (newline)
   (match m
     ((put-guard-false state)
      (if v
-         (begin (display "Guard failed") (newline))
+         (begin (display "Guard failed") (newline) (bootstrap state tracer-context)) ;Use a continuation here to jump out of the function stack? For the moment, just return a sentinel -> if sentinel was returned -> stop running
          (begin (display "Guard passed") (newline))))
     ((put-guard-true state)
      (if v
          (begin (display "Guard passed") (newline))
-         (begin (display "Guard failed") (newline))))
+         (begin (display "Guard failed") (newline) (bootstrap state tracer-context))))
     ((save-val)
      (set! θ (cons v θ)))
     ((save-env)
@@ -131,11 +139,11 @@
        (set! v (apply v rands)))))
   (display θ) (newline) (display "-------------------------------------------") (newline))
 
-(define (run-trace ms)
+(define (run-trace tracer-context ms)
   (if (pair? ms)
       (begin
-        (step-trace (car ms))
-        (run-trace (cdr ms)))
+        (step-trace tracer-context (car ms))
+        (run-trace tracer-context (cdr ms)))
       #f))
 
 (define (append-trace ms)
@@ -144,7 +152,7 @@
 (define (execute tracer-context . ms)
   (and (is-tracing? tracer-context)
        (append-trace ms))
-  (run-trace ms))
+  (run-trace tracer-context ms))
 
 (define (eval-seq tracer-context es κ)
   (match es
@@ -300,10 +308,10 @@
                (restore-env))
       (if v
           (begin (execute tracer-context
-                  (put-guard-true (generate-state e2 κ))) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                          (put-guard-true (generate-state e2 κ))) ;If the guard fails, the predicate was false, so e2 should be evaluated
                  (ev e1 κ))
           (begin (execute tracer-context
-                  (put-guard-false (generate-state e1 κ))) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                          (put-guard-false (generate-state e1 κ))) ;If the guard fails, the predicate was true, so e1 should be evaluated
                  (ev e2 κ))))
      ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
       (execute tracer-context
@@ -324,11 +332,14 @@
   (set! θ '())
   (set! τ '()))
 
-(define (run s)
-  (reset)
-  (let loop ((s s)
-             (tracer-context (new-tracer-context)))
-    (match s
+(define (bootstrap state tracer-context)
+  (let* ((e (state-e state))
+         (κ (state-κ state)))
+    (global-continuation (list (ev e κ) tracer-context)))) ;step* called with the correct arguments
+    ;(step* (ev e κ) tracer-context)))
+    
+(define (step* s tracer-context)
+  (match s
       ((ko (haltk) _)
        (set! global-tracer-context tracer-context)
        v)
@@ -336,31 +347,39 @@
        (cond ((expression-traced? tracer-context e)
               (display "TODO Switch to trace-execution!")
               (newline)
-              ;TODO switch to run-trace
-              (let* ((result (step (ev e κ) tracer-context))
-                     (new-state (car result))
-                     (new-tracer-context (cdr result)))
-                (loop new-state new-tracer-context)))
+              (let ((trace (expression-trace tracer-context e)))
+                (let loop ()
+                  (run-trace tracer-context trace)
+                  (loop))))
+              ;(let* ((result (step (ev e κ) tracer-context)) TODO shouldn't be used, except for debugging
+               ;      (new-state (car result))
+                ;     (new-tracer-context (cdr result)))
+                ;(step* new-state new-tracer-context)))
              ((is-tracing-expression? tracer-context e)
               (set! tracer-context (stop-tracing tracer-context))
               ;TODO switch to run-trace
               (let* ((result (step (ev e κ) tracer-context))
                      (new-state (car result))
                      (new-tracer-context (cdr result)))
-                (loop new-state new-tracer-context)))
+                (step* new-state new-tracer-context)))
              ((not (is-tracing? tracer-context))
               (set! tracer-context (start-tracing-expression tracer-context e))
               (let* ((result (step (ev e κ) tracer-context))
                      (new-state (car result))
                      (new-tracer-context (cdr result)))
-                (loop new-state new-tracer-context)))
+                (step* new-state new-tracer-context)))
              (else
               (let* ((result (step (ev e κ) tracer-context))
                      (new-state (car result))
                      (new-tracer-context (cdr result)))
-                (loop new-state new-tracer-context)))))
+                (step* new-state new-tracer-context)))))
       (_
        (let* ((result (step s tracer-context))
               (new-state (car result))
               (new-tracer-context (cdr result)))
-         (loop new-state new-tracer-context))))))
+         (step* new-state new-tracer-context)))))
+
+(define (run s)
+  (reset)
+  (apply step* (call/cc (lambda (k) (set! global-continuation k) (list s (new-tracer-context))))))
+  ;(step* s new-tracer-context))
