@@ -2,8 +2,6 @@
 
 ;; Slippy: lambda letrec if set! begin quote
 
-;(define fib '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)))
-
 (define ns (make-base-namespace))
 (struct ev (e κ) #:transparent)
 (struct ko (φ κ) #:transparent)
@@ -15,6 +13,7 @@
 (struct let*k (x bds es))
 (struct randk (e es i))
 (struct ratork (i))
+(struct closure-guard-validatedk (i))
 (struct seqk (es))
 (struct setk (x))
 (struct clo (λ ρ))
@@ -40,8 +39,7 @@
 (struct apply-native (i) #:transparent)
 (struct put-guard-false (e) #:transparent)
 (struct put-guard-true (e) #:transparent)
-(struct put-guard-same-closure (clo e) #:transparent)
-(struct put-guard-same-native (nat e) #:transparent)
+(struct put-guard-same-closure (clo i) #:transparent)
 
 (struct add-continuation (φ) #:transparent)
 (struct remove-continuation () #:transparent)
@@ -105,12 +103,10 @@
      (if v
          (begin (display "Guard passed") (newline))
          (begin (display "Guard failed") (newline) (bootstrap e tracer-context))))
-    ((put-guard-same-closure clo e)
+    ((put-guard-same-closure clo i)
      (and (not (clo-equal? v clo))
-          (begin (display "Closure guard failed") (newline) (bootstrap e tracer-context))))
-    ((put-guard-same-native nat e)
-     (and (not (eq? v nat))
-          (begin (display "Native guard failed") (newline) (bootstrap e tracer-context))))
+          (display "Closure guard failed") (newline)
+          (bootstrap-from-continuation (closure-guard-validatedk i) tracer-context)))
     ((save-val)
      (set! θ (cons v θ)))
     ((save-env)
@@ -312,13 +308,10 @@
                (save-env)
                (add-continuation (randk rator (cdr rands) (+ i 1))))
       (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
-     ((ko (ratork i) κ)
-      (execute tracer-context
-               (restore-env))
+     ((ko (closure-guard-validatedk i) κ)
       (match v
         ((clo (lam x es) ρ)
          (execute tracer-context
-                  ;(put-guard-same-closure v ?) TODO which expression should be used to proceed?
                   (set-env ρ))
          (let loop ((i i) (x x))
            (match x
@@ -333,10 +326,17 @@
               (execute tracer-context
                        (restore-vals i)
                        (alloc-var x))
-              (eval-seq tracer-context es κ)))))
+              (eval-seq tracer-context es κ)))))))
+     ((ko (ratork i) κ)
+      (execute tracer-context
+               (restore-env))
+      (match v
+        ((clo (lam x es) ρ)
+         (execute tracer-context
+                  (put-guard-same-closure v i)) ;TODO τ-κ does not need to be changed?
+         (ko (closure-guard-validatedk i) κ))
         (_
          (execute tracer-context
-                  ;(put-guard-same-native v ?) TODO which expression should be used to proceed?
                   (apply-native i)
                   (remove-continuation))
          (ko (car κ) (cdr κ)))))
@@ -378,6 +378,9 @@
 
 (define (bootstrap e tracer-context)
   (global-continuation (list (ev e τ-κ) tracer-context))) ;step* called with the correct arguments
+
+(define (bootstrap-from-continuation φ tracer-context)
+  (global-continuation (list (ko φ τ-κ) tracer-context)))
 
 (define (step* s tracer-context)
   (match s
@@ -431,3 +434,27 @@
   (reset!)
   (apply step* (call/cc (lambda (k) (set! global-continuation k) (list s (new-tracer-context))))))
 ;(step* s new-tracer-context))
+
+;
+;test-cases
+;
+
+#|
+(run (inject '(begin (define (f x) (+ x 10))
+                       (define (g y) (* y 10))
+                       (define (loop h i k) (can-start-loop (begin (display (h k)) (newline)
+                                                                   (if (< i 0)
+                                                                       99
+                                                                       (loop g (- i 1) k)))))
+                       (loop f 10 9))))
+
+(run (inject '(begin (define (fac x)
+                       (can-start-loop (if (< x 2)
+                                           1
+                                           (* x (fac (- x 1))))
+                                       "fac"))
+                     (fac 5))))
+
+|#
+
+;(define fib '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)))
