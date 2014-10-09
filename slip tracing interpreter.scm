@@ -24,26 +24,6 @@
        (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2)))
        (equal? (clo-ρ clo1) (clo-ρ clo2))))
 
-(struct save-val () #:transparent)
-(struct restore-val () #:transparent)
-(struct restore-vals (i) #:transparent)
-(struct save-env () #:transparent)
-(struct restore-env () #:transparent)
-(struct set-env (ρ) #:transparent)
-(struct alloc-var (x) #:transparent)
-(struct set-var (a) #:transparent)
-(struct lookup-var (x) #:transparent)
-(struct create-closure (x es) #:transparent)
-(struct literal-value (e) #:transparent)
-(struct quote-value (e) #:transparent)
-(struct apply-native (i) #:transparent)
-(struct put-guard-false (e) #:transparent)
-(struct put-guard-true (e) #:transparent)
-(struct put-guard-same-closure (clo i) #:transparent)
-
-(struct add-continuation (φ) #:transparent)
-(struct remove-continuation () #:transparent)
-
 (define ρ #f) ; env
 (define σ #f) ; store
 (define θ #f) ; non-kont stack
@@ -91,68 +71,79 @@
 ;evaluation
 ;
 
-(define (step-trace tracer-context m)
-  ;(display θ) (newline)
-  ;(display m) (newline)
-  (match m
-    ((put-guard-false e)
-     (if v
-         (begin (display "Guard failed") (newline) (bootstrap e tracer-context))
-         (begin (display "Guard passed") (newline))))
-    ((put-guard-true e)
-     (if v
-         (begin (display "Guard passed") (newline))
-         (begin (display "Guard failed") (newline) (bootstrap e tracer-context))))
-    ((put-guard-same-closure clo i)
-     (and (not (clo-equal? v clo))
-          (display "Closure guard failed") (newline)
-          (bootstrap-from-continuation (closure-guard-validatedk i) tracer-context)))
-    ((save-val)
-     (set! θ (cons v θ)))
-    ((save-env)
-     (set! θ (cons ρ θ)))
-    ((set-env ρ*)
-     (set! ρ ρ*))
-    ((restore-env)
-     (set! ρ (car θ))
-     (set! θ (cdr θ)))
-    ((restore-val)
-     (set! v (car θ))
-     (set! θ (cdr θ)))
-    ((restore-vals i)
-     (set! v (take θ i))
-     (set! θ (drop θ i)))
-    ((alloc-var x)
-     (let ((a (gensym)))
-       (set! ρ (cons (cons x a) ρ))
-       (set! σ (cons (cons a v) σ))))
-    ((set-var x)
-     (let ((a (cdr (assoc x ρ))))
-       (set! σ (cons (cons a v) σ))))
-    ((lookup-var x)
-     (match (assoc x ρ)
-       ((cons _ a) (set! v (cdr (assoc a σ))))
-       (_ (set! v (eval x ns)))))
-    ((create-closure x es)
-     (set! v (clo (lam x es) ρ)))
-    ((literal-value e)
-     (set! v e))
-    ((quote-value e)
-     (set! v e))
-    ((apply-native i)
-     (let ((rands (take θ i)))
-       (set! θ (drop θ i))
-       (set! v (apply v rands))))
-    ((add-continuation φ)
-     (set! τ-κ (cons φ τ-κ)))
-    ((remove-continuation)
-     (set! τ-κ (cdr τ-κ)))))
-;(display θ) (newline) (display "-------------------------------------------") (newline))
+(define (put-guard-false tracer-context e)
+  (if v
+      (begin (display "Guard failed") (newline) (bootstrap e tracer-context))
+      (begin (display "Guard passed") (newline))))
+
+(define (put-guard-true tracer-context e)
+  (if v
+      (begin (display "Guard passed") (newline))
+      (begin (display "Guard failed") (newline) (bootstrap e tracer-context))))
+
+(define (put-guard-same-closure tracer-context clo i)
+  (and (not (clo-equal? v clo))
+       (display "Closure guard failed") (newline)
+       (bootstrap-from-continuation (closure-guard-validatedk i) tracer-context)))
+
+(define (save-val)
+  (set! θ (cons v θ)))
+
+(define (save-env)
+  (set! θ (cons ρ θ)))
+
+(define (set-env ρ*)
+  (set! ρ ρ*))
+(define (restore-env)
+  (set! ρ (car θ))
+  (set! θ (cdr θ)))
+
+(define (restore-val)
+  (set! v (car θ))
+  (set! θ (cdr θ)))
+
+(define (restore-vals i)
+  (set! v (take θ i))
+  (set! θ (drop θ i)))
+
+(define (alloc-var x)
+  (let ((a (gensym)))
+    (set! ρ (cons (cons x a) ρ))
+    (set! σ (cons (cons a v) σ))))
+
+(define (set-var x)
+  (let ((a (cdr (assoc x ρ))))
+    (set! σ (cons (cons a v) σ))))
+
+(define (lookup-var x)
+  (match (assoc x ρ)
+    ((cons _ a) (set! v (cdr (assoc a σ))))
+    (_ (set! v (eval x ns)))))
+
+(define (create-closure x es)
+  (set! v (clo (lam x es) ρ)))
+
+(define (literal-value e)
+  (set! v e))
+
+(define (quote-value e)
+  (set! v e))
+
+(define (apply-native i)
+  (let ((rands (take θ i)))
+    (set! θ (drop θ i))
+    (set! v (apply v rands))))
+
+(define (add-continuation φ)
+  (set! τ-κ (cons φ τ-κ)))
+
+(define (remove-continuation)
+  (set! τ-κ (cdr τ-κ)))
 
 (define (run-trace tracer-context ms)
   (if (pair? ms)
       (begin
-        (step-trace tracer-context (car ms))
+        (eval (car ms))
         (run-trace tracer-context (cdr ms)))
       #f))
 
@@ -170,8 +161,8 @@
      (ev e κ))
     ((cons e es)
      (execute tracer-context
-              (save-env)
-              (add-continuation (seqk es)))
+              `(save-env)
+              `(add-continuation ,(seqk es)))
      (ev e (cons (seqk es) κ)))))
 
 (define (step state tracer-context)
@@ -179,185 +170,185 @@
    (match state
      ((ev (? symbol? x) (cons φ κ))
       (execute tracer-context
-               (lookup-var x)
-               (remove-continuation))
+               `(lookup-var ',x)
+               `(remove-continuation))
       (ko φ κ))
      ((ev `(begin ,es ...) κ)
       (eval-seq tracer-context es κ))
      ((ev `(cond) (cons φ κ))
       (execute tracer-context
-               (literal-value '())
-               (remove-continuation))
+               `(literal-value ())
+               `(remove-continuation))
       (ko φ κ))
      ((ev `(cond (else . ,es)) κ)
       (eval-seq tracer-context es κ))
      ((ev `(cond (,pred . ,pes) . ,es) κ)
       (execute tracer-context
-               (save-env)
-               (add-continuation (condk pes es)))
+               `(save-env)
+               `(add-continuation ,(condk pes es)))
       (ev pred (cons (condk pes es) κ)))
      ((ev `(define ,pattern . ,expressions) κ)
       (if (symbol? pattern)
           (begin (execute tracer-context
-                          (save-env)
-                          (add-continuation (definevk pattern)))
+                          `(save-env)
+                          `(add-continuation ,(definevk pattern)))
                  (ev (car expressions) (cons (definevk pattern) κ)))
           (begin (execute tracer-context
-                          (alloc-var (car pattern))
-                          (create-closure (cdr pattern) expressions)
-                          (set-var (car pattern))
-                          (remove-continuation))
+                          `(alloc-var ',(car pattern))
+                          `(create-closure ',(cdr pattern) ',expressions)
+                          `(set-var ',(car pattern))
+                          `(remove-continuation))
                  (match κ
                    ((cons φ κ) (ko φ κ))))))
      ((ev `(if ,e ,e1 ,e2) κ)
       (execute tracer-context
-               (save-env)
-               (add-continuation (ifk e1 e2)))
+               `(save-env)
+               `(add-continuation ,(ifk e1 e2)))
       (ev e (cons (ifk e1 e2) κ)))
      ((ev `(lambda ,x ,es ...) (cons φ κ))
       (execute tracer-context
-               (create-closure x es)
-               (remove-continuation))
+               `(create-closure ',x ',es)
+               `(remove-continuation))
       (ko φ κ))
      ((ev `(let* () . ,expressions) κ)
       (eval-seq tracer-context expressions κ))
      ((ev `(let* ((,var-name ,value) . ,other-bindings) . ,expressions) κ)
       (execute tracer-context
-               (save-env)
-               (add-continuation (let*k var-name other-bindings expressions)))
+               `(save-env)
+               `(add-continuation ,(let*k var-name other-bindings expressions)))
       (ev value (cons (let*k var-name other-bindings expressions) κ)))
      ((ev `(letrec ((,x ,e)) ,es ...) κ)
       (execute tracer-context
-               (literal-value 'undefined)
-               (alloc-var x)
-               (save-env)
-               (add-continuation (letk x es)))
+               `(literal-value undefined)
+               `(alloc-var ',x)
+               `(save-env)
+               `(add-continuation ,(letk x es)))
       (ev e (cons (letk x es) κ)))
      ((ev `(quote ,e) (cons φ κ))
       (execute tracer-context
-               (quote-value e)
-               (remove-continuation))
+               `(quote-value ,e)
+               `(remove-continuation))
       (ko φ κ))
      ((ev `(set! ,x ,e) κ)
       (execute tracer-context
-               (save-env)
-               (add-continuation (setk x)))
+               `(save-env)
+               `(add-continuation ,(setk x)))
       (ev e (cons (setk x) κ)))
      ((ev `(,rator) κ)
       (execute tracer-context
-               (save-env)
-               (add-continuation (ratork 0)))
+               `(save-env)
+               `(add-continuation ,(ratork 0)))
       (ev rator (cons (ratork 0) κ)))
      ((ev `(,rator . ,rands) κ)
       (execute tracer-context
-               (save-env))
+               `(save-env))
       (let ((rrands (reverse rands)))
         (execute tracer-context
-                 (add-continuation (randk rator (cdr rrands) 1)))
+                 `(add-continuation ,(randk rator (cdr rrands) 1)))
         (ev (car rrands) (cons (randk rator (cdr rrands) 1) κ))))
      ((ev e (cons φ κ))
       (execute tracer-context
-               (literal-value e)
-               (remove-continuation))
+               `(literal-value ,e)
+               `(remove-continuation))
       (ko φ κ))
      ((ko (condk pes es) κ)
       (execute tracer-context
-               (restore-env))
+               `(restore-env))
       (if v
           (begin (execute tracer-context
-                          (put-guard-true `(cond ,@es)))
+                          `(put-guard-true ,tracer-context ,`(cond ',@es)))
                  (eval-seq tracer-context pes κ))
           (begin (execute tracer-context
-                          (put-guard-false `(begin ,@pes)))
+                          `(put-guard-false ,tracer-context ,`(begin ',@pes)))
                  (ev `(cond ,@es) κ))))
      ((ko (definevk x) (cons φ κ))
       (execute tracer-context
-               (restore-env)
-               (alloc-var x)
-               (set-var x)
-               (remove-continuation))
+               `(restore-env)
+               `(alloc-var ',x)
+               `(set-var ',x)
+               `(remove-continuation))
       (ko φ κ))
      ((ko (letk x es) κ)
       (execute tracer-context
-               (restore-env)
-               (set-var x))
+               `(restore-env)
+               `(set-var ',x))
       (eval-seq tracer-context es κ))
      ((ko (let*k x bds es) κ)
       (execute tracer-context
-               (restore-env)
-               (alloc-var x)
-               (set-var x))
+               `(restore-env)
+               `(alloc-var ',x)
+               `(set-var ',x))
       (ev `(let* ,bds ,@es) κ))
      ((ko (setk x) (cons φ κ))
       (execute tracer-context
-               (restore-env)
-               (set-var x)
-               (remove-continuation))
+               `(restore-env)
+               `(set-var ',x)
+               `(remove-continuation))
       (ko φ κ))
      ((ko (randk rator '() i) κ)
       (execute tracer-context
-               (restore-env)
-               (save-val)
-               (save-env)
-               (add-continuation (ratork i)))
+               `(restore-env)
+               `(save-val)
+               `(save-env)
+               `(add-continuation ,(ratork i)))
       (ev rator (cons (ratork i) κ)))
      ((ko (randk rator rands i) κ)
       (execute tracer-context
-               (restore-env)
-               (save-val)
-               (save-env)
-               (add-continuation (randk rator (cdr rands) (+ i 1))))
+               `(restore-env)
+               `(save-val)
+               `(save-env)
+               `(add-continuation ,(randk rator (cdr rands) (+ i 1))))
       (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
      ((ko (closure-guard-validatedk i) κ)
       (match v
         ((clo (lam x es) ρ)
          (execute tracer-context
-                  (set-env ρ))
+                  `(set-env ',ρ))
          (let loop ((i i) (x x))
            (match x
              ('()
               (eval-seq tracer-context es κ))
              ((cons x xs)
               (execute tracer-context
-                       (restore-val)
-                       (alloc-var x))
+                       `(restore-val)
+                       `(alloc-var ',x))
               (loop (- i 1) xs))
              ((? symbol? x)
               (execute tracer-context
-                       (restore-vals i)
-                       (alloc-var x))
+                       `(restore-vals ,i)
+                       `(alloc-var ',x))
               (eval-seq tracer-context es κ)))))))
      ((ko (ratork i) κ)
       (execute tracer-context
-               (restore-env))
+               `(restore-env))
       (match v
         ((clo (lam x es) ρ)
          (execute tracer-context
-                  (put-guard-same-closure v i)) ;TODO τ-κ does not need to be changed?
+                  `(put-guard-same-closure ,tracer-context ,v ,i)) ;TODO τ-κ does not need to be changed?
          (ko (closure-guard-validatedk i) κ))
         (_
          (execute tracer-context
-                  (apply-native i)
-                  (remove-continuation))
+                  `(apply-native ,i)
+                  `(remove-continuation))
          (ko (car κ) (cdr κ)))))
      ((ko (ifk e1 e2) κ)
       (execute tracer-context
-               (restore-env))
+               `(restore-env))
       (if v
           (begin (execute tracer-context
-                          (put-guard-true e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                          `(put-guard-true ,tracer-context ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
                  (ev e1 κ))
           (begin (execute tracer-context
-                          (put-guard-false e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                          `(put-guard-false ,tracer-context ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
                  (ev e2 κ))))
      ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
       (execute tracer-context
-               (restore-env)
-               (remove-continuation))
+               `(restore-env)
+               `(remove-continuation))
       (ko φ κ))
      ((ko (seqk (cons e exps)) κ)
       (execute tracer-context
-               (add-continuation (seqk exps)))
+               `(add-continuation ,(seqk exps)))
       (ev e (cons (seqk exps) κ)))
      ((ko (haltk) _)
       #f))
