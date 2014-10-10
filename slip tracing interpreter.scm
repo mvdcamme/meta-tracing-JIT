@@ -39,7 +39,7 @@
 ;tracing
 ;
 
-(define global-tracer-context #f) ;TODO debugging
+(define global-tracer-context (new-tracer-context)) ;TODO avoid using this global variable?
 
 (struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced) #:transparent)
 
@@ -266,10 +266,10 @@
                `(restore-env))
       (if v
           (begin (execute tracer-context
-                          `(put-guard-true ,tracer-context ,`(cond ',@es)))
+                          `(put-guard-true global-tracer-context ,`(cond ',@es)))
                  (eval-seq tracer-context pes κ))
           (begin (execute tracer-context
-                          `(put-guard-false ,tracer-context ,`(begin ',@pes)))
+                          `(put-guard-false global-tracer-context ,`(begin ',@pes)))
                  (ev `(cond ,@es) κ))))
      ((ko (definevk x) (cons φ κ))
       (execute tracer-context
@@ -340,7 +340,7 @@
       (match v
         ((clo (lam x es) ρ)
          (execute tracer-context
-                  `(put-guard-same-closure ,tracer-context ,v ,i)) ;TODO τ-κ does not need to be changed?
+                  `(put-guard-same-closure global-tracer-context ,v ,i)) ;TODO τ-κ does not need to be changed?
          (ko (closure-guard-validatedk i) κ))
         (_
          (execute tracer-context
@@ -352,10 +352,10 @@
                `(restore-env))
       (if v
           (begin (execute tracer-context
-                          `(put-guard-true ,tracer-context ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                          `(put-guard-true global-tracer-context ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
                  (ev e1 κ))
           (begin (execute tracer-context
-                          `(put-guard-false ,tracer-context ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                          `(put-guard-false global-tracer-context ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
                  (ev e2 κ))))
      ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
       (execute tracer-context
@@ -410,6 +410,7 @@
            ((is-tracing-expression? tracer-context e)
             (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
             (set! tracer-context (stop-tracing tracer-context))
+            (set! global-tracer-context tracer-context)
             (let ((trace (expression-trace tracer-context e)))
               (let loop ()
                 (run-trace tracer-context trace)
@@ -422,6 +423,7 @@
             (display "----------- STARTED TRACING -----------") (newline)
             (clear-trace!)
             (set! tracer-context (start-tracing-expression tracer-context e))
+            (set! global-tracer-context tracer-context)
             (let* ((result (step (ev e κ) tracer-context))
                    (new-state (car result))
                    (new-tracer-context (cdr result)))
