@@ -39,8 +39,6 @@
 ;tracing
 ;
 
-(define global-tracer-context (new-tracer-context)) ;TODO avoid using this global variable?
-
 (struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced) #:transparent)
 
 (define (new-tracer-context)
@@ -67,6 +65,8 @@
 
 (define (expression-trace tracer-context expression)
   (cdr (assoc expression (tracer-context-expressions-already-traced tracer-context))))
+
+(define global-tracer-context (new-tracer-context)) ;TODO avoid using this global variable?
 
 ;
 ;evaluation
