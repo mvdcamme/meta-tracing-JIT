@@ -5,6 +5,7 @@
 (define ns (make-base-namespace))
 (struct ev (e κ) #:transparent)
 (struct ko (φ κ) #:transparent)
+(struct applicationk () #:transparent)
 (struct condk (pes es))
 (struct definevk (x)) ;define variable
 (struct haltk ())
@@ -88,6 +89,10 @@
 
 (define (save-val)
   (set! θ (cons v θ)))
+
+(define (save-vals i)
+  (set! θ (append (take v i) θ))
+  (set! v (drop v i)))
 
 (define (save-env)
   (set! θ (cons ρ θ)))
@@ -251,6 +256,11 @@
                `(literal-value ,e)
                `(remove-continuation))
       (ko φ κ))
+     ((ko (applicationk) κ)
+      (execute tracer-context
+               `(restore-env)
+               `(remove-continuation))
+      (ko (car κ) (cdr κ)))
      ((ko (condk pes es) κ)
       (execute tracer-context
                `(restore-env))
@@ -303,11 +313,16 @@
       (match v
         ((clo (lam x es) ρ)
          (execute tracer-context
+                  `(restore-vals ,i)
+                  `(save-env)
+                  `(save-vals ,i)
                   `(set-env ',ρ))
          (let loop ((i i) (x x))
            (match x
              ('()
-              (eval-seq tracer-context es κ))
+              (execute tracer-context
+                       `(add-continuation ,(applicationk)))
+              (eval-seq tracer-context es (cons (applicationk) κ)))
              ((cons x xs)
               (execute tracer-context
                        `(restore-val)
@@ -316,8 +331,9 @@
              ((? symbol? x)
               (execute tracer-context
                        `(restore-vals ,i)
-                       `(alloc-var ',x))
-              (eval-seq tracer-context es κ)))))))
+                       `(alloc-var ',x)
+                       `(add-continuation ,(applicationk)))
+              (eval-seq tracer-context es (cons (applicationk) κ))))))))
      ((ko (ratork i) κ)
       (execute tracer-context
                `(restore-env))
