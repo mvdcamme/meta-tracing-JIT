@@ -443,6 +443,11 @@
 (define (run s)
   (reset!)
   (apply step* (call/cc (lambda (k) (set! global-continuation k) (list s (new-tracer-context))))))
+
+(define (start)
+  (run (inject (read))))
+
+
 ;(step* s new-tracer-context))
 
 ;
