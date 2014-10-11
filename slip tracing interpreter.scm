@@ -231,7 +231,7 @@
       (ev e (cons (letk x es) κ)))
      ((ev `(quote ,e) (cons φ κ))
       (execute tracer-context
-               `(quote-value ,e)
+               `(quote-value ',e)
                `(remove-continuation))
       (ko φ κ))
      ((ev `(set! ,x ,e) κ)
@@ -464,6 +464,14 @@
                                            (* x (fac (- x 1))))
                                        "fac"))
                      (fac 5))))
+
+(run (inject '(begin (define (f x) (+ x 10))
+                       (define (g y) (* y 10))
+                       (define (loop i k) (can-start-loop (begin (display ((if (even? i) f g) k)) (newline)
+                                                                 (if (< i 0)
+                                                                     99
+                                                                     (loop (- i 1) k)))))
+                       (loop 10 9))))
 
 |#
 
