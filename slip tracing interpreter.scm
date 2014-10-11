@@ -266,10 +266,10 @@
                `(restore-env))
       (if v
           (begin (execute tracer-context
-                          `(put-guard-true global-tracer-context ,`(cond ',@es)))
+                          `(put-guard-true global-tracer-context ',`(cond ,@es)))
                  (eval-seq tracer-context pes κ))
           (begin (execute tracer-context
-                          `(put-guard-false global-tracer-context ,`(begin ',@pes)))
+                          `(put-guard-false global-tracer-context ',`(begin ,@pes)))
                  (ev `(cond ,@es) κ))))
      ((ko (definevk x) (cons φ κ))
       (execute tracer-context
