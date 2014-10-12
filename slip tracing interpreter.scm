@@ -18,8 +18,8 @@
 (struct closure-guard-validatedk (i))
 (struct seqk (es))
 (struct setk (x))
-(struct clo (λ ρ))
-(struct lam (x es))
+(struct clo (λ ρ) #:transparent)
+(struct lam (x es) #:transparent)
 
 (define (clo-equal? clo1 clo2)
   (and (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))

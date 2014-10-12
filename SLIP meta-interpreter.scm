@@ -33,6 +33,11 @@
 
   (define meta-level-apply apply)
   (define meta-level-eval eval)
+  
+  (define (massoc el list)
+    (cond ((null? list) #f)
+          ((eq? el (mcar (car list))) (car list))
+          (else (massoc el (cdr list)))))
 
 ;
 ; natives
@@ -99,7 +104,7 @@
 ;
 
     (define (bind-variable variable value environment)
-      (define binding (cons variable value))
+      (define binding (mcons variable value))
       (cons binding environment))
 
     (define (bind-parameters parameters arguments environment)
@@ -168,14 +173,14 @@
     (define (evaluate-define pattern . expressions)
       (lambda (continue environment tailcall)
         (define (continue-after-expression value environment-after-expression)
-          (define binding (cons pattern value))
+          (define binding (mcons pattern value))
           (continue value (cons binding environment-after-expression)))
         (if (symbol? pattern)
           (eval (car expressions) continue-after-expression environment #f)
-          (let* ((binding (cons (car pattern) '()))
+          (let* ((binding (mcons (car pattern) '()))
                  (environment (cons binding environment))
                  (procedure (make-procedure (cdr pattern) expressions environment)))
-              (set-cdr! binding procedure)
+              (set-mcdr! binding procedure)
               (continue procedure environment)))))
 
     (define (evaluate-if predicate consequent . alternative)
@@ -199,7 +204,7 @@
           (define (evaluate-bindings bindings environment)
             (define (continue-after-binding value environment-after-binding)
               (let* ((variable-name (caar bindings))
-                     (binding (cons variable-name value))
+                     (binding (mcons variable-name value))
                      (new-environment (cons binding environment)))
                 (evaluate-bindings (cdr bindings) new-environment)))
             (if (null? bindings)
@@ -214,9 +219,9 @@
     (define (evaluate-set! variable expression)
       (lambda (continue environment tailcall)
         (define (continue-after-expression value environment-after-expression)
-          (define binding (assoc variable environment-after-expression))
+          (define binding (massoc variable environment-after-expression))
           (if binding
-            (set-cdr! binding value)
+            (set-mcdr! binding value)
             (error "inaccessible variable: " variable))
           (continue value environment-after-expression))
         (eval expression continue-after-expression environment #f)))
@@ -228,8 +233,8 @@
         (continue native-value environment)))
 
     (define (evaluate-variable variable continue environment)
-      (define binding (assoc variable environment))
-      (cond (binding (continue (cdr binding) environment))
+      (define binding (massoc variable environment))
+      (cond (binding (continue (mcdr binding) environment))
             (else (let* ((native-value (meta-level-eval variable (make-base-namespace))))
                     (if (procedure? native-value)
                         (continue (wrap-native-procedure native-value) environment)
@@ -284,7 +289,7 @@
     (display ">>>")
     (eval (read) loop environment #f))
 
-  (loop "cpSlip* version 3" (list (cons 'apply    cps-apply   ) 
-                                  (cons 'map      cps-map     ) 
-                                  (cons 'for-each cps-for-each) 
-                                  (cons 'call-cc  cps-call-cc ))))
+  (loop "cpSlip* version 3" (list (mcons 'apply    cps-apply   ) 
+                                  (mcons 'map      cps-map     ) 
+                                  (mcons 'for-each cps-for-each) 
+                                  (mcons 'call-cc  cps-call-cc ))))
