@@ -29,9 +29,9 @@
 
 ; don't use syntactic constructs (e.g. cond, do, ...)
 
-(define meta-level-apply apply)
-
 (begin
+
+  (define meta-level-apply apply)
   (define meta-level-eval eval)
 
 ;
@@ -224,13 +224,13 @@
     (define (wrap-native-eval)
       (lambda (arguments continue environment tailcall)
         (define expression (car arguments))
-        (define native-value (meta-level-eval expression (interaction-environment)))
+        (define native-value (meta-level-eval expression (make-base-namespace)))
         (continue native-value environment)))
 
     (define (evaluate-variable variable continue environment)
       (define binding (assoc variable environment))
       (cond (binding (continue (cdr binding) environment))
-            (else (let* ((native-value (meta-level-eval variable (interaction-environment))))
+            (else (let* ((native-value (meta-level-eval variable (make-base-namespace))))
                     (if (procedure? native-value)
                         (continue (wrap-native-procedure native-value) environment)
                         (continue native-value environment))))))
