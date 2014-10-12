@@ -6,7 +6,7 @@
 (struct ev (e κ) #:transparent)
 (struct ko (φ κ) #:transparent)
 (struct applicationk () #:transparent)
-(struct applyk (proc) #:transparent)
+(struct applyk (rator) #:transparent)
 (struct condk (pes es))
 (struct definevk (x)) ;define variable
 (struct haltk ())
@@ -240,12 +240,10 @@
                `(save-env)
                `(add-continuation ,(setk x)))
       (ev e (cons (setk x) κ)))
-     ((ev `(apply ,proc ,args) κ)
+     ((ev `(apply ,rator ,args) κ)
       (execute tracer-context
-               `(add-continuation ,(applyk proc)))
-      (ev args (cons (applyk proc) κ)))
-      ;(let ((e-args (eval args)))
-       ; (ev `(,proc ,@e-args) κ)))
+               `(add-continuation ,(applyk rator)))
+      (ev args (cons (applyk rator) κ)))
      ((ev `(,rator) κ)
       (execute tracer-context
                `(save-env)
@@ -268,8 +266,13 @@
                `(restore-env)
                `(remove-continuation))
       (ko (car κ) (cdr κ)))
-     ((ko (applyk proc) κ)
-      (ev `(,proc ,@v) κ))
+     ((ko (applyk rator) κ)
+      (let ((i (length v)))
+        (execute tracer-context
+                 `(save-vals ,i)
+                 `(save-env)
+                 `(add-continuation ,(ratork i)))
+      (ev rator (cons (ratork i) κ))))
      ((ko (condk pes es) κ)
       (execute tracer-context
                `(restore-env))
