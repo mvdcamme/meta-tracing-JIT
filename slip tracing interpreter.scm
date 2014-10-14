@@ -74,17 +74,17 @@
 ;evaluation
 ;
 
-(define (put-guard-false e)
+(define (guard-false e)
   (if v
       (begin (display "Guard failed") (newline) (bootstrap e))
       (begin (display "Guard passed") (newline))))
 
-(define (put-guard-true e)
+(define (guard-true e)
   (if v
       (begin (display "Guard passed") (newline))
       (begin (display "Guard failed") (newline) (bootstrap e))))
 
-(define (put-guard-same-closure clo i)
+(define (guard-same-closure clo i)
   (and (not (clo-equal? v clo))
        (display "Closure guard failed, expected: ") (display clo) (display ", evaluated: ") (display v) (newline)
        (bootstrap-from-continuation (closure-guard-validatedk i))))
@@ -260,9 +260,9 @@
     ((ko (condk pes es) κ)
      (execute `(restore-env))
      (if v
-         (begin (execute `(put-guard-true ',`(cond ,@es)))
+         (begin (execute `(guard-true ',`(cond ,@es)))
                 (eval-seq pes κ))
-         (begin (execute `(put-guard-false ',`(begin ,@pes)))
+         (begin (execute `(guard-false ',`(begin ,@pes)))
                 (ev `(cond ,@es) κ))))
     ((ko (definevk x) (cons φ κ))
      (execute `(restore-env)
@@ -321,7 +321,7 @@
      (execute `(restore-env))
      (match v
        ((clo (lam x es) ρ)
-        (execute `(put-guard-same-closure ,v ,i)) ;TODO τ-κ does not need to be changed?
+        (execute `(guard-same-closure ,v ,i)) ;TODO τ-κ does not need to be changed?
         (ko (closure-guard-validatedk i) κ))
        (_
         (execute `(apply-native ,i)
@@ -330,9 +330,9 @@
     ((ko (ifk e1 e2) κ)
      (execute `(restore-env))
      (if v
-         (begin (execute `(put-guard-true ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
+         (begin (execute `(guard-true ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
                 (ev e1 κ))
-         (begin (execute `(put-guard-false ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
+         (begin (execute `(guard-false ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
                 (ev e2 κ))))
     ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
      (execute `(restore-env)
