@@ -358,7 +358,7 @@
     ((ko (map-after-fun-callk) κ)
      (execute `(save-val)
               `(restore-vals 2)
-              `(literal-value (map-aid (map-aid-proc (cadr v)) (map-aid-arg-list (cadr v)) (cons (car v) (map-aid-result v))))
+              `(literal-value (map-aid (map-aid-proc (cadr v)) (map-aid-arg-list (cadr v)) (cons (car v) (map-aid-result (cadr v)))))
               `(add-continuation ,(mapk)))
      (ko (mapk) κ))
     ((ko (mapk) κ)
