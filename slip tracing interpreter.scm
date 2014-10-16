@@ -67,7 +67,7 @@
 (struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced) #:transparent)
 
 (define (new-tracer-context)
-  (tracer-context #f #f '())) ;TODO except for debugging, is-tracing? should always start from #f
+  (tracer-context #f #f '()))
 
 (define is-tracing? tracer-context-is-tracing?)
 
@@ -77,7 +77,12 @@
 (define (start-tracing-expression old-tracer-context expression)
   (struct-copy tracer-context old-tracer-context (is-tracing? #t) (expression-to-be-traced expression)))
 
+(define (transform-trace trace)
+  `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
+     (loop)))
+
 (define (stop-tracing old-tracer-context)
+  (set! τ (transform-trace τ))
   (struct-copy tracer-context old-tracer-context
                (expressions-already-traced
                 (cons (cons (tracer-context-expression-to-be-traced old-tracer-context) τ)
@@ -436,16 +441,12 @@
      (cond ((expression-traced? global-tracer-context v)
             (display "----------- EXECUTING TRACE -----------") (newline)
             (let ((trace (expression-trace global-tracer-context v)))
-              (let loop ()
-                (run-trace trace)
-                (loop))))
+              (eval trace)))
            ((is-tracing-expression? global-tracer-context v)
             (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
             (set! global-tracer-context (stop-tracing global-tracer-context))
             (let ((trace (expression-trace global-tracer-context v)))
-              (let loop ()
-                (run-trace trace)
-                (loop))))
+              (eval trace)))
            ((not (is-tracing? global-tracer-context))
             (display "----------- STARTED TRACING -----------") (newline)
             (clear-trace!)
