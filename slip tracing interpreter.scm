@@ -13,9 +13,10 @@
 (define root-map map)
 
 (define (is-higher-order-native? proc)
-  (or (eq? proc root-apply)
-      (eq? proc root-for-each)
-      (eq? proc root-map)))
+  ;(or (eq? proc root-apply)
+   ;   (eq? proc root-for-each)
+    ;  (eq? proc root-map)))
+  #f)
 
 (struct map-aid (proc arg-list result) #:transparent)
 
@@ -415,8 +416,10 @@
   (ev e `(,(haltk))))
 
 (define (reset!)
-  (set! ρ '())
-  (set! σ '())
+  (set! ρ `((map . t00000)))
+  (set! σ `((t00000 . ,(clo (lam '(f lst)
+                                 '((if (null? lst) '() (cons (f (car lst)) (map f (cdr lst))))))
+                            '((map . t00000))))))
   (set! θ '())
   (set! τ '())
   (set! τ-κ `(,(haltk)))
