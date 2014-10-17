@@ -483,25 +483,30 @@
 
 (run (inject '(begin (define (f x) (+ x 10))
                        (define (g y) (* y 10))
-                       (define (loop h i k) (can-start-loop (begin (display (h k)) (newline)
-                                                                   (if (< i 0)
-                                                                       99
-                                                                       (loop g (- i 1) k)))))
+                       (define (loop h i k)
+                         (can-start-loop 'label "loop")
+                         (display (h k)) (newline)
+                         (if (< i 0)
+                             99
+                             (loop g (- i 1) k)))
+                       (loop f 10 9))))
                        (loop f 10 9))))
 
 (run (inject '(begin (define (fac x)
-                       (can-start-loop (if (< x 2)
-                                           1
-                                           (* x (fac (- x 1))))
-                                       "fac"))
-                     (fac 5))))
+                       (can-start-loop 'label "fac")
+                         (if (< x 2)
+                             1
+                             (* x (fac (- x 1)))))
+                         (fac 5))))
 
 (run (inject '(begin (define (f x) (+ x 10))
                        (define (g y) (* y 10))
-                       (define (loop i k) (can-start-loop (begin (display ((if (even? i) f g) k)) (newline)
-                                                                 (if (< i 0)
-                                                                     99
-                                                                     (loop (- i 1) k)))))
+                       (define (loop i k)
+                         (can-start-loop 'label "loop")
+                         (display ((if (even? i) f g) k)) (newline)
+                         (if (< i 0)
+                             99
+                             (loop (- i 1) k)))
                        (loop 10 9))))
 
 |#
