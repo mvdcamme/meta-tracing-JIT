@@ -235,7 +235,7 @@
                          `(remove-continuation))
                 (match κ
                   ((cons φ κ) (ko φ κ))))))
-    ((ev `(if ,e ,e1 ,e2) κ)
+    ((ev `(if ,e ,e1 . ,e2) κ)
      (execute `(save-env)
               `(add-continuation ,(ifk e1 e2)))
      (ev e (cons (ifk e1 e2) κ)))
@@ -328,7 +328,11 @@
          (begin (execute `(guard-true ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
                 (ev e1 κ))
          (begin (execute `(guard-false ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
-                (ev e2 κ))))
+                (if (null? e2)
+                    (begin (execute `(remove-continuation)
+                                    `(literal-value '()))
+                           (ko (car κ) (cdr κ)))
+                    (ev (car e2) κ)))))
     ((ko (letk x es) κ)
      (execute `(restore-env)
               `(set-var ',x))
