@@ -20,6 +20,11 @@
 
 (struct map-aid (proc arg-list result) #:transparent)
 
+(define (massoc el lst)
+  (cond ((null? lst) #f)
+        ((eq? el (mcar (car lst))) (car lst))
+        (else (massoc el (cdr lst)))))
+
 ;
 ; continuations
 ;
@@ -105,13 +110,13 @@
 
 (define (guard-false e)
   (if v
-      (begin (display "Guard failed") (newline) (bootstrap e))
+      (begin (display "Guard-false failed") (newline) (bootstrap e))
       (begin (display "Guard passed") (newline))))
 
 (define (guard-true e)
   (if v
       (begin (display "Guard passed") (newline))
-      (begin (display "Guard failed") (newline) (bootstrap e))))
+      (begin (display "Guard-true failed") (newline) (bootstrap e))))
 
 (define (guard-same-closure clo i)
   (and (not (clo-equal? v clo))
@@ -130,6 +135,7 @@
 
 (define (set-env ρ*)
   (set! ρ ρ*))
+
 (define (restore-env)
   (set! ρ (car θ))
   (set! θ (cdr θ)))
@@ -317,7 +323,6 @@
     ((ko (definevk x) (cons φ κ))
      (execute `(restore-env)
               `(alloc-var ',x)
-              `(set-var ',x)
               `(remove-continuation))
      (ko φ κ))
     ((ko (haltk) _)
@@ -420,10 +425,10 @@
   (ev e `(,(haltk))))
 
 (define (reset!)
-  (set! ρ `((map . t00000)))
-  (set! σ `((t00000 . ,(clo (lam '(f lst)
-                                 '((if (null? lst) '() (cons (f (car lst)) (map f (cdr lst))))))
-                            '((map . t00000))))))
+  (set! ρ '());`((map . t00000)))
+  (set! σ '());`((t00000 . ,(clo (lam '(f lst)
+                            ;     '((if (null? lst) '() (cons (f (car lst)) (map f (cdr lst))))))
+                          ;  '((map . t00000))))))
   (set! θ '())
   (set! τ '())
   (set! τ-κ `(,(haltk)))
@@ -494,7 +499,6 @@
                              99
                              (loop g (- i 1) k)))
                        (loop f 10 9))))
-                       (loop f 10 9))))
 
 (run (inject '(begin (define (fac x)
                        (can-start-loop 'label "fac")
@@ -512,6 +516,62 @@
                              99
                              (loop (- i 1) k)))
                        (loop 10 9))))
+
+;
+; N-Queens (source: http://c2.com/cgi/wiki?EightQueensInManyProgrammingLanguages)
+;
+
+(begin 
+ (define (make-queen row col) (list row col))
+ (define (get-row queen) (car queen))
+ (define (get-col queen) (cadr queen))
+
+ (define (same-row? nq oq) (= (get-row nq) (get-row oq)))
+ (define (same-col? nq oq) (= (get-col nq) (get-col oq)))
+ (define (same-diag? nq oq)
+   (= (abs (- (get-row nq) (get-row oq)))
+      (abs (- (get-col nq) (get-col oq)))))
+
+ (define (attacks? nq oq)
+   (or (same-row? nq oq) (same-col? nq oq) (same-diag? nq oq)))
+
+ (define (safe? target queens)
+   (cond ((null? queens) #t)
+         ((attacks? target (car queens)) #f)
+         (else (safe? target (cdr queens)))))
+
+ ; Solve for a board size of sz.
+ (define (solve sz)
+   (define (s-rec sz x y pos sols)
+     (cond 
+       ; If we've advanced past the last column, we have a solution.
+       ; (By the way, the reverse is because pos is built up backward.)
+       ((> x sz) (cons (reverse pos) sols))
+       ; If we've advanced past the last row, we have a failure.
+       ((> y sz) sols)
+       ; If the queen is safe, the fun begins.
+       ((safe? (make-queen x y) pos)
+        ; This is the backtracking call. This is executed once
+        ; the inner call is complete.
+        (s-rec sz x (+ y 1) pos
+               ; Run the next column first; if any solutions
+               ; result, they need to be passed to the backtracked
+               ; call.
+               (s-rec sz (+ x 1) 1
+                      ; Add this queen when considering the next
+                      ; column's placement.
+                      (cons (make-queen x y) pos)
+                      sols)))
+       ; If this queen isn't safe, move on to the next row.
+       (else (s-rec sz x (+ y 1) pos sols))))
+   ; Start the recursion.
+   (s-rec sz 1 1 '() '()))
+
+ (define (show-queens n)
+   (display (list "The" n "queens problem has"
+                  (length (solve n))
+                  "solutions."))
+   (newline)))
 
 |#
 
