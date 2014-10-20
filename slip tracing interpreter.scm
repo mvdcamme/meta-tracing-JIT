@@ -4,22 +4,6 @@
 
 (define ns (make-base-namespace))
 
-;
-; higer-order natives
-;
-
-(define root-apply apply)
-(define root-for-each for-each)
-(define root-map map)
-
-(define (is-higher-order-native? proc)
-  ;(or (eq? proc root-apply)
-   ;   (eq? proc root-for-each)
-    ;  (eq? proc root-map)))
-  #f)
-
-(struct map-aid (proc arg-list result) #:transparent)
-
 (define (massoc el lst)
   (cond ((null? lst) #f)
         ((eq? el (mcar (car lst))) (car lst))
@@ -43,9 +27,6 @@
 (struct lam (x es) #:transparent)
 (struct letk (x es))
 (struct let*k (x bds es))
-(struct mapk ())
-(struct map-after-fun-callk ())
-(struct mapfinishedk ())
 (struct randk (e es i))
 (struct ratork (i))
 (struct seqk (es))
@@ -53,8 +34,7 @@
 
 (define (clo-equal? clo1 clo2)
   (and (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
-       (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2)))
-       (equal? (clo-ρ clo1) (clo-ρ clo2))))
+       (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2)))))
 
 (define ρ #f) ; env
 (define σ #f) ; store
@@ -298,7 +278,7 @@
         (execute `(restore-vals ,i)
                  `(save-env)
                  `(save-vals ,i)
-                 `(set-env ',ρ))
+                 `(set-env (clo-ρ ,v)))
         (let loop ((i i) (x x))
           (match x
             ('()
@@ -359,55 +339,16 @@
               `(save-env)
               `(add-continuation ,(randk rator (cdr rands) (+ i 1))))
      (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
-    ;((ko (mapk proc '() res) (cons φ κ))
-    ; (execute `(remove-continuation))
-    ; (ko φ κ))
-    ;((ko (mapk proc (cons e els) res) κ)
-    ; (execute `(add-continuation ,(mapk proc els (cons v res)))
-    ;          `(add-continuation ,(ratork 1)))
-    ; (ko (ratork 1) (cons (mapk proc els (cons v res)) κ)))
-    ((ko (mapfinishedk) (cons φ κ))
-     (execute `(remove-continuation)
-              `(literal-value (reverse (map-aid-result v))))
-     (ko φ κ))
-    ((ko (map-after-fun-callk) κ)
-     (execute `(save-val)
-              `(restore-vals 2)
-              `(literal-value (map-aid (map-aid-proc (cadr v)) (map-aid-arg-list (cadr v)) (cons (car v) (map-aid-result (cadr v)))))
-              `(add-continuation ,(mapk)))
-     (ko (mapk) κ))
-    ((ko (mapk) κ)
-     (let ((old-map v))
-       (execute `(if (null? (map-aid-arg-list v))
-                     (add-continuation ,(mapfinishedk))
-                     (begin (literal-value (list (map-aid-proc v)
-                                                 ρ
-                                                 (car (map-aid-arg-list v))
-                                                 (map-aid (map-aid-proc v) (cdr (map-aid-arg-list v)) (map-aid-result v))))
-                            (save-vals 4)
-                            (restore-val)
-                            (add-continuation ,(map-after-fun-callk))
-                            (add-continuation ,(ratork 1)))))
-       (if (null? (map-aid-arg-list old-map))
-           (ko (mapfinishedk) κ)
-           (ko (ratork 1) (cons (map-after-fun-callk) κ)))))
     ((ko (ratork i) κ)
      (execute `(restore-env))
-     (if (is-higher-order-native? v)
-         (let ((proc v))
-           (cond ((eq? v root-map)
-                  (execute `(restore-vals 2)
-                           `(literal-value (map-aid (car v) (cadr v) '()))
-                           `(add-continuation ,(mapk)))
-                  (ko (mapk) κ))))
-         (match v
-           ((clo (lam x es) ρ)
-            (execute `(guard-same-closure ,v ,i)) ;TODO τ-κ does not need to be changed?
-            (ko (closure-guard-validatedk i) κ))
-           (_
-            (execute `(apply-native ,i)
-                     `(remove-continuation))
-            (ko (car κ) (cdr κ))))))
+     (match v
+       ((clo (lam x es) ρ)
+        (execute `(guard-same-closure ,v ,i)) ;TODO τ-κ does not need to be changed?
+        (ko (closure-guard-validatedk i) κ))
+       (_
+        (execute `(apply-native ,i)
+                 `(remove-continuation))
+        (ko (car κ) (cdr κ)))))
     ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
      (execute `(restore-env)
               `(remove-continuation))
@@ -425,10 +366,8 @@
   (ev e `(,(haltk))))
 
 (define (reset!)
-  (set! ρ '());`((map . t00000)))
-  (set! σ '());`((t00000 . ,(clo (lam '(f lst)
-                            ;     '((if (null? lst) '() (cons (f (car lst)) (map f (cdr lst))))))
-                          ;  '((map . t00000))))))
+  (set! ρ '());
+  (set! σ '());
   (set! θ '())
   (set! τ '())
   (set! τ-κ `(,(haltk)))
