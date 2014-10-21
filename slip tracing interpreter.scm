@@ -52,15 +52,28 @@
 ;tracing
 ;
 
-(struct tracer-context (is-tracing? expression-to-be-traced expressions-already-traced) #:transparent)
+(struct tracer-context (is-tracing? expression-to-be-traced expressions-encountered expressions-already-traced) #:transparent)
 
 (define (new-tracer-context)
-  (tracer-context #f #f '()))
+  (tracer-context #f #f '() '()))
 
 (define is-tracing? tracer-context-is-tracing?)
 
 (define (is-tracing-expression? tracer-context expression)
   (eq? (tracer-context-expression-to-be-traced tracer-context) expression))
+
+(define (expression-encountered? tracer-context expression)
+  (member expression (tracer-context-expressions-encountered tracer-context)))
+
+(define (add-expression-encountered old-tracer-context expression)
+  (struct-copy tracer-context old-tracer-context
+               (expressions-encountered (cons expression (tracer-context-expressions-encountered old-tracer-context)))))
+
+(define (expression-traced? tracer-context expression)
+  (assoc expression (tracer-context-expressions-already-traced tracer-context)))
+
+(define (expression-trace tracer-context expression)
+  (cdr (assoc expression (tracer-context-expressions-already-traced tracer-context))))
 
 (define (start-tracing-expression old-tracer-context expression)
   (struct-copy tracer-context old-tracer-context (is-tracing? #t) (expression-to-be-traced expression)))
@@ -78,12 +91,6 @@
                (is-tracing? #f)
                (expression-to-be-traced #f)))
 
-(define (expression-traced? tracer-context expression)
-  (assoc expression (tracer-context-expressions-already-traced tracer-context)))
-
-(define (expression-trace tracer-context expression)
-  (cdr (assoc expression (tracer-context-expressions-already-traced tracer-context))))
-
 (define global-tracer-context #f)
 
 ;
@@ -93,11 +100,13 @@
 (define (guard-false e)
   (if v
       (begin (display "Guard-false failed") (newline) (bootstrap e))
-      (begin (display "Guard passed") (newline))))
+      ;(begin (display "Guard passed") (newline))))
+      1))
 
 (define (guard-true e)
   (if v
-      (begin (display "Guard passed") (newline))
+      ;(begin (display "Guard passed") (newline))
+      1
       (begin (display "Guard-true failed") (newline) (bootstrap e))))
 
 (define (guard-same-closure clo i)
@@ -423,10 +432,15 @@
             (set! global-tracer-context (stop-tracing global-tracer-context))
             (let ((trace (expression-trace global-tracer-context v)))
               (eval trace)))
-           ((not (is-tracing? global-tracer-context))
+           ((and (not (is-tracing? global-tracer-context)) (expression-encountered? global-tracer-context v))
             (display "----------- STARTED TRACING -----------") (newline)
             (clear-trace!)
             (set! global-tracer-context (start-tracing-expression global-tracer-context v))
+            (let ((new-state (ko φ κ)))
+              (execute `(remove-continuation))
+              (step* new-state)))
+           ((not (expression-encountered? global-tracer-context v))
+            (set! global-tracer-context (add-expression-encountered global-tracer-context v))
             (let ((new-state (ko φ κ)))
               (execute `(remove-continuation))
               (step* new-state)))
@@ -485,7 +499,7 @@
 ; N-Queens (source: http://c2.com/cgi/wiki?EightQueensInManyProgrammingLanguages)
 ;
 
-(begin 
+(run (inject '(begin 
  (define (make-queen row col) (list row col))
  (define (get-row queen) (car queen))
  (define (get-col queen) (cadr queen))
@@ -507,6 +521,7 @@
  ; Solve for a board size of sz.
  (define (solve sz)
    (define (s-rec sz x y pos sols)
+     (display (cons x y)) (newline)
      (cond 
        ; If we've advanced past the last column, we have a solution.
        ; (By the way, the reverse is because pos is built up backward.)
@@ -535,7 +550,9 @@
    (display (list "The" n "queens problem has"
                   (length (solve n))
                   "solutions."))
-   (newline)))
+   (newline))
+
+ (show-queens 4))))
 
 |#
 
