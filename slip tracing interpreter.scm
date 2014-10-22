@@ -100,13 +100,11 @@
 (define (guard-false e)
   (if v
       (begin (display "Guard-false failed") (newline) (bootstrap e))
-      ;(begin (display "Guard passed") (newline))))
-      1))
+      (begin (display "Guard passed") (newline))))
 
 (define (guard-true e)
   (if v
-      ;(begin (display "Guard passed") (newline))
-      1
+      (begin (display "Guard passed") (newline))
       (begin (display "Guard-true failed") (newline) (bootstrap e))))
 
 (define (guard-same-closure clo i)
@@ -149,9 +147,10 @@
     (set! σ (cons (cons a v) σ))))
 
 (define (lookup-var x)
-  (match (assoc x ρ)
-    ((cons _ a) (set! v (cdr (assoc a σ))))
-    (_ (set! v (eval x)))))
+  (let ((binding (assoc x ρ)))
+    (match binding
+      ((cons _ a) (set! v (cdr (assoc a σ))))
+      (_ (set! v (eval x))))))
 
 (define (create-closure x es)
   (set! v (clo (lam x es) ρ)))
