@@ -83,7 +83,7 @@
      (loop)))
 
 (define (stop-tracing old-tracer-context)
-  (set! τ (transform-trace τ))
+  (set! τ (transform-trace (reverse τ)))
   (struct-copy tracer-context old-tracer-context
                (expressions-already-traced
                 (cons (cons (tracer-context-expression-to-be-traced old-tracer-context) τ)
@@ -180,7 +180,7 @@
       #f))
 
 (define (append-trace ms)
-  (and τ (set! τ (append τ ms))))
+  (and τ (set! τ (append (reverse ms) τ))))
 
 (define (execute . ms)
   (and (is-tracing? global-tracer-context)
@@ -465,8 +465,12 @@
 
 #|
 
+;1
+;meta-trace
 (define (fac x) (if (< x 2) 1 (* x (fac (- x 1)))))
 
+;2
+;regular-trace
 (run (inject '(begin (define (f x) (+ x 10))
                        (define (g y) (* y 10))
                        (define (loop h i k)
@@ -475,8 +479,11 @@
                          (if (< i 0)
                              99
                              (loop g (- i 1) k)))
+                       (loop f 0 9)
                        (loop f 10 9))))
 
+;3
+;regular-trace
 (run (inject '(begin (define (fac x)
                        (can-start-loop 'label "fac")
                          (if (< x 2)
@@ -484,15 +491,21 @@
                              (* x (fac (- x 1)))))
                          (fac 5))))
 
+;4
+;regular-trace
 (run (inject '(begin (define (f x) (+ x 10))
-                       (define (g y) (* y 10))
-                       (define (loop i k)
-                         (can-start-loop 'label "loop")
-                         (display ((if (even? i) f g) k)) (newline)
-                         (if (< i 0)
-                             99
-                             (loop (- i 1) k)))
-                       (loop 10 9))))
+                     (define (g y) (* y 10))
+                     (define (loop i k)
+                       (can-start-loop 'label "loop")
+                       (display ((if (even? i) f g) k)) (newline)
+                       (if (< i 0)
+                           99
+                           (loop (- i 1) k)))
+                     (loop 10 9))))
+
+
+;5
+;regular-trace/meta-trace
 
 ;
 ; N-Queens (source: http://c2.com/cgi/wiki?EightQueensInManyProgrammingLanguages)
@@ -553,6 +566,20 @@
 
  (show-queens 4))))
 
-|#
+;regular-trace
+;6
+(run (inject '(begin (define (fib n)
+                       (can-start-loop 'label "fib")
+                       (if (< n 2)
+                           n
+                           (+ (fib (- n 1)) (fib (- n 2)))))
+                     (fib 10))))
 
-;(define fib '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)))
+;meta-trace
+;7
+(define (fib n)
+  (if (< n 2)
+      n
+      (+ (fib (- n 1)) (fib (- n 2)))))
+
+|#
