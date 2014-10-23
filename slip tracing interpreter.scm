@@ -2,6 +2,8 @@
 
 ;; Slippy: lambda letrec if set! begin quote
 
+(define ENABLE_OPTIMIZATIONS #t)
+
 (define ns (make-base-namespace))
 
 (define (massoc el lst)
@@ -78,12 +80,75 @@
 (define (start-tracing-expression old-tracer-context expression)
   (struct-copy tracer-context old-tracer-context (is-tracing? #t) (expression-to-be-traced expression)))
 
+;
+; Transform trace
+;
+
 (define (transform-trace trace)
   `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
      (loop)))
 
+;
+; Optimize trace
+;
+
+(define (changes-env? instruction)
+  (or (eq? instruction 'guard-false)
+      (eq? instruction 'guard-true)
+      (eq? instruction 'guard-same-closure)
+      (eq? instruction 'set-env)
+      (eq? instruction 'alloc-var)))
+
+;#f = don't copy the instruction into the final trace
+;#t = do copy the instruction into the final trace
+
+(define (save-last-env-save stack)
+  (set-mcdr! (car stack) #t))
+
+(define (save-all-env-saves stack)
+  (for-each (lambda (pair)
+              (set-mcdr! pair #t))
+            stack))
+
+(define (copy-relevant-instructions list)
+  (define (loop to-copy copied)
+    (cond ((null? to-copy) (reverse copied))
+          ((mcdr (car to-copy)) (loop (cdr to-copy) (cons (mcar (car to-copy)) copied)))
+          (else (loop (cdr to-copy) copied))))
+  (loop list '()))
+
+(define (optimize-trace trace)
+  (define (first-run trace stack first-run-through)
+    (cond ((null? trace) (save-all-env-saves stack) (reverse first-run-through))
+          ((eq? (caar trace) 'save-env)
+           (let ((pair (mcons (car trace) #f)))
+             (first-run (cdr trace) (cons pair stack) (cons pair first-run-through))))
+          ((eq? (caar trace) 'restore-env)
+           (cond ((null? stack)
+                  (let ((pair (mcons (car trace) #t)))
+                    (first-run (cdr trace) stack (cons pair first-run-through))))
+                 ((mcdr (car stack))
+                  ;The environment should be saved and restored
+                  (let ((pair (mcons (car trace) #t)))
+                    (first-run (cdr trace) (cdr stack) (cons pair first-run-through))))
+                 (else 
+                  (let ((pair (mcons (car trace) #f)))
+                    ;Not really necessary to add the pair to the first-run-through list
+                    (first-run (cdr trace) (cdr stack) (cons pair first-run-through))))))
+          ((changes-env? (caar trace))
+           (let ((pair (mcons (car trace) #t)))
+             (and (not (null? stack)) (save-last-env-save stack))
+             (first-run (cdr trace) stack (cons pair first-run-through))))
+          (else
+           (let ((pair (mcons (car trace) #t)))
+             (first-run (cdr trace) stack (cons pair first-run-through))))))
+  (define first-run-through (first-run trace '() '()))
+  (copy-relevant-instructions first-run-through))
+
 (define (stop-tracing old-tracer-context)
-  (set! τ (transform-trace (reverse τ)))
+  (if ENABLE_OPTIMIZATIONS
+      (set! τ (transform-trace (optimize-trace (reverse τ))))
+      (set! τ (transform-trace (reverse τ))))
   (struct-copy tracer-context old-tracer-context
                (expressions-already-traced
                 (cons (cons (tracer-context-expression-to-be-traced old-tracer-context) τ)
@@ -288,6 +353,8 @@
                          `(literal-value #f))
                 (ko (car κ) (cdr κ)))))
     ((ko (applicationk) κ)
+     (and (is-tracing-expression? global-tracer-context es)
+          (set! global-tracer-context (stop-tracing global-tracer-context)))
      (execute `(restore-env)
               `(remove-continuation))
      (ko (car κ) (cdr κ)))
@@ -480,7 +547,7 @@
                              99
                              (loop g (- i 1) k)))
                        (loop f 0 9)
-                       (loop f 10 9))))
+                       (loop f 0 9))))
 
 ;3
 ;regular-trace
