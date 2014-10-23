@@ -353,8 +353,6 @@
                          `(literal-value #f))
                 (ko (car κ) (cdr κ)))))
     ((ko (applicationk) κ)
-     (and (is-tracing-expression? global-tracer-context es)
-          (set! global-tracer-context (stop-tracing global-tracer-context)))
      (execute `(restore-env)
               `(remove-continuation))
      (ko (car κ) (cdr κ)))
