@@ -209,4 +209,75 @@
                              has-changed?))))
          (outer-loop (- unsorted-idx 1))))))
 
+;9
+;regular-trace/meta-trace
+
+;Source: based on the code at: https://github.com/SOM-st/SOM/blob/master/Examples/Benchmarks/TreeSort.som
+
+(begin 
+(define (make-tree-node left right value)
+  (vector left right value))
+
+(define (new-tree-node v)
+  (make-tree-node '() '() v))
+
+(define (left node)
+  (vector-ref node 0))
+
+(define (left! node l)
+  (vector-set! node 0 l))
+
+(define (right node )
+  (vector-ref node 1))
+
+(define (right! node r)
+  (vector-set! node 1 r))
+
+(define (value! node vl)
+  (vector-set! node 2 vl))
+
+(define (value node )
+  (vector-ref node 2))
+
+(define (check node)
+  (and (or (null? (left node))
+           (and (< (value (left node)) (value node))
+                (check (left node))))
+       (or (null? (right node))
+           (and (>= (value (right node)) (value node))
+                (check (right node))))))
+
+(define (insert! node n)
+  (if (< n (value node))
+      (if (null? (left node))
+          (left! node (new-tree-node n))
+          (insert! (left node) n))
+      (if (null? (right node))
+          (right! node (new-tree-node n))
+          (insert! (right node) n))))
+
+(define (tree-sort vec)
+  (and (> (vector-length vec) 1)
+       (let ((n (new-tree-node (vector-ref vec 0))))
+         (define (loop i)
+           (if (< i (vector-length vec))
+                (begin (insert! n (vector-ref vec i))
+                       (loop (+ i 1)))
+                n))
+         (loop 1))))
+
+(define (make-random-array length)
+    (let ((v (make-vector length)))
+      (define (loop i)
+        (if (< i  length)
+            (begin (vector-set! v i (random 1000))
+                   (loop (+ i 1)))
+            v))
+      (loop 0)))
+
+(define random-vec (make-random-array 10000))
+
+
+(tree-sort random-vec))
+
 |#
