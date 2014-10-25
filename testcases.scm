@@ -158,30 +158,28 @@
 (define (sequential-move move-list state)
     (if (null? move-list) ; Is the move-list empty?
         state
-        (let* ((next-move (car move-list))
-               (src-peg (car next-move))
-               (dst-peg (cadr next-move))
-               (next-state (move-disk src-peg dst-peg state)))
-          (if (move-check? src-peg dst-peg state)
-              (begin
-                (printf "Moving smallest disk from peg ~s onto peg ~s in state ~s yields state ~s.\n" 
-                        src-peg dst-peg state next-state)
-                (sequential-move (cdr move-list) next-state))
-              (error 'sequential-move "Illegal move.")
-              ))))
+        (begin (define next-move (car move-list))
+               (define src-peg (car next-move))
+               (define dst-peg (cadr next-move))
+               (define next-state (move-disk src-peg dst-peg state))
+               (if (move-check? src-peg dst-peg state)
+                   (begin (printf "Moving smallest disk from peg ~s onto peg ~s in state ~s yields state ~s.\n" 
+                                   src-peg dst-peg state next-state)
+                          (sequential-move (cdr move-list) next-state))
+                   (error 'sequential-move "Illegal move.")))))
 
 (define (agent home-peg target-peg n)
-  (let ((spare-peg (car (remove-all home-peg (remove-all target-peg '(1 2 3))))))
-    (if (<= n 0)
-        '() ; an empty list
-        (append (agent home-peg spare-peg (- n 1))
-                (list (list home-peg target-peg))
-                (agent spare-peg target-peg (- n 1))))))
+  (define spare-peg (car (remove-all home-peg (remove-all target-peg '(1 2 3)))))
+  (if (<= n 0)
+      '() ; an empty list
+      (append (agent home-peg spare-peg (- n 1))
+              (list (list home-peg target-peg))
+              (agent spare-peg target-peg (- n 1)))))
 
 (define (hanoi n)
-  (let ((state (initial-state n)))
-    (printf "Initial state: ~s.\n" state)
-    (sequential-move (agent 1 3 n) state)))
+  (define state (initial-state n))
+  (printf "Initial state: ~s.\n" state)
+  (sequential-move (agent 1 3 n) state))
 
 (hanoi 5))
 
@@ -190,26 +188,26 @@
 
 (define (bubble-sort vector <<?)  
    (define (bubble-swap vector idx1 idx2)
-     (let ((keep (vector-ref vector idx1)))
-       (vector-set! vector idx1 (vector-ref vector idx2))
-       (vector-set! vector idx2 keep)
-       #t))
-   (let outer-loop
-     ((unsorted-idx (- (vector-length vector) 2)))
+     (define keep (vector-ref vector idx1))
+     (vector-set! vector idx1 (vector-ref vector idx2))
+     (vector-set! vector idx2 keep)
+     #t)
+   (define (outer-loop unsorted-idx)
      (if (>= unsorted-idx 0)
-       (if (let inner-loop
-             ((inner-idx 0)
-              (has-changed? #f))
-             (if (> inner-idx unsorted-idx)
-               has-changed?
-               (inner-loop (+ inner-idx 1)
-                           (if (<<? (vector-ref vector (+ inner-idx 1))
-                                    (vector-ref vector inner-idx))
-                             (bubble-swap vector inner-idx (+ inner-idx 1))
-                             has-changed?))))
-         (outer-loop (- unsorted-idx 1))))))
+       (if (begin (define (inner-loop inner-idx has-changed?)
+                    (if (> inner-idx unsorted-idx)
+                        has-changed?
+                        (inner-loop (+ inner-idx 1)
+                                    (if (<<? (vector-ref vector (+ inner-idx 1))
+                                             (vector-ref vector inner-idx))
+                                        (bubble-swap vector inner-idx (+ inner-idx 1))
+                                        has-changed?))))
+                  (inner-loop 0 #f))
+           (outer-loop (- unsorted-idx 1)))))
+   (outer-loop (- (vector-length vector) 2)))
+     
 
-;9
+;10
 ;regular-trace/meta-trace
 
 ;Source: based on the code at: https://github.com/SOM-st/SOM/blob/master/Examples/Benchmarks/TreeSort.som
@@ -258,24 +256,24 @@
 
 (define (tree-sort vec)
   (and (> (vector-length vec) 1)
-       (let ((n (new-tree-node (vector-ref vec 0))))
-         (define (loop i)
-           (if (< i (vector-length vec))
-                (begin (insert! n (vector-ref vec i))
-                       (loop (+ i 1)))
-                n))
-         (loop 1))))
+       (define n (new-tree-node (vector-ref vec 0)))
+       (define (loop i)
+         (if (< i (vector-length vec))
+              (begin (insert! n (vector-ref vec i))
+                     (loop (+ i 1)))
+              n))
+       (loop 1)))
 
 (define (make-random-array length)
-    (let ((v (make-vector length)))
-      (define (loop i)
-        (if (< i  length)
-            (begin (vector-set! v i (random 1000))
-                   (loop (+ i 1)))
-            v))
-      (loop 0)))
+    (define v (make-vector length))
+    (define (loop i)
+      (if (< i  length)
+          (begin (vector-set! v i (random 1000))
+                 (loop (+ i 1)))
+          v))
+    (loop 0))
 
-(define random-vec (make-random-array 10000))
+(define random-vec (make-random-array 100))
 
 
 (tree-sort random-vec))
