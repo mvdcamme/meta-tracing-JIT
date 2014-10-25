@@ -400,7 +400,9 @@
     ((ko (ifk e1 e2) κ)
      (execute `(restore-env))
      (if v
-         (begin (execute `(guard-true ',e2)) ;If the guard fails, the predicate was false, so e2 should be evaluated
+         (begin (execute `(guard-true ',(if (null? e2)
+                                            '()
+                                            (car e2)))) ;If the guard fails, the predicate was false, so e2 should be evaluated
                 (ev e1 κ))
          (begin (execute `(guard-false ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
                 (if (null? e2)
