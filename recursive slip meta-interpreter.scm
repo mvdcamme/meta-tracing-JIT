@@ -60,6 +60,7 @@
         (bind-parameters parameters arguments)
         (let* ((value (evaluate-sequence expressions)))
           (set! environment dynamic-environment)
+          (can-close-loop expressions "some function")
           value))
       closure)
     
