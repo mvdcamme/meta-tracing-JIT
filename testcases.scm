@@ -237,14 +237,6 @@
 (define (value node )
   (vector-ref node 2))
 
-(define (check node)
-  (and (or (null? (left node))
-           (and (< (value (left node)) (value node))
-                (check (left node))))
-       (or (null? (right node))
-           (and (>= (value (right node)) (value node))
-                (check (right node))))))
-
 (define (insert! node n)
   (if (< n (value node))
       (if (null? (left node))
@@ -255,14 +247,20 @@
           (insert! (right node) n))))
 
 (define (tree-sort vec)
-  (and (> (vector-length vec) 1)
-       (define n (new-tree-node (vector-ref vec 0)))
-       (define (loop i)
-         (if (< i (vector-length vec))
-              (begin (insert! n (vector-ref vec i))
-                     (loop (+ i 1)))
-              n))
-       (loop 1)))
+  (if (> (vector-length vec) 1)
+      (begin (define n (new-tree-node (vector-ref vec 0)))
+             (define (llloop i)
+               (if (< i (vector-length vec))
+                   (begin (insert! n (vector-ref vec i))
+                          (llloop (+ i 1)))
+                   n))
+             (llloop 1))
+      #f))
+
+(tree-sort (vector 50 75 25 100)))
+
+
+OPTIONAL:
 
 (define (make-random-array length)
     (define v (make-vector length))
@@ -273,7 +271,7 @@
           v))
     (loop 0))
 
-(define random-vec (make-random-array 100))
+(define random-vec (make-random-array 4))
 
 
 (tree-sort random-vec))
