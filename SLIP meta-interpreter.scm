@@ -42,10 +42,14 @@
 ;
 ; natives
 ;
+  
+  (define debug 1)
 
   (define (wrap-native-procedure native-procedure)
     (lambda (arguments continue environment tailcall)
-      (define native-value (meta-level-apply native-procedure arguments))
+      debug
+      (display "native-procedure = ") (display native-procedure) (display ", arguments = ") (display arguments) (newline)
+      (define native-value (apply native-procedure arguments))
       (continue native-value environment)))
 
   (define (cps-apply expression continue environment tailcall)
@@ -132,7 +136,7 @@
         (define (continue-after-sequence value environment-after-sequence)
           (continue value dynamic-environment))
         (define lexical-environment (bind-parameters parameters arguments environment))
-        (can-start-loop expressions)
+        (can-start-loop expressions "some function")
         (if tailcall
           (evaluate-sequence expressions continue lexical-environment #t)
           (evaluate-sequence expressions continue-after-sequence lexical-environment #t))))
@@ -145,12 +149,20 @@
       (lambda operands
         (lambda (continue environment tailcall)
           (define (continue-after-operator procedure environment-after-operator)
+            (define test #f)
             (define (evaluate-operands operands arguments environment)
-              (define (continue-with-operands value environment-with-operands)
-                (evaluate-operands (cdr operands) (cons value arguments) environment-with-operands))
               (if (null? operands)
-                (procedure (reverse arguments) continue environment tailcall)
-                (eval (car operands) continue-with-operands environment #f)))
+                (begin (display "in evaluate-application, arguments = ") (display arguments) (newline)
+                       (procedure (reverse arguments) continue environment tailcall))
+                ;(eval (car operands) continue-with-operands environment #f)))
+                (eval (car operands) (test operands arguments) environment #f)))
+            (define (ttest operands arguments)
+              (define (continue-with-operands value environment-with-operands)
+                debug
+                (display "value = ") (display value) (newline)
+                (evaluate-operands (cdr operands) (cons value arguments) environment-with-operands))
+              continue-with-operands)
+            (set! test ttest)
             (evaluate-operands operands '() environment-after-operator))
           (eval operator continue-after-operator environment #f))))
 
@@ -234,6 +246,7 @@
 
     (define (evaluate-variable variable continue environment)
       (define binding (vassoc variable environment))
+      (display "evaluate-variable, variable = ") (display variable) (display ", value = ") (display binding) (newline)
       (cond (binding (continue (vector-ref binding 1) environment))
             (else (let* ((native-value (meta-level-eval variable (make-base-namespace))))
                     (if (procedure? native-value)

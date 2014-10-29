@@ -2,7 +2,7 @@
 
 ;; Slippy: lambda letrec if set! begin quote
 
-(define ENABLE_OPTIMIZATIONS #t)
+(define ENABLE_OPTIMIZATIONS #f)
 
 (define ns (make-base-namespace))
 
@@ -86,8 +86,11 @@
 ;
 
 (define (transform-trace trace)
-  `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
+  `(letrec ((loop ,(append '(lambda ()) trace '((debug) (loop)))))
      (loop)))
+
+(define (debug)
+  (= 1 1))
 
 ;
 ; Optimize trace
@@ -213,6 +216,7 @@
     (set! σ (cons (cons a v) σ))))
 
 (define (lookup-var x)
+  (and (eq? x 'debug) (debug))
   (let ((binding (assoc x ρ)))
     (match binding
       ((cons _ a) (set! v (cdr (assoc a σ))))
