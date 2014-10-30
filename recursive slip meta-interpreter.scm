@@ -5,10 +5,14 @@
           ((eq? (vector-ref (car lst) 0) el) (car lst))
           (else (assocv el (cdr lst)))))
   
+  (define debug '())
+  
   (define (map f lst)
-    (if (null? lst)
-        '()
-        (cons (f (car lst)) (map f (cdr lst)))))
+    (define (loop list acc)
+      (if (null? list)
+          (reverse acc)
+          (loop (cdr list) (cons (begin debug (f (car list)) acc)))))
+    (loop lst '()))
   
   (define meta-circularity-level 0)
   
@@ -87,7 +91,6 @@
       (evaluate (evaluate expression)))
     
     (define (evaluate-if predicate consequent . alternate)
-      (display "evaluating if: predicate = ") (display predicate) (newline)
       (if (evaluate predicate)
           (thunkify consequent)
           (if (null? alternate)

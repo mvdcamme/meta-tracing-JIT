@@ -213,7 +213,11 @@
   (let ((a (cdr (assoc x ρ))))
     (set! σ (cons (cons a v) σ))))
 
+(define (debug)
+  (= 1 1))
+
 (define (lookup-var x)
+  (and (eq? x 'debug) (debug))
   (let ((binding (assoc x ρ)))
     (match binding
       ((cons _ a) (set! v (cdr (assoc a σ))))
