@@ -86,11 +86,8 @@
 ;
 
 (define (transform-trace trace)
-  `(letrec ((loop ,(append '(lambda ()) trace '((debug) (loop)))))
+  `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
      (loop)))
-
-(define (debug)
-  (= 1 1))
 
 ;
 ; Optimize trace
@@ -100,8 +97,9 @@
   (or (eq? instruction 'guard-false)
       (eq? instruction 'guard-true)
       (eq? instruction 'guard-same-closure)
+      (eq? instruction 'alloc-var)
       (eq? instruction 'set-env)
-      (eq? instruction 'alloc-var)))
+      (eq? instruction 'switch-to-clo-env)))
 
 ;#f = don't copy the instruction into the final trace
 ;#t = do copy the instruction into the final trace
@@ -216,7 +214,6 @@
     (set! σ (cons (cons a v) σ))))
 
 (define (lookup-var x)
-  (and (eq? x 'debug) (debug))
   (let ((binding (assoc x ρ)))
     (match binding
       ((cons _ a) (set! v (cdr (assoc a σ))))
@@ -241,6 +238,13 @@
 
 (define (remove-continuation)
   (set! τ-κ (cdr τ-κ)))
+
+(define (switch-to-clo-env i)
+  (let ((clo v))
+    (restore-vals i)
+    (save-env)
+    (save-vals i)
+    (set-env (clo-ρ clo))))
 
 (define (run-trace ms)
   (if (pair? ms)
@@ -373,10 +377,7 @@
     ((ko (closure-guard-validatedk i) κ)
      (match v
        ((clo (lam x es) ρ)
-        (execute `(restore-vals ,i)
-                 `(save-env)
-                 `(save-vals ,i)
-                 `(set-env (clo-ρ ,v)))
+        (execute `(switch-to-clo-env ,i))
         (let loop ((i i) (x x))
           (match x
             ('()
