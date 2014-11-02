@@ -75,6 +75,18 @@
     (define (evaluate-begin . expressions)
       (evaluate-sequence expressions))
     
+    (define (evaluate-cond . expressions)
+      (define (cond-loop expressions)
+        (cond ((null? expressions) '())
+              ((eq? (car (car expressions)) 'else)
+               (if (not (null? (cdr expressions)))
+                   (error "Syntax error: 'else' should be at the end of a cond-expression")
+                   (evaluate-sequence (cdr (car expressions)))))
+              ((not (eq? (evaluate (car (car expressions))) #f))
+               (evaluate-sequence (cdr (car expressions))))
+              (else (cond-loop (cdr expressions)))))
+      (cond-loop expressions))
+    
     (define (evaluate-define pattern . expressions)
       (if (symbol? pattern)
           (let* ((value (evaluate (car expressions)))
@@ -120,7 +132,7 @@
       (define binding (assocv variable environment))
       (if (vector? binding)
           (vector-ref binding 1)
-          (eval variable (make-base-namespace))))
+          ((begin debug eval) variable (make-base-namespace))))
     
     (define (actual-evaluate expression)
       
@@ -133,6 +145,8 @@
            (apply
             (cond ((eq? operator 'begin)
                    evaluate-begin)
+                  ((eq? operator 'cond)
+                   evaluate-cond)
                   ((eq? operator 'define) 
                    evaluate-define)
                   ((eq? operator 'eval)
