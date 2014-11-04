@@ -280,7 +280,7 @@ OPTIONAL:
           v))
     (loop 0))
 
-(define random-vec (make-random-array 4))
+(define random-vec (make-random-array 20))
 
 
 (tree-sort random-vec))

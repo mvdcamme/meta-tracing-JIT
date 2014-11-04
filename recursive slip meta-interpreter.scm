@@ -11,7 +11,7 @@
     (define (loop list acc)
       (if (null? list)
           (reverse acc)
-          (loop (cdr list) (cons (begin debug (f (car list)) acc)))))
+          (loop (cdr list) (cons (begin debug (f (car list))) acc))))
     (loop lst '()))
   
   (define meta-circularity-level 0)
