@@ -4,12 +4,42 @@
 
 (define ENABLE_OPTIMIZATIONS #f)
 
+(define guard-id 0)
+
+(define (inc-guard-id!)
+  (let ((temp guard-id))
+    (set! guard-id (+ guard-id 1))
+    temp))
+
 (define ns (make-base-namespace))
 
 (define (massoc el lst)
   (cond ((null? lst) #f)
         ((eq? el (mcar (car lst))) (car lst))
         (else (massoc el (cdr lst)))))
+
+(define TABLE '())
+
+(define (add-label! label trace)
+  (set! TABLE (cons (mcons label '()) TABLE)))
+
+(define (add-guard-trace label id trace)
+  (define (search-label table)
+    (cond ((null? table) (error "label not found in TABLE: " label))
+          ((eq? (mcar (car table)) label) (set-mcdr! (car table) (mcons (cons id trace) (mcdr (car table)))))
+          (else (search-label (cdr table)))))
+  (search-label TABLE))
+
+(define (find-guard-trace label id)
+  (define (search-id lst)
+    (cond ((null? lst) #f)
+          ((eq? (car (mcar lst)) id) (cdr (mcar lst)))
+          (else (search-id (mcdr lst)))))
+  (define (search-label table)
+    (cond ((null? table) (error "label not found in TABLE: " label))
+          ((eq? (mcar (car table)) label) (set-mcdr! (car table) (mcons (cons id label) (mcdr (car table)))))
+          (else (search-label (cdr table)))))
+  (search-label TABLE))
 
 ;
 ; continuations
