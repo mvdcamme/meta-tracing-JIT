@@ -285,4 +285,30 @@ OPTIONAL:
 
 (tree-sort random-vec))
 
+
+;11 trace explosion
+;meta-trace
+
+(begin (define g '()) ;no forward referencing
+  (define (f n)
+    (cond ((= n 0) (f 1))
+          ((>= n 2) n) ;stop
+          (else (if (= (random 2) 0)
+                    (begin (display "f 0") (newline))
+                    (begin (display "f 1") (newline)))
+                (g))))
+  (define (h)
+    (if (= (random 2) 0)
+        (begin (display "h 0") (newline))
+        (begin (display "h 1") (newline)))
+    (f 2))
+  (define (gg)
+    (display "in g") (newline)
+    (if (= (random 2) 0)
+        (begin (display "g 0") (newline))
+        (begin (display "g 1") (newline)))
+    (h))
+  (set! g gg)
+  (f 0))
+
 |#
