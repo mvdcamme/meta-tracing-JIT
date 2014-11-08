@@ -1,12 +1,10 @@
 #lang racket
 
-;; Slippy: lambda letrec if set! begin quote
-
 (define ENABLE_OPTIMIZATIONS #f)
 
 (define guard-id 0)
 
-(define (inc-guard-id!)
+(define (inc-guard-id)
   (let ((temp guard-id))
     (set! guard-id (+ guard-id 1))
     temp))
@@ -20,7 +18,7 @@
 
 (define TABLE '())
 
-(define (add-label! label trace)
+(define (add-label label trace)
   (set! TABLE (cons (mcons label '()) TABLE)))
 
 (define (add-guard-trace label id trace)
@@ -31,13 +29,13 @@
   (search-label TABLE))
 
 (define (find-guard-trace label id)
-  (define (search-id lst)
-    (cond ((null? lst) #f)
-          ((eq? (car (mcar lst)) id) (cdr (mcar lst)))
-          (else (search-id (mcdr lst)))))
+  (define (search-id mlst)
+    (cond ((null? mlst) #f)
+          ((eq? (car (mcar mlst)) id) (cdr (mcar mlst)))
+          (else (search-id (mcdr mlst)))))
   (define (search-label table)
     (cond ((null? table) (error "label not found in TABLE: " label))
-          ((eq? (mcar (car table)) label) (set-mcdr! (car table) (mcons (cons id label) (mcdr (car table)))))
+          ((eq? (mcar (car table)) label) (search-id (mcdr (car table))))
           (else (search-label (cdr table)))))
   (search-label TABLE))
 
@@ -85,31 +83,34 @@
 ;tracing
 ;
 
-(struct tracer-context (is-tracing? expression-to-be-traced expressions-encountered expressions-already-traced) #:transparent)
+(struct tracer-context (is-tracing? label-to-be-traced guard-id labels-encountered labels-already-traced) #:transparent)
 
 (define (new-tracer-context)
-  (tracer-context #f #f '() '()))
+  (tracer-context #f #f #f '() '()))
 
 (define is-tracing? tracer-context-is-tracing?)
 
-(define (is-tracing-expression? tracer-context expression)
-  (eq? (tracer-context-expression-to-be-traced tracer-context) expression))
+(define (is-tracing-label? tracer-context label)
+  (eq? (tracer-context-label-to-be-traced tracer-context) label))
 
-(define (expression-encountered? tracer-context expression)
-  (member expression (tracer-context-expressions-encountered tracer-context)))
+(define (label-encountered? tracer-context label)
+  (member label (tracer-context-labels-encountered tracer-context)))
 
-(define (add-expression-encountered old-tracer-context expression)
+(define (add-label-encountered old-tracer-context label)
   (struct-copy tracer-context old-tracer-context
-               (expressions-encountered (cons expression (tracer-context-expressions-encountered old-tracer-context)))))
+               (labels-encountered (cons label (tracer-context-labels-encountered old-tracer-context)))))
 
-(define (expression-traced? tracer-context expression)
-  (assoc expression (tracer-context-expressions-already-traced tracer-context)))
+(define (label-traced? tracer-context label)
+  (assoc label (tracer-context-labels-already-traced tracer-context)))
 
-(define (expression-trace tracer-context expression)
-  (cdr (assoc expression (tracer-context-expressions-already-traced tracer-context))))
+(define (label-trace tracer-context label)
+  (cdr (assoc label (tracer-context-labels-already-traced tracer-context))))
 
-(define (start-tracing-expression old-tracer-context expression)
-  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (expression-to-be-traced expression)))
+(define (start-tracing-label old-tracer-context label)
+  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (label-to-be-traced label)))
+
+(define (start-tracing-after-guard old-tracer-context label guard-id)
+  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (label-to-be-traced label)))
 
 ;
 ; Transform trace
@@ -185,11 +186,11 @@
       (set! τ (transform-trace (optimize-trace (reverse τ)) loop-closed?))
       (set! τ (transform-trace (reverse τ) loop-closed?)))
   (struct-copy tracer-context old-tracer-context
-               (expressions-already-traced
-                (cons (cons (tracer-context-expression-to-be-traced old-tracer-context) τ)
-                      (tracer-context-expressions-already-traced old-tracer-context))) ;TODO assumes that the expression hasn't been traced already
+               (labels-already-traced
+                (cons (cons (tracer-context-label-to-be-traced old-tracer-context) τ)
+                      (tracer-context-labels-already-traced old-tracer-context))) ;TODO assumes that the label hasn't been traced already
                (is-tracing? #f)
-               (expression-to-be-traced #f)))
+               (label-to-be-traced #f)))
 
 (define global-tracer-context #f)
 
@@ -197,17 +198,17 @@
 ;evaluation
 ;
 
-(define (guard-false e)
+(define (guard-false guard-id e)
   (if v
       (begin (display "Guard-false failed") (newline) (bootstrap e))
       (begin (display "Guard passed") (newline))))
 
-(define (guard-true e)
+(define (guard-true guard-id e)
   (if v
       (begin (display "Guard passed") (newline))
       (begin (display "Guard-true failed") (newline) (bootstrap e))))
 
-(define (guard-same-closure clo i)
+(define (guard-same-closure clo i guard-id)
   (and (not (clo-equal? v clo))
        (display "Closure guard failed, expected: ") (display clo) (display ", evaluated: ") (display v) (newline)
        (bootstrap-from-continuation (closure-guard-validatedk i))))
@@ -432,9 +433,9 @@
     ((ko (condk pes es) κ)
      (execute `(restore-env))
      (if v
-         (begin (execute `(guard-true ',`(cond ,@es)))
+         (begin (execute `(guard-true ,(inc-guard-id) ',`(cond ,@es)))
                 (eval-seq pes κ))
-         (begin (execute `(guard-false ',`(begin ,@pes)))
+         (begin (execute `(guard-false ,(inc-guard-id) ',`(begin ,@pes)))
                 (ev `(cond ,@es) κ))))
     ((ko (definevk x) (cons φ κ))
      (execute `(restore-env)
@@ -446,11 +447,11 @@
     ((ko (ifk e1 e2) κ)
      (execute `(restore-env))
      (if v
-         (begin (execute `(guard-true ',(if (null? e2)
-                                            '()
-                                            (car e2)))) ;If the guard fails, the predicate was false, so e2 should be evaluated
+         (begin (execute `(guard-true ,(inc-guard-id) ',(if (null? e2)
+                                                             '()
+                                                             (car e2)))) ;If the guard fails, the predicate was false, so e2 should be evaluated
                 (ev e1 κ))
-         (begin (execute `(guard-false ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
+         (begin (execute `(guard-false ,(inc-guard-id) ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
                 (if (null? e2)
                     (begin (execute `(remove-continuation)
                                     `(literal-value '()))
@@ -489,7 +490,7 @@
      (execute `(restore-env))
      (match v
        ((clo (lam x es) ρ)
-        (execute `(guard-same-closure ,v ,i)) ;TODO τ-κ does not need to be changed?
+        (execute `(guard-same-closure ,v ,i  ,(inc-guard-id))) ;TODO τ-κ does not need to be changed?
         (ko (closure-guard-validatedk i) κ))
        (_
         (execute `(apply-native ,i)
@@ -535,7 +536,7 @@
     ((ko (can-close-loopk debug-info) (cons φ κ))
      (and (not (null? debug-info))
           (display "closing annotation: tracing loop ") (display v) (newline))
-     (and (is-tracing-expression? global-tracer-context v)
+     (and (is-tracing-label? global-tracer-context v)
           (display "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (newline)
           (set! global-tracer-context (stop-tracing global-tracer-context #f)))
      (execute `(remove-continuation))
@@ -543,37 +544,37 @@
     ((ko (can-start-loopk debug-info) (cons φ κ))
      (and (not (null? debug-info))
           (display "opening annotation: tracing loop ") (display v) (newline))
-     (cond ((expression-traced? global-tracer-context v)
+     (cond ((label-traced? global-tracer-context v)
             (display "----------- EXECUTING TRACE -----------") (newline)
-            (let ((trace (expression-trace global-tracer-context v)))
+            (let ((trace (label-trace global-tracer-context v)))
               (execute ;`(save-env)
                        `(eval ,trace))
                        ;`(restore-env))
               (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
                 (execute `(remove-continuation))
                 (step* new-state))))
-           ((is-tracing-expression? global-tracer-context v)
+           ((is-tracing-label? global-tracer-context v)
             (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
             (set! global-tracer-context (stop-tracing global-tracer-context #t))
-            (let ((trace (expression-trace global-tracer-context v)))
+            (let ((trace (label-trace global-tracer-context v)))
               (execute `(eval ,trace))
               (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
                 (execute `(remove-continuation))
                 (step* new-state))))
-           ((and (not (is-tracing? global-tracer-context)) (expression-encountered? global-tracer-context v))
+           ((and (not (is-tracing? global-tracer-context)) (label-encountered? global-tracer-context v))
             (display "----------- STARTED TRACING -----------") (newline)
             (clear-trace!)
-            (set! global-tracer-context (start-tracing-expression global-tracer-context v))
+            (set! global-tracer-context (start-tracing-label global-tracer-context v))
             (let ((new-state (ko φ κ)))
               (execute `(remove-continuation))
               (step* new-state)))
-           ((not (expression-encountered? global-tracer-context v))
-            (set! global-tracer-context (add-expression-encountered global-tracer-context v))
+           ((not (label-encountered? global-tracer-context v))
+            (set! global-tracer-context (add-label-encountered global-tracer-context v))
             (let ((new-state (ko φ κ)))
               (execute `(remove-continuation))
               (step* new-state)))
            (else
-            (display "----------- ALREADY TRACING ANOTHER EXPRESSION -----------") (newline)
+            (display "----------- ALREADY TRACING ANOTHER LABEL -----------") (newline)
             (let ((new-state (step (ko φ κ))))
               (execute `(remove-continuation))
               (step* new-state)))))
