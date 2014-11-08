@@ -198,11 +198,10 @@
   (define first-run-through (first-run trace '() '()))
   (copy-relevant-instructions first-run-through))
 
-(define (stop-tracing-label old-tracer-context transformed-trace)
-  (add-label! (tracer-context-label-to-be-traced old-tracer-context) τ)
+(define (stop-tracer-context-tracing old-tracer-context trace)
   (struct-copy tracer-context old-tracer-context
                (labels-already-traced
-                (cons (cons (tracer-context-label-to-be-traced old-tracer-context) τ)
+                (cons (cons (tracer-context-label-to-be-traced old-tracer-context) trace)
                       (tracer-context-labels-already-traced old-tracer-context))) ;TODO assumes that the label hasn't been traced already
                (is-tracing? #f)
                (label-to-be-traced #f)
@@ -211,21 +210,19 @@
 (define (stop-tracing-after-guard old-tracer-context transformed-trace)
   (let ((guard-id (tracer-context-guard-id-to-be-traced old-tracer-context)))
     (add-guard-trace! (tracer-context-label-executing old-tracer-context) guard-id transformed-trace)
-    (struct-copy tracer-context old-tracer-context
-                 (labels-already-traced
-                  (cons (cons (tracer-context-label-to-be-traced old-tracer-context) τ)
-                        (tracer-context-labels-already-traced old-tracer-context))) ;TODO assumes that the label hasn't been traced already
-                 (is-tracing? #f)
-                 (label-to-be-traced #f)
-                 (guard-id-to-be-traced #f))))
+    (stop-tracer-context-tracing old-tracer-context transformed-trace)))
+
+(define (stop-tracing-label old-tracer-context transformed-trace)
+  (add-label! (tracer-context-label-to-be-traced old-tracer-context) transformed-trace)
+  (stop-tracer-context-tracing old-tracer-context transformed-trace))
 
 (define (stop-tracing old-tracer-context loop-closed?)
-  (if ENABLE_OPTIMIZATIONS
-      (set! τ (transform-trace (optimize-trace (reverse τ)) loop-closed?))
-      (set! τ (transform-trace (reverse τ) loop-closed?)))
-  (if (tracer-context-guard-id-to-be-traced old-tracer-context)
-      (stop-tracing-after-guard old-tracer-context τ)
-      (stop-tracing-label old-tracer-context τ)))
+  (let ((transformed-trace (if ENABLE_OPTIMIZATIONS
+                               (transform-trace (optimize-trace (reverse τ)) loop-closed?)
+                               (transform-trace (reverse τ) loop-closed?))))
+    (if (tracer-context-guard-id-to-be-traced old-tracer-context)
+        (stop-tracing-after-guard old-tracer-context transformed-trace)
+        (stop-tracing-label old-tracer-context transformed-trace))))
 
 (define global-tracer-context #f)
 
