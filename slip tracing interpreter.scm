@@ -83,20 +83,25 @@
 ;tracing
 ;
 
+(struct trace-key (label guard-id))
+
+(define (is-tracing-guard? trace-key)
+  (not (eq? (trace-key-guard-id trace-key) #f)))
+
 (struct tracer-context (is-tracing?
-                        label-to-be-traced
-                        guard-id-to-be-traced
+                        trace-key-to-be-traced
                         labels-encountered
                         labels-already-traced
                         (label-executing #:mutable)) #:transparent)
 
 (define (new-tracer-context)
-  (tracer-context #f #f #f '() '() #f))
+  (tracer-context #f #f '() '() #f))
 
 (define is-tracing? tracer-context-is-tracing?)
 
 (define (is-tracing-label? tracer-context label)
-  (eq? (tracer-context-label-to-be-traced tracer-context) label))
+  (and (tracer-context-trace-key-to-be-traced tracer-context)
+       (eq? (trace-key-label (tracer-context-trace-key-to-be-traced tracer-context)) label)))
 
 (define (label-encountered? tracer-context label)
   (member label (tracer-context-labels-encountered tracer-context)))
@@ -112,13 +117,15 @@
   (cdr (assoc label (tracer-context-labels-already-traced tracer-context))))
 
 (define (start-tracing-label old-tracer-context label)
-  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (label-to-be-traced label)))
+  (clear-trace!)
+  (struct-copy tracer-context old-tracer-context (is-tracing? #t) (trace-key-to-be-traced (trace-key label #f))))
 
 (define (start-tracing-after-guard old-tracer-context label guard-id)
-  (struct-copy tracer-context old-tracer-context
-               (is-tracing? #t)
-               (label-to-be-traced label)
-               (guard-id-to-be-traced guard-id)))
+  (clear-trace!)
+  (let ((new-trace-key (trace-key label guard-id)))
+    (struct-copy tracer-context old-tracer-context
+                 (is-tracing? #t)
+                 (trace-key-to-be-traced new-trace-key))))
 
 (define (start-executing-label-trace label)
   (let ((trace (label-trace global-tracer-context label)))
@@ -201,26 +208,28 @@
 (define (stop-tracer-context-tracing old-tracer-context trace)
   (struct-copy tracer-context old-tracer-context
                (labels-already-traced
-                (cons (cons (tracer-context-label-to-be-traced old-tracer-context) trace)
+                (cons (cons (trace-key-label (tracer-context-trace-key-to-be-traced old-tracer-context)) trace)
                       (tracer-context-labels-already-traced old-tracer-context))) ;TODO assumes that the label hasn't been traced already
                (is-tracing? #f)
-               (label-to-be-traced #f)
-               (guard-id-to-be-traced #f)))
+               (trace-key-to-be-traced #f)))
 
 (define (stop-tracing-after-guard old-tracer-context transformed-trace)
-  (let ((guard-id (tracer-context-guard-id-to-be-traced old-tracer-context)))
-    (add-guard-trace! (tracer-context-label-executing old-tracer-context) guard-id transformed-trace)
-    (stop-tracer-context-tracing old-tracer-context transformed-trace)))
+  (let ((label (trace-key-label (tracer-context-trace-key-to-be-traced old-tracer-context)))
+        (guard-id (trace-key-guard-id (tracer-context-trace-key-to-be-traced old-tracer-context))))
+    (add-guard-trace! label guard-id transformed-trace)
+    (struct-copy tracer-context old-tracer-context
+                 (is-tracing? #f)
+                 (trace-key-to-be-traced #f))))
 
 (define (stop-tracing-label old-tracer-context transformed-trace)
-  (add-label! (tracer-context-label-to-be-traced old-tracer-context) transformed-trace)
+  (add-label! (trace-key-label (tracer-context-trace-key-to-be-traced old-tracer-context)) transformed-trace)
   (stop-tracer-context-tracing old-tracer-context transformed-trace))
 
 (define (stop-tracing old-tracer-context loop-closed?)
   (let ((transformed-trace (if ENABLE_OPTIMIZATIONS
                                (transform-trace (optimize-trace (reverse τ)) loop-closed?)
                                (transform-trace (reverse τ) loop-closed?))))
-    (if (tracer-context-guard-id-to-be-traced old-tracer-context)
+    (if (is-tracing-guard? (tracer-context-trace-key-to-be-traced old-tracer-context))
         (stop-tracing-after-guard old-tracer-context transformed-trace)
         (stop-tracing-label old-tracer-context transformed-trace))))
 
@@ -232,18 +241,18 @@
 
 (define (guard-false guard-id e)
   (if v
-      (begin (display "Guard-false failed") (newline) (bootstrap e))
+      (begin (display "Guard-false failed") (newline) (bootstrap guard-id e))
       (begin (display "Guard passed") (newline))))
 
 (define (guard-true guard-id e)
   (if v
       (begin (display "Guard passed") (newline))
-      (begin (display "Guard-true failed") (newline) (bootstrap e))))
+      (begin (display "Guard-true failed") (newline) (bootstrap guard-id e))))
 
 (define (guard-same-closure clo i guard-id)
   (and (not (clo-equal? v clo))
        (display "Closure guard failed, expected: ") (display clo) (display ", evaluated: ") (display v) (newline)
-       (bootstrap-from-continuation (closure-guard-validatedk i))))
+       (bootstrap-from-continuation guard-id (closure-guard-validatedk i))))
 
 (define (save-val)
   (set! θ (cons v θ)))
@@ -555,11 +564,21 @@
 (define (clear-trace!)
   (set! τ '()))
 
-(define (bootstrap e)
-  (set-tracer-context-label-executing! global-tracer-context #f)
-  (global-continuation (list (ev e τ-κ)))) ;step* called with the correct arguments
+(define (bootstrap guard-id e)
+  (let ((existing-trace (find-guard-trace (tracer-context-label-executing global-tracer-context) guard-id)))
+    (if existing-trace
+        (begin (display "----------- STARTING FROM GUARD -----------") (newline)
+               (execute `(eval ,existing-trace))
+               (set-tracer-context-label-executing! global-tracer-context #f)
+               (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+                 (execute `(remove-continuation))
+                 (step* new-state)))
+        (begin (set! global-tracer-context (start-tracing-after-guard global-tracer-context (tracer-context-label-executing global-tracer-context) guard-id))
+               (set-tracer-context-label-executing! global-tracer-context #f)
+               (global-continuation (list (ev e τ-κ))))))) ;step* called with the correct arguments
 
-(define (bootstrap-from-continuation φ)
+(define (bootstrap-from-continuation guard-id φ)
+  (set! global-tracer-context (start-tracing-after-guard global-tracer-context (tracer-context-label-executing global-tracer-context) guard-id))
   (set-tracer-context-label-executing! global-tracer-context #f)
   (global-continuation (list (ko φ τ-κ))))
 
@@ -587,7 +606,6 @@
             (start-executing-label-trace v))
            ((and (not (is-tracing? global-tracer-context)) (label-encountered? global-tracer-context v))
             (display "----------- STARTED TRACING -----------") (newline)
-            (clear-trace!)
             (set! global-tracer-context (start-tracing-label global-tracer-context v))
             (let ((new-state (ko φ κ)))
               (execute `(remove-continuation))
