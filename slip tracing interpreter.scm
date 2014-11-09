@@ -570,17 +570,20 @@
 
 (define (bootstrap guard-id e)
   (let ((existing-trace (find-guard-trace (tracer-context-label-executing global-tracer-context) guard-id)))
-    (if existing-trace
-        (begin (display "----------- STARTING FROM GUARD ") (display guard-id) (display " -----------") (newline)
-               (execute `(eval ,(cdr existing-trace)))
-               (set-tracer-context-label-executing! global-tracer-context #f)
-               (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
-                 (execute `(remove-continuation))
-                 (step* new-state)))
-        (begin (display "----------- STARTED TRACING GUARD ") (display guard-id) (display " -----------") (newline)
-               (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
-               (set-tracer-context-label-executing! global-tracer-context #f)
-               (global-continuation (list (ev e τ-κ))))))) ;step* called with the correct arguments
+    (cond (existing-trace
+           (display "----------- STARTING FROM GUARD ") (display guard-id) (display " -----------") (newline)
+           (execute `(eval ,(cdr existing-trace)))
+           (set-tracer-context-label-executing! global-tracer-context #f)
+           (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+             (execute `(remove-continuation))
+             (step* new-state)))
+          ((not (is-tracing?))
+           (display "----------- STARTED TRACING GUARD ") (display guard-id) (display " -----------") (newline)
+           (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
+           (set-tracer-context-label-executing! global-tracer-context #f)
+           (global-continuation (list (ev e τ-κ))))
+          (else
+           (display "----------- CANNOT TRACE GUARD ") (display guard-id) (display " ; ALREADY TRACING ANOTHER LABEL -----------") (newline))))) ;step* called with the correct arguments
 
 (define (bootstrap-from-continuation guard-id φ)
   (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
