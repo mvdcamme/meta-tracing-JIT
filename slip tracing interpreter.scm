@@ -16,28 +16,12 @@
         ((eq? el (mcar (car lst))) (car lst))
         (else (massoc el (cdr lst)))))
 
-(define TABLE '())
-
-(define (add-label! label trace)
-  (set! TABLE (cons (mcons label '()) TABLE)))
-
-(define (add-guard-trace! label id trace)
-  (define (search-label table)
-    (cond ((null? table) (error "label not found in TABLE: " label))
-          ((eq? (mcar (car table)) label) (set-mcdr! (car table) (mcons (cons id trace) (mcdr (car table)))))
-          (else (search-label (cdr table)))))
-  (search-label TABLE))
-
 (define (find-guard-trace label id)
-  (define (search-id mlst)
-    (cond ((null? mlst) #f)
-          ((eq? (car (mcar mlst)) id) (cdr (mcar mlst)))
-          (else (search-id (mcdr mlst)))))
-  (define (search-label table)
-    (cond ((null? table) (error "label not found in TABLE: " label))
-          ((eq? (mcar (car table)) label) (search-id (mcdr (car table))))
-          (else (search-label (cdr table)))))
-  (search-label TABLE))
+  (let ((label-trace (get-label-trace label)))
+    (assoc id (label-trace-guard-traces label-trace))))
+
+(define (get-guard-trace label id)
+  (cdr (find-guard-trace label id)))
 
 ;
 ; continuations
@@ -83,15 +67,20 @@
 ;tracing
 ;
 
-(struct trace-key (label guard-id))
+(struct trace-key (label
+                   guard-id))
 
 (define (is-tracing-guard? trace-key)
   (not (eq? (trace-key-guard-id trace-key) #f)))
 
+(struct label-trace (label
+                     trace
+                     (guard-traces #:mutable)))
+
 (struct tracer-context (is-tracing?
                         trace-key-to-be-traced
+                        label-traces
                         labels-encountered
-                        labels-already-traced
                         label-executing) #:transparent #:mutable)
 
 (define (new-tracer-context)
@@ -108,14 +97,34 @@
   (member label (tracer-context-labels-encountered global-tracer-context)))
 
 (define (add-label-encountered! label)
-  (set-tracer-context-labels-encountered! global-tracer-context
+  (set-tracer-context-labels-encountered! global-tracer-context 
                                           (cons label (tracer-context-labels-encountered global-tracer-context))))
 
-(define (label-traced? label)
-  (assoc label (tracer-context-labels-already-traced global-tracer-context)))
+(define (find-label-trace label)
+  (define (loop label-traces)
+    (cond ((null? label-traces) #f)
+          ((eq? (label-trace-label (car label-traces)) label) (car label-traces))
+          (else (loop (cdr label-traces)))))
+  (loop (tracer-context-label-traces global-tracer-context)))
 
-(define (label-trace label)
-  (cdr (assoc label (tracer-context-labels-already-traced global-tracer-context))))
+(define (label-traced? label)
+  (not (eq? (find-label-trace label) #f)))
+
+(define (add-label-trace! label transformed-trace)
+  (set-tracer-context-label-traces! global-tracer-context
+                                    (cons (label-trace (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace '())
+                                          (tracer-context-label-traces global-tracer-context))))
+
+(define (add-guard-trace! label id trace)
+  (let ((label-trace (get-label-trace label)))
+    (set-label-trace-guard-traces! label-trace (cons (cons id trace)
+                                                     (label-trace-guard-traces label-trace)))))
+
+(define (get-label-trace label)
+  (let ((label-trace-found (find-label-trace label)))
+    (if label-trace-found
+        label-trace-found
+        (error "Label was not found in global-tracer-context: " label))))
 
 (define (start-tracing-label! label)
   (clear-trace!)
@@ -129,7 +138,7 @@
     (set-tracer-context-trace-key-to-be-traced! global-tracer-context new-trace-key)))
 
 (define (start-executing-label-trace! label)
-  (let ((trace (label-trace label)))
+  (let ((trace (label-trace-trace (get-label-trace label))))
     (set-tracer-context-label-executing! global-tracer-context label)
     (execute `(eval ,trace))
     (set-tracer-context-label-executing! global-tracer-context #f)
@@ -206,10 +215,7 @@
   (define first-run-through (first-run trace '() '()))
   (copy-relevant-instructions first-run-through))
 
-(define (stop-tracer-context-tracing! trace)
-  (set-tracer-context-labels-already-traced! global-tracer-context
-                                             (cons (cons (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) trace)
-                                                   (tracer-context-labels-already-traced global-tracer-context)))
+(define (stop-tracer-context-tracing!)
   (set-tracer-context-is-tracing?! global-tracer-context #f)
   (set-tracer-context-trace-key-to-be-traced! global-tracer-context #f))
 
@@ -217,12 +223,11 @@
   (let ((label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
         (guard-id (trace-key-guard-id (tracer-context-trace-key-to-be-traced global-tracer-context))))
     (add-guard-trace! label guard-id transformed-trace)
-    (set-tracer-context-is-tracing?! global-tracer-context #f)
-    (set-tracer-context-trace-key-to-be-traced! global-tracer-context #f)))
+    (stop-tracer-context-tracing!)))
 
 (define (stop-tracing-label! transformed-trace)
-  (add-label! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)
-  (stop-tracer-context-tracing! transformed-trace))
+  (add-label-trace! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)
+  (stop-tracer-context-tracing!))
 
 (define (stop-tracing! loop-closed?)
   (let ((transformed-trace (if ENABLE_OPTIMIZATIONS
@@ -566,13 +571,14 @@
 (define (bootstrap guard-id e)
   (let ((existing-trace (find-guard-trace (tracer-context-label-executing global-tracer-context) guard-id)))
     (if existing-trace
-        (begin (display "----------- STARTING FROM GUARD -----------") (newline)
-               (execute `(eval ,existing-trace))
+        (begin (display "----------- STARTING FROM GUARD ") (display guard-id) (display " -----------") (newline)
+               (execute `(eval ,(cdr existing-trace)))
                (set-tracer-context-label-executing! global-tracer-context #f)
                (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
                  (execute `(remove-continuation))
                  (step* new-state)))
-        (begin (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
+        (begin (display "----------- STARTED TRACING GUARD ") (display guard-id) (display " -----------") (newline)
+               (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
                (set-tracer-context-label-executing! global-tracer-context #f)
                (global-continuation (list (ev e τ-κ))))))) ;step* called with the correct arguments
 
