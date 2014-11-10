@@ -583,7 +583,9 @@
            (set-tracer-context-label-executing! global-tracer-context #f)
            (global-continuation (list (ev e τ-κ))))
           (else
-           (display "----------- CANNOT TRACE GUARD ") (display guard-id) (display " ; ALREADY TRACING ANOTHER LABEL -----------") (newline))))) ;step* called with the correct arguments
+           (display "----------- CANNOT TRACE GUARD ") (display guard-id)
+           (display " ; ALREADY TRACING ANOTHER LABEL -----------") (newline)
+           (global-continuation (list (ev e τ-κ))))))) ;step* called with the correct arguments
 
 (define (bootstrap-from-continuation guard-id φ)
   (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)

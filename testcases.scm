@@ -145,9 +145,11 @@
         (cons value (make-list (- n 1) value))))
 
 (define (remove-all s lst) 
-    (cond ((null? lst) '()); an empty list
-          ((eq? s (car lst)) (remove-all s (cdr lst)))
-          (else (cons (car lst) (remove-all s (cdr lst))))))
+    (if (null? lst)
+        '()
+        (if (eq? s (begin (display "in remove-all, lst = ") (display lst) (car lst)))
+            (remove-all s (cdr lst))
+            (cons (car lst) (remove-all s (cdr lst))))))
 
 (define (initial-state n)
     (make-list n 1))
