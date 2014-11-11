@@ -112,7 +112,7 @@
 
 (define (add-label-trace! label transformed-trace)
   (set-tracer-context-label-traces! global-tracer-context
-                                    (cons (label-trace (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace '())
+                                    (cons (label-trace label transformed-trace '())
                                           (tracer-context-label-traces global-tracer-context))))
 
 (define (add-guard-trace! label id trace)
