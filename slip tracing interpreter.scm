@@ -630,7 +630,9 @@
           (display "opening annotation: tracing loop ") (display v) (newline))
      (cond ((is-tracing-label? v)
             (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
-            (stop-tracing! #t)
+            (stop-tracing! (if (is-tracing-guard? (tracer-context-trace-key-to-be-traced global-tracer-context))
+                               #f
+                               #t))
             (start-executing-label-trace! v))
            ((label-traced? v)
             (display "----------- EXECUTING TRACE -----------") (newline)
