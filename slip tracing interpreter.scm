@@ -68,7 +68,7 @@
 ;
 
 (struct trace-key (label
-                   guard-id))
+                   guard-id) #:transparent)
 
 (define (is-tracing-guard? trace-key)
   (not (eq? (trace-key-guard-id trace-key) #f)))
@@ -81,10 +81,14 @@
                         trace-key-to-be-traced
                         label-traces
                         labels-encountered
-                        label-executing) #:transparent #:mutable)
+                        labels-executing) #:transparent #:mutable)
 
 (define (new-tracer-context)
-  (tracer-context #f #f '() '() #f))
+  (tracer-context #f
+                  #f
+                  '()
+                  '()
+                  '()))
 
 (define (is-tracing?)
   (tracer-context-is-tracing? global-tracer-context))
@@ -99,6 +103,23 @@
 (define (add-label-encountered! label)
   (set-tracer-context-labels-encountered! global-tracer-context 
                                           (cons label (tracer-context-labels-encountered global-tracer-context))))
+
+(define (get-label-executing)
+  (let ((labels-executing (tracer-context-labels-executing global-tracer-context)))
+    (if (null? labels-executing)
+        (error "Labels-executing stack is empty!")
+        (car labels-executing))))
+
+(define (pop-label-executing!)
+  (let ((labels-executing (tracer-context-labels-executing global-tracer-context)))
+    (if (null? labels-executing)
+        (error "Labels-executing stack is empty!")
+        (set-tracer-context-labels-executing! global-tracer-context
+                                              (cdr labels-executing)))))
+
+(define (push-label-executing! label)
+  (set-tracer-context-labels-executing! global-tracer-context
+                                        (cons label (tracer-context-labels-executing global-tracer-context))))
 
 (define (find-label-trace label)
   (define (loop label-traces)
@@ -139,9 +160,9 @@
 
 (define (start-executing-label-trace! label)
   (let ((trace (label-trace-trace (get-label-trace label))))
-    (set-tracer-context-label-executing! global-tracer-context label)
+    (push-label-executing! label)
     (execute `(eval ,trace))
-    (set-tracer-context-label-executing! global-tracer-context #f)
+    (pop-label-executing!)
     (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
       (execute `(remove-continuation))
       (step* new-state))))
@@ -569,18 +590,18 @@
   (set! τ '()))
 
 (define (bootstrap guard-id e)
-  (let ((existing-trace (find-guard-trace (tracer-context-label-executing global-tracer-context) guard-id)))
+  (let ((existing-trace (find-guard-trace (get-label-executing) guard-id)))
     (cond (existing-trace
            (display "----------- STARTING FROM GUARD ") (display guard-id) (display " -----------") (newline)
            (execute `(eval ,(cdr existing-trace)))
-           (set-tracer-context-label-executing! global-tracer-context #f)
+           (pop-label-executing!)
            (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
              (execute `(remove-continuation))
              (step* new-state)))
           ((not (is-tracing?))
            (display "----------- STARTED TRACING GUARD ") (display guard-id) (display " -----------") (newline)
-           (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
-           (set-tracer-context-label-executing! global-tracer-context #f)
+           (start-tracing-after-guard! (get-label-executing) guard-id)
+           (pop-label-executing!)
            (global-continuation (list (ev e τ-κ))))
           (else
            (display "----------- CANNOT TRACE GUARD ") (display guard-id)
@@ -588,8 +609,8 @@
            (global-continuation (list (ev e τ-κ))))))) ;step* called with the correct arguments
 
 (define (bootstrap-from-continuation guard-id φ)
-  (start-tracing-after-guard! (tracer-context-label-executing global-tracer-context) guard-id)
-  (set-tracer-context-label-executing! global-tracer-context #f)
+  (start-tracing-after-guard! (get-label-executing) guard-id)
+  (pop-label-executing!)
   (global-continuation (list (ko φ τ-κ))))
 
 (define (step* s)
@@ -607,12 +628,12 @@
     ((ko (can-start-loopk debug-info) (cons φ κ))
      (and (not (null? debug-info))
           (display "opening annotation: tracing loop ") (display v) (newline))
-     (cond ((label-traced? v)
-            (display "----------- EXECUTING TRACE -----------") (newline)
-            (start-executing-label-trace! v))
-           ((is-tracing-label? v)
+     (cond ((is-tracing-label? v)
             (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
             (stop-tracing! #t)
+            (start-executing-label-trace! v))
+           ((label-traced? v)
+            (display "----------- EXECUTING TRACE -----------") (newline)
             (start-executing-label-trace! v))
            ((and (not (is-tracing?)) (label-encountered? v))
             (display "----------- STARTED TRACING -----------") (newline)
