@@ -130,7 +130,11 @@
     (define (make-procedure parameters expressions environment)
       (lambda (arguments continue dynamic-environment tailcall)
         (define (continue-after-sequence value environment-after-sequence)
+          (can-close-loop expressions "some function")
           (continue value dynamic-environment))
+        (define (continue-after-sequence-tail-recursive value environment-after-sequence)
+          (can-close-loop expressions "some function")
+          (continue value environment-after-sequence))
         (define lexical-environment (bind-parameters parameters arguments environment))
         (can-start-loop expressions "some function")
         (if tailcall
@@ -246,10 +250,11 @@
             (define (continue-after-sequence value environment-after-sequence)
               (iterate value environment))
             (if (eq? boolean #f)
-              (continue value environment)
+                (begin (can-close-loop expressions "while")
+                       (continue value environment))
               (evaluate-sequence expressions continue-after-sequence environment #f)))
           (eval predicate continue-after-predicate environment #f))
-        (can-start-loop expressions)
+        (can-start-loop expressions "while")
         (iterate '() environment)))
 
 ;
