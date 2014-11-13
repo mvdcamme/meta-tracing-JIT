@@ -556,7 +556,7 @@
      (execute `(restore-env))
      (match v
        ((clo (lam x es) ρ)
-        (execute `(guard-same-closure ,v ,i  ,(inc-guard-id!))) ;TODO τ-κ does not need to be changed?
+        (execute `(guard-same-closure ,v ,i  ,(inc-guard-id!)))
         (ko (closure-guard-validatedk i) κ))
        (_
         (execute `(apply-native ,i)
@@ -617,6 +617,10 @@
   (match s
     ((ko (haltk) _)
      v)
+    ((ev `(merges-control-flow) (cons φ κ))
+     (execute `(remove-continuation))
+     ;TODO implementation
+     (step* (ko φ κ)))
     ((ko (can-close-loopk debug-info) (cons φ κ))
      (and (not (null? debug-info))
           (display "closing annotation: tracing loop ") (display v) (newline))

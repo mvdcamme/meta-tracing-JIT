@@ -102,12 +102,16 @@
     (define (evaluate-eval expression)
       (evaluate (evaluate expression)))
     
+    (define (return-from-control-flow-split value)
+      (merges-control-flow)
+      value)
+    
     (define (evaluate-if predicate consequent . alternate)
       (if (evaluate predicate)
-          (thunkify consequent)
+          (return-from-control-flow-split (thunkify consequent))
           (if (null? alternate)
               '()
-              (thunkify (car alternate)))))
+              (return-from-control-flow-split (thunkify (car alternate))))))
     
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))
