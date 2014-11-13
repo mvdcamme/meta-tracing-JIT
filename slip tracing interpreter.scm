@@ -95,7 +95,7 @@
 
 (define (is-tracing-label? label)
   (and (tracer-context-trace-key-to-be-traced global-tracer-context)
-       (eq? (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) label)))
+       (equal? (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) label)))
 
 (define (label-encountered? label)
   (member label (tracer-context-labels-encountered global-tracer-context)))
@@ -124,7 +124,7 @@
 (define (find-label-trace label)
   (define (loop label-traces)
     (cond ((null? label-traces) #f)
-          ((eq? (label-trace-label (car label-traces)) label) (car label-traces))
+          ((equal? (label-trace-label (car label-traces)) label) (car label-traces))
           (else (loop (cdr label-traces)))))
   (loop (tracer-context-label-traces global-tracer-context)))
 
@@ -160,9 +160,9 @@
 
 (define (start-executing-label-trace! label)
   (let ((trace (label-trace-trace (get-label-trace label))))
-    (push-label-executing! label)
-    (execute `(eval ,trace))
-    (pop-label-executing!)
+    (execute `(push-label-executing! ',label)
+             `(eval ,trace)
+             `(pop-label-executing!))
     (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
       (execute `(remove-continuation))
       (step* new-state))))
@@ -597,7 +597,7 @@
            (pop-label-executing!)
            (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
              (execute `(remove-continuation))
-             (step* new-state)))
+             (global-continuation (list new-state))))
           ((not (is-tracing?))
            (display "----------- STARTED TRACING GUARD ") (display guard-id) (display " -----------") (newline)
            (start-tracing-after-guard! (get-label-executing) guard-id)
