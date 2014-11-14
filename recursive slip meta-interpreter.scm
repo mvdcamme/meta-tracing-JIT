@@ -72,6 +72,9 @@
       (lambda operands
         (apply (evaluate operator) (map evaluate operands))))
     
+    (define (evaluate-apply operator operands)
+      (evaluate (cons operator (evaluate operands))))
+    
     (define (evaluate-begin . expressions)
       (evaluate-sequence expressions))
     
@@ -116,6 +119,21 @@
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))
     
+    (define (evaluate-let* bindings . expressions)
+      (define frozen-environment environment)
+      (define (evaluate-bindings bindings)
+        (if (not (null? bindings))
+            (let* ((let*-binding (car bindings))
+                   (variable (car let*-binding))
+                   (value (evaluate (cadr let*-binding)))
+                   (binding (vector variable value)))
+              (set! environment (cons binding environment))
+              (evaluate-bindings (cdr bindings)))))
+      (evaluate-bindings bindings)
+      (let* ((value (evaluate-sequence expressions)))
+        (set! environment frozen-environment)
+        value))
+    
     (define (evaluate-load string)
       (let* ((port (open-input-file string))
              (exp (read-port)))
@@ -147,7 +165,9 @@
          (let* ((operator (car expression))
                 (operands (cdr expression)))
            (apply
-            (cond ((eq? operator 'begin)
+            (cond ((eq? operator 'apply)
+                   evaluate-apply)
+                  ((eq? operator 'begin)
                    evaluate-begin)
                   ((eq? operator 'cond)
                    evaluate-cond)
@@ -159,6 +179,8 @@
                    evaluate-if)
                   ((eq? operator 'lambda) 
                    evaluate-lambda)
+                  ((eq? operator 'let*)
+                   evaluate-let*)
                   ((eq? operator 'load) 
                    evaluate-load)
                   ((eq? operator 'quote) 
