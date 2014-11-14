@@ -252,9 +252,9 @@
             (if (eq? boolean #f)
                 (begin (can-close-loop expressions "while")
                        (continue value environment))
-              (evaluate-sequence expressions continue-after-sequence environment #f)))
+                (begin (can-start-loop expressions "while")
+                       (evaluate-sequence expressions continue-after-sequence environment #f))))
           (eval predicate continue-after-predicate environment #f))
-        (can-start-loop expressions "while")
         (iterate '() environment)))
 
 ;
