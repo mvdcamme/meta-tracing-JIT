@@ -71,7 +71,7 @@
         (apply (evaluate operator) (map evaluate operands))))
     
     (define (evaluate-apply operator operands)
-      (evaluate (cons operator (evaluate operands))))
+      (apply (evaluate operator) (evaluate operands)))
     
     (define (evaluate-begin . expressions)
       (evaluate-sequence expressions))

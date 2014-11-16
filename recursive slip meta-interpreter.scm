@@ -73,7 +73,7 @@
         (apply (evaluate operator) (map evaluate operands))))
     
     (define (evaluate-apply operator operands)
-      (evaluate (cons operator (evaluate operands))))
+      (apply (evaluate operator) (evaluate operands)))
     
     (define (evaluate-begin . expressions)
       (evaluate-sequence expressions))
@@ -110,6 +110,9 @@
       value)
     
     (define (evaluate-if predicate consequent . alternate)
+      (display "If: ") (display predicate) (newline)
+      (display consequent) (newline)
+      (display alternate) (newline)
       (if (evaluate predicate)
           (return-from-control-flow-split (thunkify consequent))
           (if (null? alternate)

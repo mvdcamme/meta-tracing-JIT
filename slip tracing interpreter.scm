@@ -260,6 +260,15 @@
 
 (define global-tracer-context #f)
 
+(define (count-number-of-guard-traces)
+  (define sum 0)
+  (for-each (lambda (label-trace)
+              (for-each (lambda (guard-trace)
+                          (set! sum (+ sum 1)))
+                        (label-trace-guard-traces label-trace)))
+            (tracer-context-label-traces global-tracer-context))
+  sum)
+
 ;
 ;evaluation
 ;
