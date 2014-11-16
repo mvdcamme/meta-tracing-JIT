@@ -284,7 +284,6 @@ OPTIONAL:
 
 (define random-vec (make-random-array 20))
 
-
 (tree-sort random-vec))
 
 

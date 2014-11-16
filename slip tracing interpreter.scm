@@ -171,6 +171,8 @@
 ; Transform trace
 ;
 
+
+
 (define (transform-trace trace loop-closed?)
   (if loop-closed?
       `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
@@ -260,7 +262,7 @@
 
 (define global-tracer-context #f)
 
-(define (count-number-of-guard-traces)
+(define (calculate-number-of-guard-traces)
   (define sum 0)
   (for-each (lambda (label-trace)
               (for-each (lambda (guard-trace)
@@ -268,6 +270,18 @@
                         (label-trace-guard-traces label-trace)))
             (tracer-context-label-traces global-tracer-context))
   sum)
+
+(define (calculate-total-guard-traces-length)
+  (define sum 0)
+  (for-each (lambda (label-trace)
+              (for-each (lambda (guard-trace)
+                          (set! sum (+ sum (length (cddadr (caadr (cdr guard-trace)))))))
+                        (label-trace-guard-traces label-trace)))
+            (tracer-context-label-traces global-tracer-context))
+  sum)
+
+(define (calculate-average-guard-trace-length)
+  (/ (calculate-total-guard-traces-length) (calculate-number-of-guard-traces)))
 
 ;
 ;evaluation
