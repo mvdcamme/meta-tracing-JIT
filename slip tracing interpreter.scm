@@ -16,13 +16,6 @@
         ((eq? el (mcar (car lst))) (car lst))
         (else (massoc el (cdr lst)))))
 
-(define (find-guard-trace label id)
-  (let ((label-trace (get-label-trace label)))
-    (assoc id (label-trace-guard-traces label-trace))))
-
-(define (get-guard-trace label id)
-  (cdr (find-guard-trace label id)))
-
 ;
 ; continuations
 ;
@@ -75,17 +68,19 @@
 
 (struct label-trace (label
                      trace
-                     (guard-traces #:mutable)))
+                     (children #:mutable)))
 
 (struct tracer-context (is-tracing?
                         trace-key-to-be-traced
                         label-traces
                         labels-encountered
-                        labels-executing) #:transparent #:mutable)
+                        labels-executing
+                        heads-executing) #:transparent #:mutable)
 
 (define (new-tracer-context)
   (tracer-context #f
                   #f
+                  '()
                   '()
                   '()
                   '()))
@@ -118,8 +113,27 @@
                                               (cdr labels-executing)))))
 
 (define (push-label-executing! label)
-  (set-tracer-context-labels-executing! global-tracer-context
-                                        (cons label (tracer-context-labels-executing global-tracer-context))))
+  (let ((labels-executing (tracer-context-labels-executing global-tracer-context)))
+    (set-tracer-context-labels-executing! global-tracer-context
+                                          (cons label labels-executing))))
+
+(define (get-head-executing)
+  (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
+    (if (null? heads-executing)
+        (error "Heads-executing stack is empty!")
+        (car heads-executing))))
+
+(define (pop-head-executing!)
+  (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
+    (if (null? heads-executing)
+        (error "Heads-executing stack is empty!")
+        (set-tracer-context-heads-executing! global-tracer-context
+                                             (cdr heads-executing)))))
+
+(define (push-head-executing! label-trace)
+  (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
+    (set-tracer-context-heads-executing! global-tracer-context
+                                         (cons label-trace heads-executing))))
 
 (define (find-label-trace label)
   (define (loop label-traces)
@@ -127,6 +141,12 @@
           ((equal? (label-trace-label (car label-traces)) label) (car label-traces))
           (else (loop (cdr label-traces)))))
   (loop (tracer-context-label-traces global-tracer-context)))
+
+(define (get-label-trace label)
+  (let ((label-trace-found (find-label-trace label)))
+    (if label-trace-found
+        label-trace-found
+        (error "Label was not found in global-tracer-context: " label))))
 
 (define (label-traced? label)
   (not (eq? (find-label-trace label) #f)))
@@ -136,16 +156,18 @@
                                     (cons (label-trace label transformed-trace '())
                                           (tracer-context-label-traces global-tracer-context))))
 
-(define (add-guard-trace! label id trace)
-  (let ((label-trace (get-label-trace label)))
-    (set-label-trace-guard-traces! label-trace (cons (cons id trace)
-                                                     (label-trace-guard-traces label-trace)))))
+(define (add-guard-trace! id trace)
+  (set-label-trace-children! (get-head-executing)
+                             (cons (label-trace id trace '())
+                                   (label-trace-children (get-head-executing)))))
 
-(define (get-label-trace label)
-  (let ((label-trace-found (find-label-trace label)))
-    (if label-trace-found
-        label-trace-found
-        (error "Label was not found in global-tracer-context: " label))))
+(define (get-guard-trace id)
+  (let ((head-executing-children (label-trace-children (get-head-executing))))
+    (define (loop lst)
+      (cond ((null? lst) #f)
+            ((eq? (label-trace-label (car lst)) id) (car lst))
+            (else (loop (cdr lst)))))
+    (loop head-executing-children)))
 
 (define (start-tracing-label! label)
   (clear-trace!)
@@ -159,9 +181,12 @@
     (set-tracer-context-trace-key-to-be-traced! global-tracer-context new-trace-key)))
 
 (define (start-executing-label-trace! label)
-  (let ((trace (label-trace-trace (get-label-trace label))))
+  (let* ((label-trace (get-label-trace label))
+         (trace (label-trace-trace label-trace)))
     (execute `(push-label-executing! ',label)
+             `(push-head-executing! ,label-trace)
              `(eval ,trace)
+             `(pop-head-executing!)
              `(pop-label-executing!))
     (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
       (execute `(remove-continuation))
@@ -245,7 +270,7 @@
 (define (stop-tracing-after-guard! transformed-trace)
   (let ((label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
         (guard-id (trace-key-guard-id (tracer-context-trace-key-to-be-traced global-tracer-context))))
-    (add-guard-trace! label guard-id transformed-trace)
+    (add-guard-trace! guard-id transformed-trace)
     (stop-tracer-context-tracing!)))
 
 (define (stop-tracing-label! transformed-trace)
@@ -264,19 +289,25 @@
 
 (define (calculate-number-of-guard-traces)
   (define sum 0)
-  (for-each (lambda (label-trace)
-              (for-each (lambda (guard-trace)
-                          (set! sum (+ sum 1)))
-                        (label-trace-guard-traces label-trace)))
+  (define (tree-rec lst)
+    (for-each (lambda (child)
+                (set! sum (+ sum 1))
+                (tree-rec (label-trace-children child)))
+              lst))
+  (for-each (lambda (global-label-traces)
+              (tree-rec (label-trace-children global-label-traces)))
             (tracer-context-label-traces global-tracer-context))
   sum)
 
 (define (calculate-total-guard-traces-length)
   (define sum 0)
-  (for-each (lambda (label-trace)
-              (for-each (lambda (guard-trace)
-                          (set! sum (+ sum (length (cddadr (caadr (cdr guard-trace)))))))
-                        (label-trace-guard-traces label-trace)))
+  (define (tree-rec lst)
+    (for-each (lambda (child)
+                (set! sum (+ sum (length (cddadr (caadr (label-trace-trace child))))))
+                (tree-rec (label-trace-children child)))
+              lst))
+  (for-each (lambda (global-label-traces)
+              (tree-rec (label-trace-children global-label-traces)))
             (tracer-context-label-traces global-tracer-context))
   sum)
 
@@ -613,10 +644,12 @@
   (set! τ '()))
 
 (define (bootstrap guard-id e)
-  (let ((existing-trace (find-guard-trace (get-label-executing) guard-id)))
+  (let ((existing-trace (get-guard-trace guard-id)))
     (cond (existing-trace
            (display "----------- STARTING FROM GUARD ") (display guard-id) (display " -----------") (newline)
-           (execute `(eval ,(cdr existing-trace)))
+           (execute `(push-head-executing! ,existing-trace)
+                    `(eval ,(label-trace-trace existing-trace))
+                    `(pop-head-executing!))
            (pop-label-executing!)
            (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
              (execute `(remove-continuation))
