@@ -350,4 +350,74 @@ OPTIONAL:
                (loop (+ i 1)))))
   (loop 1))
 
+;13 tree-sort
+;regular-trace
+
+(run (inject '(begin 
+                  (define (make-tree-node left right value)
+                    (vector left right value))
+                  
+                  (define (new-tree-node v)
+                    (make-tree-node '() '() v))
+                  
+                  (define (left node)
+                    (vector-ref node 0))
+                  
+                  (define (left! node l)
+                    (vector-set! node 0 l))
+                  
+                  (define (right node )
+                    (vector-ref node 1))
+                  
+                  (define (right! node r)
+                    (vector-set! node 1 r))
+                  
+                  (define (value! node vl)
+                    (vector-set! node 2 vl))
+                  
+                  (define (value node )
+                    (vector-ref node 2))
+                  
+                  (define (insert! node n)
+                    (can-start-loop 'insert! "insert!")
+                    (let* ((v (if (< n (value node))
+                                  (if (null? (left node))
+                                      (left! node (new-tree-node n))
+                                      (insert! (left node) n))
+                                  (if (null? (right node))
+                                      (right! node (new-tree-node n))
+                                      (insert! (right node) n)))))
+                      (can-close-loop 'insert! "insert!")
+                      v))
+                  
+                  (define (tree-sort vec)
+                    (can-start-loop 'tree-sort "tree-sort")
+                    (let* ((v (if (> (vector-length vec) 1)
+                                  (begin (define n (new-tree-node (vector-ref vec 0)))
+                                         (define (llloop i)
+                                           (can-start-loop 'llloop "llloop")
+                                           (let* ((v (if (< i (vector-length vec))
+                                                         (begin (insert! n (vector-ref vec i))
+                                                                (llloop (+ i 1)))
+                                                         n)))
+                                             (can-close-loop 'llloop "llloop")
+                                             v))
+                                         (llloop 1))
+                                  #f)))
+                      (can-close-loop 'tree-sort "tree-sort")
+                      v))
+
+                  (define (make-random-array length)
+                    (define v (make-vector length))
+                    (define (loop i)
+                      (if (< i  length)
+                          (begin (vector-set! v i (random 1000))
+                                 (loop (+ i 1)))
+                          v))
+                    (loop 0))
+                  
+                  (define random-vec (make-random-array 30))
+                  
+                  (tree-sort random-vec))))
+
 |#
