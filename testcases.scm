@@ -10,37 +10,59 @@
 
 ;2
 ;regular-trace
-(run (inject '(begin (define (f x) (+ x 10))
-                       (define (g y) (* y 10))
+(run (inject '(begin (define (f x)
+                         (can-start-loop 'f "f")
+                         (define f (+ x 10))
+                         (can-close-loop 'f "f")
+                         f)
+                       (define (g y)
+                         (can-start-loop 'g "g")
+                         (define g (* y 10))
+                         (can-close-loop 'g "g")
+                         g)
                        (define (loop h i k)
-                         (can-start-loop 'label "loop")
-                         (display (h k)) (newline)
-                         (if (< i 0)
-                             99
-                             (loop g (- i 1) k)))
+                         (can-start-loop 'loop "loop")
+                         (define l (begin (display (h k)) (newline)
+                                          (if (< i 0)
+                                              99
+                                              (loop g (- i 1) k))))
+                         (can-close-loop 'loop "loop")
+                         l)
                        (loop f 0 9)
                        (loop f 0 9))))
 
 ;3
 ;regular-trace
 (run (inject '(begin (define (fac x)
-                       (can-start-loop 'label "fac")
-                         (if (< x 2)
-                             1
-                             (* x (fac (- x 1)))))
-                         (fac 5))))
+                         (can-start-loop 'fac "fac")
+                         (define f (if (< x 2)
+                                       1
+                                       (* x (fac (- x 1)))))
+                         (can-close-loop 'fac "fac")
+                         f)
+                       (fac 8))))
 
 ;4
 ;regular-trace
-(run (inject '(begin (define (f x) (+ x 10))
-                     (define (g y) (* y 10))
-                     (define (loop i k)
-                       (can-start-loop 'label "loop")
-                       (display ((if (even? i) f g) k)) (newline)
-                       (if (< i 0)
-                           99
-                           (loop (- i 1) k)))
-                     (loop 10 9))))
+(run (inject '(begin (define (f x)
+                         (can-start-loop 'f "f")
+                         (define f (+ x 10))
+                         (can-close-loop 'f "f")
+                         f)
+                       (define (g y)
+                         (can-start-loop 'g "g")
+                         (define g (* y 10))
+                         (can-close-loop 'g "g")
+                         g)
+                       (define (loop i k)
+                         (can-start-loop 'loop "loop")
+                         (define l (begin (display ((if (even? i) f g) k)) (newline)
+                                          (if (< i 0)
+                                              99
+                                              (loop (- i 1) k))))
+                         (can-close-loop 'loop "loop")
+                         l)
+                       (loop 10 9))))
 
 
 ;5
@@ -117,11 +139,13 @@
 ;regular-trace
 ;6
 (run (inject '(begin (define (fib n)
-                       (can-start-loop 'label "fib")
-                       (if (< n 2)
-                           n
-                           (+ (fib (- n 1)) (fib (- n 2)))))
-                     (fib 10))))
+                         (can-start-loop 'fib "fib")
+                         (define f (if (< n 2)
+                                       n
+                                       (+ (fib (- n 1)) (fib (- n 2)))))
+                         (can-close-loop 'fib "fib")
+                         f)
+                       (fib 10))))
 
 ;meta-trace
 ;7
