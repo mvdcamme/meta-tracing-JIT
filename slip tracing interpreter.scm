@@ -1,6 +1,7 @@
 #lang racket
 
 (define ENABLE_OPTIMIZATIONS #f)
+(define TRACING_THRESHOLD 5)
 
 (define guard-id 0)
 
@@ -92,12 +93,18 @@
   (and (tracer-context-trace-key-to-be-traced global-tracer-context)
        (equal? (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) label)))
 
-(define (label-encountered? label)
-  (member label (tracer-context-labels-encountered global-tracer-context)))
+(define (get-times-label-encountered label)
+  (let ((pair (massoc label (tracer-context-labels-encountered global-tracer-context))))
+    (if pair
+        (mcdr pair)
+        0)))
 
-(define (add-label-encountered! label)
-  (set-tracer-context-labels-encountered! global-tracer-context 
-                                          (cons label (tracer-context-labels-encountered global-tracer-context))))
+(define (inc-times-label-encountered! label)
+  (let ((pair (massoc label (tracer-context-labels-encountered global-tracer-context))))
+    (if pair
+        (set-mcdr! pair (+ (mcdr pair) 1))
+        (set-tracer-context-labels-encountered! global-tracer-context 
+                                                (cons (mcons label 1) (tracer-context-labels-encountered global-tracer-context))))))
 
 (define (get-label-executing)
   (let ((labels-executing (tracer-context-labels-executing global-tracer-context)))
@@ -629,6 +636,20 @@
               `(remove-continuation))
      (ko φ κ))))
 
+(define (mmap f lst)
+  (if (null? lst)
+      '()
+      (mcons (f (car lst)) (mmap f (cdr lst)))))
+
+(define (transform-input input)
+  (define (tree-rec el)
+    (cond ((pair? el)
+           (cond ((eq? (car el) 'define)
+                  (mcons 'define (mcons (cons (cadr el) (mmap tree-rec (cddr el))) 0)))
+                 (else (mcons (car el) (mcons (mmap tree-rec (cdr el)) 0)))))
+          (else el)))
+  (tree-rec input))
+
 (define (inject e)
   (ev e `(,(haltk))))
 
@@ -697,21 +718,18 @@
            ((label-traced? v)
             (display "----------- EXECUTING TRACE -----------") (newline)
             (start-executing-label-trace! v))
-           ((and (not (is-tracing?)) (label-encountered? v))
+           ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
             (display "----------- STARTED TRACING -----------") (newline)
             (start-tracing-label! v)
             (execute `(remove-continuation))
             (let ((new-state (ko φ κ)))
               (step* new-state)))
-           ((not (label-encountered? v))
-            (add-label-encountered! v)
-            (execute `(remove-continuation))
-            (let ((new-state (ko φ κ)))
-              (step* new-state)))
            (else
-            (display "----------- ALREADY TRACING ANOTHER LABEL -----------") (newline)
             (execute `(remove-continuation))
-            (let ((new-state (step (ko φ κ))))
+            (inc-times-label-encountered! v)
+            (and (is-tracing?)
+                 (display "----------- ALREADY TRACING ANOTHER LABEL -----------") (newline))
+            (let ((new-state (ko φ κ)))
               (step* new-state)))))
     (_
      (let ((new-state (step s)))
