@@ -2,6 +2,8 @@
 
 (define ns (make-base-namespace))
 
+(define global-e #f)
+
 (define ENABLE_OPTIMIZATIONS #f)
 (define TRACING_THRESHOLD 5)
 
@@ -694,6 +696,7 @@
 (define (duplicating-inject e)
   (let ((transformed-e (transform-input e)))
     (display "INPUT TRANSFORMED") (newline)
+    (set! global-e transformed-e)
     (ev transformed-e `(,(haltk)))))
 
 (define (inject e)
