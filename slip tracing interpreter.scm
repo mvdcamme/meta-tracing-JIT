@@ -1,4 +1,5 @@
 #lang racket
+(require rnrs/arithmetic/bitwise-6)
 
 (define ns (make-base-namespace))
 
@@ -85,6 +86,16 @@
 (struct ratork (i debug))
 (struct seqk (es))
 (struct setk (x))
+
+;
+; Random number generation
+; Source: taken from https://github.com/SOM-st/SOM/blob/master/Examples/Benchmarks/Random.som
+;
+
+(define random (clo (lam '(max)
+                         (map transform-input '((set! seed (bitwise-and (+ (* seed 1309) 13849) 65535))
+                                                (modulo seed max))))
+                    '((seed . u-seed))))
 
 (define (clo-equal? clo1 clo2)
   (and (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
@@ -734,8 +745,9 @@
   (ev e `(,(haltk))))
 
 (define (reset!)
-  (set! ρ '());
-  (set! σ '());
+  (set! ρ '((random . u-random)));
+  (set! σ `((u-seed . 74755)
+            (u-random . ,random)));
   (set! θ '())
   (set! τ '())
   (set! τ-κ `(,(haltk)))
