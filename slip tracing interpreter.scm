@@ -624,7 +624,7 @@
      (ko (car κ) (cdr κ)))
     ((ko (andk es) κ)
      (if v
-         (ev (t 'and es '()) κ)
+         (ev `(and ,@es) κ)
          (begin (execute `(remove-continuation)
                          `(literal-value #f))
                 (ko (car κ) (cdr κ)))))
