@@ -335,7 +335,7 @@
 
 (define global-tracer-context #f)
 
-(define (calculate-total-number-of-traces)
+(define (calculate-number-of-guard-traces)
   (define sum 0)
   (define (tree-rec lst)
     (for-each (lambda (child)
@@ -343,12 +343,11 @@
                 (tree-rec (label-trace-children child)))
               lst))
   (for-each (lambda (global-label-traces)
-              (set! sum (+ sum 1))
               (tree-rec (label-trace-children global-label-traces)))
             (tracer-context-label-traces global-tracer-context))
   sum)
 
-(define (calculate-total-traces-length)
+(define (calculate-total-guard-traces-length)
   (define sum 0)
   (define (tree-rec lst)
     (for-each (lambda (child)
@@ -356,13 +355,12 @@
                 (tree-rec (label-trace-children child)))
               lst))
   (for-each (lambda (global-label-traces)
-              (set! sum (+ sum (length (cddadr (caadr (label-trace-trace global-label-traces))))))
               (tree-rec (label-trace-children global-label-traces)))
             (tracer-context-label-traces global-tracer-context))
   sum)
 
-(define (calculate-average-trace-length)
-  (/ (calculate-total-traces-length) (calculate-total-number-of-traces)))
+(define (calculate-average-guard-trace-length)
+  (/ (calculate-total-guard-traces-length) (calculate-number-of-guard-traces)))
 
 ;
 ;evaluation
