@@ -639,20 +639,6 @@
               `(remove-continuation))
      (ko φ κ))))
 
-(define (mmap f lst)
-  (if (null? lst)
-      '()
-      (mcons (f (car lst)) (mmap f (cdr lst)))))
-
-(define (transform-input input)
-  (define (tree-rec el)
-    (cond ((pair? el)
-           (cond ((eq? (car el) 'define)
-                  (mcons 'define (mcons (cons (cadr el) (mmap tree-rec (cddr el))) 0)))
-                 (else (mcons (car el) (mcons (mmap tree-rec (cdr el)) 0)))))
-          (else el)))
-  (tree-rec input))
-
 (define (inject e)
   (ev e `(,(haltk))))
 
