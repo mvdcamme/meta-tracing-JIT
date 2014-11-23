@@ -1,7 +1,5 @@
 #lang racket
 
-(define ns (make-base-namespace))
-
 (define ENABLE_OPTIMIZATIONS #f)
 (define TRACING_THRESHOLD 5)
 
@@ -12,25 +10,12 @@
     (set! guard-id (+ guard-id 1))
     temp))
 
+(define ns (make-base-namespace))
+
 (define (massoc el lst)
   (cond ((null? lst) #f)
         ((eq? el (mcar (car lst))) (car lst))
         (else (massoc el (cdr lst)))))
-
-(struct t (head tail counter) #:transparent #:mutable)
-(struct u (head counter) #:transparent #:mutable)
-
-(define (transform-input input)
-  (define (tree-rec el)
-    (cond ((pair? el)
-           (cond ((eq? (car el) 'define)
-                  (t 'define (cons (cadr el) (map tree-rec (cddr el))) 0))
-                 (else (t (tree-rec (car el)) (map tree-rec (cdr el)) 0))))
-          (else (u el 0))))
-  (tree-rec input))
-
-(define (s)
-  (transform-input (read)))
 
 ;
 ; continuations
@@ -651,9 +636,19 @@
               `(remove-continuation))
      (ko φ κ))))
 
-(define (duplicating-inject e)
-  (let ((transformed-e (transform-input e)))
-    (ev transformed-e `(,(haltk)))))
+(define (mmap f lst)
+  (if (null? lst)
+      '()
+      (mcons (f (car lst)) (mmap f (cdr lst)))))
+
+(define (transform-input input)
+  (define (tree-rec el)
+    (cond ((pair? el)
+           (cond ((eq? (car el) 'define)
+                  (mcons 'define (mcons (cons (cadr el) (mmap tree-rec (cddr el))) 0)))
+                 (else (mcons (car el) (mcons (mmap tree-rec (cdr el)) 0)))))
+          (else el)))
+  (tree-rec input))
 
 (define (inject e)
   (ev e `(,(haltk))))
