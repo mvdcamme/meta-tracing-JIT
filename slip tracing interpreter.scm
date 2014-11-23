@@ -25,7 +25,7 @@
     (cond ((pair? el)
            (cond ((eq? (car el) 'define)
                   (t 'define (cons (cadr el) (map tree-rec (cddr el))) 0))
-                 (else (t (car el) (map tree-rec (cdr el)) 0))))
+                 (else (t (tree-rec (car el)) (map tree-rec (cdr el)) 0))))
           (else (u el 0))))
   (tree-rec input))
 
@@ -452,14 +452,6 @@
 
 (define (step state)
   (match state
-    ((ev (t head tail counter) κ)
-     (and (is-tracing?)
-          (set-t-counter! state (+ (t-counter state) 1)))
-     (ev (cons head tail) κ))
-    ((ev (u head counter) κ)
-     (and (is-tracing?)
-          (set-u-counter! state (+ (u-counter state) 1)))
-     (ev head κ))
     ((ev `(and ,e . ,es) κ)
      (execute `(add-continuation ,(andk es)))
      (ev e (cons (andk es) κ)))
