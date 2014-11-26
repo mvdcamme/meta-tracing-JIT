@@ -80,7 +80,8 @@
                         labels-encountered
                         labels-executing
                         heads-executing
-                        guards-id-stack) #:transparent #:mutable)
+                        guards-id-stack
+                        closing-function) #:transparent #:mutable)
 
 (define (new-tracer-context)
   (tracer-context #f
@@ -90,7 +91,8 @@
                   '()
                   '()
                   '()
-                  (new-stack)))
+                  (new-stack)
+                  #f))
 
 (define (is-tracing?)
   (tracer-context-is-tracing? global-tracer-context))
@@ -190,6 +192,7 @@
 (define (start-tracing-after-guard! label guard-id)
   (clear-trace!)
   (let ((new-trace-key (trace-key label guard-id)))
+    (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-after-guard-function))
     (set-tracer-context-is-tracing?! global-tracer-context #t)
     (set-tracer-context-trace-key-to-be-traced! global-tracer-context new-trace-key)))
 
@@ -213,6 +216,10 @@
 
 (define (save-next-guard-id?)
   (tracer-context-save-next-guard-id? global-tracer-context))
+
+(define (set-closing-function-if-not-yet-existing! closing-function)
+  (or (tracer-context-closing-function global-tracer-context)
+      (set-tracer-context-closing-function! global-tracer-context closing-function)))
   
 ;
 ; Transform trace
@@ -287,25 +294,32 @@
 
 (define (stop-tracer-context-tracing!)
   (set-tracer-context-is-tracing?! global-tracer-context #f)
-  (set-tracer-context-trace-key-to-be-traced! global-tracer-context #f))
+  (set-tracer-context-trace-key-to-be-traced! global-tracer-context #f)
+  (set-tracer-context-closing-function! global-tracer-context #f))
 
-(define (stop-tracing-after-guard! transformed-trace)
-  (let ((label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
-        (guard-id (trace-key-guard-id (tracer-context-trace-key-to-be-traced global-tracer-context))))
-    (add-guard-trace! guard-id transformed-trace)
+(define (transform-and-optimize-trace trace loop-closed?)
+  (if ENABLE_OPTIMIZATIONS
+      (transform-trace (optimize-trace trace) loop-closed?)
+      (transform-trace trace loop-closed?)))
+
+(define (make-stop-tracing-after-label-function looping?)
+  (define (stop-tracing-label! trace)
+    (let ((transformed-trace (transform-and-optimize-trace trace looping?)))
+      (add-label-trace! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)))
+  stop-tracing-label!)
+
+(define (make-stop-tracing-after-guard-function)
+  (define (stop-tracing-after-guard! trace)
+    (let* ((transformed-trace (transform-and-optimize-trace trace #f))
+           (label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
+           (guard-id (trace-key-guard-id (tracer-context-trace-key-to-be-traced global-tracer-context))))
+      (add-guard-trace! guard-id transformed-trace)))
+  stop-tracing-after-guard!)
+
+(define (stop-tracing!)
+  (let ((stop-tracing-function (tracer-context-closing-function global-tracer-context)))
+    (stop-tracing-function (reverse τ))
     (stop-tracer-context-tracing!)))
-
-(define (stop-tracing-label! transformed-trace)
-  (add-label-trace! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)
-  (stop-tracer-context-tracing!))
-
-(define (stop-tracing! loop-closed?)
-  (let ((transformed-trace (if ENABLE_OPTIMIZATIONS
-                               (transform-trace (optimize-trace (reverse τ)) loop-closed?)
-                               (transform-trace (reverse τ) loop-closed?))))
-    (if (is-tracing-guard? (tracer-context-trace-key-to-be-traced global-tracer-context))
-        (stop-tracing-after-guard! transformed-trace)
-        (stop-tracing-label! transformed-trace))))
 
 (define global-tracer-context #f)
 
@@ -737,7 +751,8 @@
           (display "closing annotation: tracing loop ") (display v) (newline))
      (and (is-tracing-label? v)
           (display "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (newline)
-          (stop-tracing! #f))
+          (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #f))
+          (stop-tracing!))
      (execute `(remove-continuation))
      (step* (ko φ κ)))
     ((ko (can-start-loopk debug-info) (cons φ κ))
@@ -745,9 +760,8 @@
           (display "opening annotation: tracing loop ") (display v) (newline))
      (cond ((is-tracing-label? v)
             (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
-            (stop-tracing! (if (is-tracing-guard? (tracer-context-trace-key-to-be-traced global-tracer-context))
-                               #f
-                               #t))
+            (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #t))
+            (stop-tracing!)
             (start-executing-label-trace! v))
            ((label-traced? v)
             (display "----------- EXECUTING TRACE -----------") (newline)
