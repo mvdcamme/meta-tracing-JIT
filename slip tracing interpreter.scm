@@ -1,5 +1,7 @@
 #lang racket
 
+(require "stack.scm")
+
 (define ENABLE_OPTIMIZATIONS #f)
 (define TRACING_THRESHOLD 5)
 
@@ -76,11 +78,13 @@
                         label-traces
                         labels-encountered
                         labels-executing
-                        heads-executing) #:transparent #:mutable)
+                        heads-executing
+                        guards-id-stack) #:transparent #:mutable)
 
 (define (new-tracer-context)
   (tracer-context #f
                   #f
+                  '()
                   '()
                   '()
                   '()

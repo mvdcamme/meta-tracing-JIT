@@ -1,2 +1,4 @@
 cpSlip.bak
 *.bak
+*.dep
+*.zo
