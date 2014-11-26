@@ -75,6 +75,7 @@
 
 (struct tracer-context (is-tracing?
                         trace-key-to-be-traced
+                        save-next-guard-id?
                         label-traces
                         labels-encountered
                         labels-executing
@@ -83,6 +84,7 @@
 
 (define (new-tracer-context)
   (tracer-context #f
+                  #f
                   #f
                   '()
                   '()
@@ -208,6 +210,9 @@
 
 (define (pop-guard-id!)
   (pop! (tracer-context-guards-id-stack global-tracer-context)))
+
+(define (save-next-guard-id?)
+  (tracer-context-save-next-guard-id? global-tracer-context))
   
 ;
 ; Transform trace
@@ -604,17 +609,20 @@
      #f)
     ((ko (ifk e1 e2) κ)
      (execute `(restore-env))
-     (if v
-         (begin (execute `(guard-true ,(inc-guard-id!) ',(if (null? e2)
-                                                             '()
-                                                             (car e2)))) ;If the guard fails, the predicate was false, so e2 should be evaluated
-                (ev e1 κ))
-         (begin (execute `(guard-false ,(inc-guard-id!) ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
-                (if (null? e2)
-                    (begin (execute `(remove-continuation)
-                                    `(literal-value '()))
-                           (ko (car κ) (cdr κ)))
-                    (ev (car e2) κ)))))
+     (let ((new-guard-id (inc-guard-id!)))
+       (and (save-next-guard-id?)
+            (execute `(push-guard-id! ,new-guard-id)))
+       (if v
+           (begin (execute `(guard-true ,new-guard-id ',(if (null? e2)
+                                                               '()
+                                                               (car e2)))) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                  (ev e1 κ))
+           (begin (execute `(guard-false ,new-guard-id ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                  (if (null? e2)
+                      (begin (execute `(remove-continuation)
+                                      `(literal-value '()))
+                             (ko (car κ) (cdr κ)))
+                      (ev (car e2) κ))))))
     ((ko (letk x es) κ)
      (execute `(restore-env)
               `(set-var ',x))
@@ -718,11 +726,11 @@
      v)
     ((ev `(splits-control-flow) (cons φ κ))
      (execute `(remove-continuation))
-     ;TODO implementation
+     (set-tracer-context-save-next-guard-id?! global-tracer-context #t)
      (step* (ko φ κ)))
     ((ev `(merges-control-flow) (cons φ κ))
-     (execute `(remove-continuation))
-     ;TODO implementation
+     (execute `(remove-continuation)
+              `(pop-guard-id!))
      (step* (ko φ κ)))
     ((ko (can-close-loopk debug-info) (cons φ κ))
      (and (not (null? debug-info))
