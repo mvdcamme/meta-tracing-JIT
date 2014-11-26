@@ -113,6 +113,7 @@
       (display "If: ") (display predicate) (newline)
       (display consequent) (newline)
       (display alternate) (newline)
+      (splits-control-flow)
       (if (evaluate predicate)
           (return-from-control-flow-split (thunkify consequent))
           (if (null? alternate)

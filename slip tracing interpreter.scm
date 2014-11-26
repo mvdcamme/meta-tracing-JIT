@@ -88,7 +88,7 @@
                   '()
                   '()
                   '()
-                  '()))
+                  (new-stack)))
 
 (define (is-tracing?)
   (tracer-context-is-tracing? global-tracer-context))
@@ -202,6 +202,12 @@
     (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
       (execute `(remove-continuation))
       (step* new-state))))
+
+(define (push-guard-id! guard-id)
+  (push! (tracer-context-guards-id-stack global-tracer-context) guard-id))
+
+(define (pop-guard-id!)
+  (pop! (tracer-context-guards-id-stack global-tracer-context)))
   
 ;
 ; Transform trace
@@ -710,6 +716,10 @@
   (match s
     ((ko (haltk) _)
      v)
+    ((ev `(splits-control-flow) (cons φ κ))
+     (execute `(remove-continuation))
+     ;TODO implementation
+     (step* (ko φ κ)))
     ((ev `(merges-control-flow) (cons φ κ))
      (execute `(remove-continuation))
      ;TODO implementation
