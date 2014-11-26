@@ -1,5 +1,6 @@
 #lang racket
 
+(require "dictionary.scm")
 (require "stack.scm")
 
 (define ENABLE_OPTIMIZATIONS #f)
