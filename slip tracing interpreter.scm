@@ -1028,7 +1028,7 @@
   (define (bootstrap-to-ko guard-id φ)
     (bootstrap guard-id (ko φ τ-κ)))
   
-  (define (make-closing-function-after-merge)
+  (define (make-closing-function-after-merge merge-point-id)
     (define (closing-function merge-point-tail-trace looping?)
       (let* ((trace-key (tracer-context-trace-key-to-be-traced global-tracer-context))
              (trace-key-label (trace-key-label trace-key))
@@ -1036,9 +1036,9 @@
              (old-trace (trace-node-trace label-trace))
              (appended-trace (append old-trace merge-point-tail-trace))
              (transformed-trace (transform-and-optimize-trace appended-trace looping?))
-             
-             (dictionary (tracer-context-merge-points-dictionary global-tracer-context)))
-        
+             (dictionary (tracer-context-merge-points-dictionary global-tracer-context))
+             (transformed-merge-point-tail-trace (transform-and-optimize-trace merge-point-tail-trace #f)))
+        (insert! dictionary merge-point-id transformed-merge-point-tail-trace)
         (set-trace-node-trace! label-trace transformed-trace)))
     closing-function)
     
@@ -1069,7 +1069,7 @@
                   (begin ((tracer-context-closing-function global-tracer-context) (reverse τ) #f)
                          (eval `(execute-merge-point-tail ,merge-point-id)))
                   (begin (clear-trace!)
-                         (set-tracer-context-closing-function! global-tracer-context (make-closing-function-after-merge))
+                         (set-tracer-context-closing-function! global-tracer-context (make-closing-function-after-merge merge-point-id))
                          (set-tracer-context-merges-cf-function! global-tracer-context (make-merges-cf-function-after-merge))))) 
                   ;TODO: bepalen wat er moet gebeuren als er meerdere merges zijn in dezelfde trace
          (step* (ko φ κ))))
