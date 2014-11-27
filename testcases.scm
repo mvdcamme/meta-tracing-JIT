@@ -1,8 +1,8 @@
+#lang racket
+
 ;
 ;test-cases
 ;
-
-#|
 
 ;1
 ;meta-trace
@@ -294,6 +294,8 @@
 (tree-sort (vector 50 75 25 100)))
 
 
+#|
+
 OPTIONAL:
 
 (define (make-random-array length)
@@ -308,6 +310,8 @@ OPTIONAL:
 (define random-vec (make-random-array 20))
 
 (tree-sort random-vec))
+
+|#
 
 
 ;11 trace explosion
@@ -433,4 +437,15 @@ OPTIONAL:
                   
                   (tree-sort v))))
 
-|#
+;14
+;easy trace-merging testcase
+;A testcase with only a single point of control-flow splitting and merging
+;Meant for meta-tracing
+
+(begin (define (loop i)
+         (if (> i 0)
+             (begin (if (= (random 2) 0)
+                        (display "Random was 0")
+                        (display "Random was 1"))
+                    (loop (- i 1)))))
+       (loop 30))
