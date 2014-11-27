@@ -11,7 +11,8 @@
 ;-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
 
 (module dictionary racket
- (provide new dictionary? insert! delete! find)
+ (provide (rename-out (new new-dictionary))
+          dictionary? insert! delete! find)
  
  (define make-assoc mcons)
  (define assoc-key mcar)
