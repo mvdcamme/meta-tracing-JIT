@@ -377,6 +377,9 @@
   (set! θ (append (take v i) θ))
   (set! v (drop v i)))
 
+(define (save-all-vals)
+  (set! θ (append v θ)))
+
 (define (save-env)
   (set! θ (cons ρ θ)))
 
@@ -568,7 +571,7 @@
      (ko (car κ) (cdr κ)))
     ((ko (applyk rator) κ)
      (let ((i (length v)))
-       (execute `(save-vals ,i)
+       (execute `(save-all-vals)
                 `(save-env)
                 `(add-continuation ,(ratork i 'apply)))
        (ev rator (cons (ratork i 'apply) κ))))
