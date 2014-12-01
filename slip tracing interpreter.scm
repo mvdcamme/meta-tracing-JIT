@@ -605,7 +605,7 @@
     ((ko (condk pes `((else . ,else-es))) κ)
      (execute `(restore-env))
      (if v
-         (begin (execute `(guard-true ,(inc-guard-id!) ',`(cond `((else ,@else-es)))))
+         (begin (execute `(guard-true ,(inc-guard-id!) ',`(begin ,@else-es)))
                 (eval-seq pes κ))
          (begin (execute `(guard-false ,(inc-guard-id!) ',`(begin ,@pes)))
                 (eval-seq else-es κ))))
