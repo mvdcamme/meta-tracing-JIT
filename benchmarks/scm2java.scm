@@ -54,6 +54,16 @@
 
 ;; Utilities.
 
+(begin
+(define java-compile-exp #f)
+(define java-compile-const #f)
+(define java-compile-prim #f)
+(define java-compile-ref #f)
+(define java-compile-lambda #f)
+(define java-compile-if #f)
+(define java-compile-set! #f)
+(define java-compile-app #f)
+
 (define (cadr p) (car (cdr p)))
 (define (caadr p) (car (car (cdr p))))
 (define (caddr p) (car (cdr (cdr p))))
@@ -344,7 +354,7 @@
    "}\n"))
 
 ; java-compile-exp : exp -> string
-(define (java-compile-exp exp)
+(define (java-compile-exp-act exp)
   (cond
     ; core forms:
     ((const? exp)       (java-compile-const exp))
@@ -364,14 +374,14 @@
 
 
 ; java-compile-const : const-exp -> string
-(define (java-compile-const exp)
+(define (java-compile-const-act exp)
   (cond
     ((integer? exp) (string-append 
                      "new IntValue(" (number->string exp) ")"))
     (else           (error "unknown constant: " exp))))
 
 ; java-compile-prim : prim-exp -> string
-(define (java-compile-prim p)
+(define (java-compile-prim-act p)
   (cond
     ((eq? '+ p)       "sum")
     ((eq? '- p)       "difference")
@@ -381,7 +391,7 @@
     (else             (error "unhandled primitive " p))))
 
 ; java-compile-ref : ref-exp -> string
-(define (java-compile-ref exp)
+(define (java-compile-ref-act exp)
   (cond
     ((is-mutable? exp) (string-append "m_" (mangle exp) ".value"))
     (else              (mangle exp))))
@@ -398,7 +408,7 @@
            ""))))
  
 ; java-compile-lambda : lambda-exp -> string
-(define (java-compile-lambda exp)
+(define (java-compile-lambda-act exp)
   (define (java-wrap-mutables vars)
     (if (not (pair? vars))
         ""
@@ -432,7 +442,7 @@
            ""))))
 
 ; java-compile-set! : set!-exp -> string
-(define (java-compile-set! exp)
+(define (java-compile-set!-act exp)
   (string-append "VoidValue.Void(m_"
                  (mangle (set!-var exp))
                  ".value = "
@@ -440,7 +450,7 @@
                  ")"))
 
 ; java-compile-app : app-exp -> string
-(define (java-compile-app exp)
+(define (java-compile-app-act exp)
   (let* ((args     (app->args exp))
          (fun      (app->fun exp))
          (num-args (length args)))
@@ -450,22 +460,37 @@
      (java-compile-args args) ")\n")))
 
 ; java-compile-if : if-exp -> string
-(define (java-compile-if exp)
+(define (java-compile-if-act exp)
   (string-append
    "(" (java-compile-exp (if->condition exp)) ").toBoolean() ? (" 
        (java-compile-exp (if->then exp)) ") : ("
        (java-compile-exp (if->else exp)) ")"))
+
+(set! java-compile-exp java-compile-exp-act)
+(set! java-compile-const java-compile-const-act)
+(set! java-compile-prim java-compile-prim-act)
+(set! java-compile-ref java-compile-ref-act)
+(set! java-compile-lambda java-compile-lambda-act)
+(set! java-compile-if java-compile-if-act)
+(set! java-compile-set! java-compile-set!-act)
+(set! java-compile-app java-compile-app-act)
 
 
 
 ;; Read in an expression, compile it, and print it out:
 
 ;; Hard-coded program for static analysis benchmarking.
-(define input-program 3)
+(define input-program '(let ((a 1) (b 2) (c 3))
+                         (if (= (+ a b) c)
+                             (letrec ((fac (lambda (x) (if (< x 2)
+                                                           1
+                                                           (* x (fac (- x 1)))))))
+                               (fac (+ a b c)))
+                             (c))))
 
 (analyze-mutable-variables input-program)
 
-(java-compile-program input-program)
+(java-compile-program input-program))
 
 ;; The resulting program requires Value.java to compile.
 
