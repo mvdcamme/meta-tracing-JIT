@@ -2,3 +2,5 @@ cpSlip.bak
 *.bak
 *.dep
 *.zo
+compiled/
+benchmarks/input_file.scm
