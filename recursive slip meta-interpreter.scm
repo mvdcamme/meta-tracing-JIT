@@ -14,6 +14,14 @@
           (loop (cdr list) (cons (begin debug (f (car list))) acc))))
     (loop lst '()))
   
+  (define (for-each f lst)
+    (define (loop list)
+      (if (not (null? list))
+          (begin (f (car list))
+                 (loop (cdr list)))))
+    (loop lst)
+    (void))
+  
   (define meta-circularity-level 0)
   
   (define environment '())
@@ -134,6 +142,22 @@
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))
     
+    (define (evaluate-let . expressions)
+      (define frozen-environment environment)
+      (define (evaluate-bindings bindings bindings-to-add)
+        (if (null? bindings)
+            bindings-to-add
+            (let* ((let-binding (car bindings))
+                   (variable (car let-binding))
+                   (value (evaluate (cadr let-binding)))
+                   (binding (vector variable value)))
+              (evaluate-bindings (cdr bindings) (cons binding bindings-to-add)))))
+      (for-each (lambda (binding) (set! environment (cons binding environment)))
+                (evaluate-bindings (car expressions) '()))
+      (let* ((value (evaluate-sequence (cdr expressions))))
+        (set! environment frozen-environment)
+        value))
+    
     (define (evaluate-let* bindings . expressions)
       (define frozen-environment environment)
       (define (evaluate-bindings bindings)
@@ -206,6 +230,8 @@
                    evaluate-if)
                   ((eq? operator 'lambda) 
                    evaluate-lambda)
+                  ((eq? operator 'let)
+                   evaluate-let)
                   ((eq? operator 'let*)
                    evaluate-let*)
                   ((eq? operator 'load) 
