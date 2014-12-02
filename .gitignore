@@ -1,3 +1,4 @@
 cpSlip.bak
 *.bak
 compiled/
+benchmarks/input_file.scm
