@@ -155,6 +155,16 @@
         (close-input-port port)
         (evaluate (read port))))
     
+    (define (evaluate-or . expressions)
+      (define (or-loop expressions)
+        (if (null? expressions)
+            #f
+            (let* ((value (evaluate (car expressions))))
+              (if value
+                  value
+                  (or-loop (cdr expressions))))))
+      (or-loop expressions))
+    
     (define (evaluate-quote expression)
       expression)
     
@@ -200,6 +210,8 @@
                    evaluate-let*)
                   ((eq? operator 'load) 
                    evaluate-load)
+                  ((eq? operator 'or)
+                   evaluate-or)
                   ((eq? operator 'quote) 
                    evaluate-quote)
                   ((eq? operator 'set!) 
