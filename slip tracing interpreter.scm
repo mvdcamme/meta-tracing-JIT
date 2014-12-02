@@ -32,7 +32,7 @@
 (struct can-close-loopk (debug-info) #:transparent)
 (struct can-start-loopk (debug-info) #:transparent)
 (struct clo (λ ρ))
-(struct closure-guard-validatedk (i))
+(struct closure-guard-failedk (i))
 (struct condk (pes es))
 (struct definevk (x)) ;define variable
 (struct haltk ())
@@ -47,8 +47,11 @@
 (struct setk (x))
 
 (define (clo-equal? clo1 clo2)
-  (and (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
-       (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2)))))
+  (or (eq? clo1 clo2)
+      (and (clo? clo1)
+           (clo? clo2)
+           (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
+           (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2))))))
 
 (define ρ #f) ; env
 (define σ #f) ; store
@@ -368,7 +371,7 @@
 (define (guard-same-closure clo i guard-id)
   (and (not (clo-equal? v clo))
        (display "Closure guard failed, expected: ") (display clo) (display ", evaluated: ") (display v) (newline)
-       (bootstrap-from-continuation guard-id (closure-guard-validatedk i))))
+       (bootstrap-from-continuation guard-id (closure-guard-failedk i))))
 
 (define (save-val)
   (set! θ (cons v θ)))
@@ -467,6 +470,29 @@
      (execute `(save-env)
               `(add-continuation ,(seqk es)))
      (ev e (cons (seqk es) κ)))))
+
+(define (do-function-call i κ)
+  (match v
+    ((clo (lam x es) ρ)
+     (execute `(switch-to-clo-env ,i))
+     (let loop ((i i) (x x))
+       (match x
+         ('()
+          (execute `(add-continuation ,(applicationk (lam x es))))
+          (eval-seq es (cons (applicationk (lam x es)) κ)))
+         ((cons x xs)
+          (execute `(restore-val)
+                   `(alloc-var ',x))
+          (loop (- i 1) xs))
+         ((? symbol? x)
+          (execute `(restore-vals ,i)
+                   `(alloc-var ',x)
+                   `(add-continuation ,(applicationk (lam x es))))
+          (eval-seq es (cons (applicationk (lam x es)) κ))))))
+    (_
+     (execute `(apply-native ,i)
+              `(remove-continuation))
+     (ko (car κ) (cdr κ)))))
 
 (define (step state)
   (match state
@@ -575,24 +601,8 @@
                 `(save-env)
                 `(add-continuation ,(ratork i 'apply)))
        (ev rator (cons (ratork i 'apply) κ))))
-    ((ko (closure-guard-validatedk i) κ)
-     (match v
-       ((clo (lam x es) ρ)
-        (execute `(switch-to-clo-env ,i))
-        (let loop ((i i) (x x))
-          (match x
-            ('()
-             (execute `(add-continuation ,(applicationk (lam x es))))
-             (eval-seq es (cons (applicationk (lam x es)) κ)))
-            ((cons x xs)
-             (execute `(restore-val)
-                      `(alloc-var ',x))
-             (loop (- i 1) xs))
-            ((? symbol? x)
-             (execute `(restore-vals ,i)
-                      `(alloc-var ',x)
-                      `(add-continuation ,(applicationk (lam x es))))
-             (eval-seq es (cons (applicationk (lam x es)) κ))))))))
+    ((ko (closure-guard-failedk i) κ)
+     (do-function-call i κ))
     ((ko (condk pes '()) κ)
      (execute `(restore-env))
      (if v
@@ -676,15 +686,9 @@
               `(add-continuation ,(randk rator (cdr rands) (+ i 1))))
      (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
     ((ko (ratork i debug) κ)
-     (execute `(restore-env))
-     (match v
-       ((clo (lam x es) ρ)
-        (execute `(guard-same-closure ,v ,i  ,(inc-guard-id!)))
-        (ko (closure-guard-validatedk i) κ))
-       (_
-        (execute `(apply-native ,i)
-                 `(remove-continuation))
-        (ko (car κ) (cdr κ)))))
+     (execute `(restore-env)
+              `(guard-same-closure ,v ,i  ,(inc-guard-id!)))
+     (do-function-call i κ))
     ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
      (execute `(restore-env)
               `(remove-continuation))
