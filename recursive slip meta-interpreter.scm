@@ -68,6 +68,16 @@
           value))
       closure)
     
+    (define (evaluate-and . expressions)
+      (define (and-loop expressions prev)
+        (if (null? expressions)
+            prev
+            (let* ((value (evaluate (car expressions))))
+              (if value
+                  (and-loop (cdr expressions) value)
+                  #f))))
+      (and-loop expressions #t))
+    
     (define (evaluate-application operator)
       (lambda operands
         (apply (evaluate operator) (map evaluate operands))))
@@ -168,7 +178,9 @@
          (let* ((operator (car expression))
                 (operands (cdr expression)))
            (apply
-            (cond ((eq? operator 'apply)
+            (cond ((eq? operator 'and)
+                   evaluate-and)
+                  ((eq? operator 'apply)
                    evaluate-apply)
                   ((eq? operator 'begin)
                    evaluate-begin)
