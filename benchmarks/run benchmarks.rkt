@@ -15,7 +15,14 @@
 ;
 ; Benchmarks
 ;
+(define bubble-sort-benchmark-path "bubble-sort.scm")
 (define fac-benchmark-path "fac.scm")
+(define fib-benchmark-path "fib.scm")
+(define nqueens-2-benchmark-path "nqueens 2.scm")
+(define rotate-2-benchmark-path "rotate 2.scm")
+(define trace-explosion-benchmark-path "trace-explosion.scm")
+(define tree-sort-benchmark-path "tree-sort.scm")
+(define towers-of-hanoi-benchmark-path "towers-of-hanoi.scm")
 
 
 
