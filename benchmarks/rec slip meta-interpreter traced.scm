@@ -131,11 +131,13 @@
       (display "If: ") (display predicate) (newline)
       (display consequent) (newline)
       (display alternate) (newline)
-      (if (evaluate predicate)
-          (return-from-control-flow-split (thunkify consequent))
-          (if (null? alternate)
-              '()
-              (return-from-control-flow-split (thunkify (car alternate))))))
+      (let* ((cond (evaluate predicate)))
+        (splits-control-flow)
+        (if cond
+            (return-from-control-flow-split (thunkify consequent))
+            (if (null? alternate)
+                '()
+                (return-from-control-flow-split (thunkify (car alternate)))))))
     
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))
