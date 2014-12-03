@@ -13,8 +13,10 @@
            literal-value
            lookup-var
            quote-value
+           pop-guard-id!
            pop-head-executing!
            pop-label-executing!
+           push-guard-id!
            push-head-executing!
            push-label-executing!
            remove-continuation
