@@ -35,6 +35,7 @@
   (require "stack.scm")
   
   (define ENABLE_OPTIMIZATIONS #f)
+  (define ENABLE_OUTPUT #f)
   (define TRACING_THRESHOLD 5)
   
   (define guard-id 0)
@@ -45,6 +46,13 @@
       temp))
   
   (define ns (make-base-namespace))
+  
+  (define (output s)
+    (and ENABLE_OUTPUT
+         (display s)))
+  
+  (define (output-newline)
+    (output #\newline))
   
   (define (massoc el lst)
     (cond ((null? lst) #f)
@@ -391,17 +399,17 @@
   
   (define (guard-false guard-id e)
     (if v
-        (begin (display "Guard-false failed") (newline) (bootstrap guard-id e))
-        (begin (display "Guard passed") (newline))))
+        (begin (output "Guard-false failed") (output-newline) (bootstrap guard-id e))
+        (begin (output "Guard passed") (output-newline))))
   
   (define (guard-true guard-id e)
     (if v
-        (begin (display "Guard passed") (newline))
-        (begin (display "Guard-true failed") (newline) (bootstrap guard-id e))))
+        (begin (output "Guard passed") (output-newline))
+        (begin (output "Guard-true failed") (output-newline) (bootstrap guard-id e))))
   
   (define (guard-same-closure clo i guard-id)
     (and (not (clo-equal? v clo))
-         (display "Closure guard failed, expected: ") (display clo) (display ", evaluated: ") (display v) (newline)
+         (output "Closure guard failed, expected: ") (output clo) (output ", evaluated: ") (output v) (output-newline)
          (bootstrap-from-continuation guard-id (closure-guard-failedk i))))
   
   (define (save-val)
@@ -750,7 +758,7 @@
   (define (bootstrap guard-id e)
     (let ((existing-trace (get-guard-trace guard-id)))
       (cond (existing-trace
-             (display "----------- STARTING FROM GUARD ") (display guard-id) (display " -----------") (newline)
+             (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute `(push-head-executing! ,existing-trace)
                       `(eval ,(label-trace-trace existing-trace))
                       `(pop-head-executing!))
@@ -759,13 +767,13 @@
                (execute `(remove-continuation))
                (global-continuation (list new-state))))
             ((not (is-tracing?))
-             (display "----------- STARTED TRACING GUARD ") (display guard-id) (display " -----------") (newline)
+             (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (start-tracing-after-guard! (get-label-executing) guard-id)
              (pop-label-executing!)
              (global-continuation (list (ev e τ-κ))))
             (else
-             (display "----------- CANNOT TRACE GUARD ") (display guard-id)
-             (display " ; ALREADY TRACING ANOTHER LABEL -----------") (newline)
+             (output "----------- CANNOT TRACE GUARD ") (output guard-id)
+             (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
              (global-continuation (list (ev e τ-κ))))))) ;step* called with the correct arguments
   
   (define (bootstrap-from-continuation guard-id φ)
@@ -787,26 +795,26 @@
        (step* (ko φ κ)))
       ((ko (can-close-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
-            (display "closing annotation: tracing loop ") (display v) (newline))
+            (output "closing annotation: tracing loop ") (output v) (output-newline))
        (and (is-tracing-label? v)
-            (display "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (newline)
+            (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
             (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #f))
             (stop-tracing!))
        (execute `(remove-continuation))
        (step* (ko φ κ)))
       ((ko (can-start-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
-            (display "opening annotation: tracing loop ") (display v) (newline))
+            (output "opening annotation: tracing loop ") (output v) (output-newline))
        (cond ((is-tracing-label? v)
-              (display "-----------TRACING FINISHED; EXECUTING TRACE -----------") (newline)
+              (output "-----------TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
               (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #t))
               (stop-tracing!)
               (start-executing-label-trace! v))
              ((label-traced? v)
-              (display "----------- EXECUTING TRACE -----------") (newline)
+              (output "----------- EXECUTING TRACE -----------") (output-newline)
               (start-executing-label-trace! v))
              ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
-              (display "----------- STARTED TRACING -----------") (newline)
+              (output "----------- STARTED TRACING -----------") (output-newline)
               (start-tracing-label! v)
               (execute `(remove-continuation))
               (let ((new-state (ko φ κ)))
@@ -815,7 +823,7 @@
               (execute `(remove-continuation))
               (inc-times-label-encountered! v)
               (and (is-tracing?)
-                   (display "----------- ALREADY TRACING ANOTHER LABEL -----------") (newline))
+                   (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline))
               (let ((new-state (ko φ κ)))
                 (step* new-state)))))
       (_
