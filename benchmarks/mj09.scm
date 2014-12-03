@@ -6,7 +6,8 @@
 			    (k 2)))))
 	       (let ((y (f (lambda (x) x))))
 		 (g y)))))))
-  (let ((x (h #t)) (y (h #f)))
-    y))
+  (let ((x (h #t)))
+    (let ((y (h #f)))
+    y)))
 
 

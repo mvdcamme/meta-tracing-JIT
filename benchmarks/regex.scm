@@ -29,8 +29,12 @@
 ; [1] Janusz Brzozowski. "Derivatives of Regular Expressions." 1964. 
 ; [2] Scott Owens, John Reppy, Aaron Turon. "Regular expression derivatives re-examined." 2009.
 
+(begin
+
 (define (debug-trace) 
   'do-nothing)
+
+(define d/dc #f)
   
 
 
@@ -130,7 +134,7 @@
     ))
                 
 ; d/dc = regex-derivative
-(define d/dc regex-derivative)
+(define d/dc-act regex-derivative)
 
 ; regex-match : regex list -> boolean 
 (define (regex-match pattern data)
@@ -142,6 +146,8 @@
 (define (check-expect check expect)
   (equal? check expect))
 
+(set! d/dc d/dc-act)
+
 
 ;(check-expect (d/dc 'baz 'f)
 ;              #f)
@@ -152,7 +158,7 @@
 ;; Used for JFP results
 (check-expect (regex-match '(seq foo (rep bar))
                            '(foo bar))
-              #f)
+              #f))
 
 
 ;(check-expect (d/dc '(alt (seq foo bar) (seq foo (rep baz))) 'foo)
