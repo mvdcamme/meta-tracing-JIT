@@ -2,6 +2,7 @@
   (provide inject
            run
            
+           ;;trace instructions
            add-continuation
            alloc-var
            apply-native
@@ -29,7 +30,13 @@
            save-vals
            set-env
            set-var
-           switch-to-clo-env)
+           switch-to-clo-env
+           
+           ;;metrics
+           calculate-average-trace-length
+           calculate-total-number-of-traces
+           calculate-total-traces-length)
+           
   
   (require "dictionary.scm")
   (require "stack.scm")
@@ -366,7 +373,7 @@
   
   (define global-tracer-context #f)
   
-  (define (calculate-number-of-guard-traces)
+  (define (calculate-total-number-of-traces)
     (define sum 0)
     (define (tree-rec lst)
       (for-each (lambda (child)
@@ -374,11 +381,12 @@
                   (tree-rec (label-trace-children child)))
                 lst))
     (for-each (lambda (global-label-traces)
+                (set! sum (+ sum 1))
                 (tree-rec (label-trace-children global-label-traces)))
               (tracer-context-label-traces global-tracer-context))
     sum)
   
-  (define (calculate-total-guard-traces-length)
+  (define (calculate-total-traces-length)
     (define sum 0)
     (define (tree-rec lst)
       (for-each (lambda (child)
@@ -386,12 +394,16 @@
                   (tree-rec (label-trace-children child)))
                 lst))
     (for-each (lambda (global-label-traces)
+                (set! sum (+ sum (length (cddadr (caadr (label-trace-trace global-label-traces))))))
                 (tree-rec (label-trace-children global-label-traces)))
               (tracer-context-label-traces global-tracer-context))
     sum)
   
-  (define (calculate-average-guard-trace-length)
-    (/ (calculate-total-guard-traces-length) (calculate-number-of-guard-traces)))
+  (define (calculate-average-trace-length)
+    (let ((total-number-of-traces (calculate-total-number-of-traces)))
+      (if (= total-number-of-traces 0)
+          "No traces were formed"
+          (/ (calculate-total-traces-length) total-number-of-traces))))
   
   ;
   ;evaluation

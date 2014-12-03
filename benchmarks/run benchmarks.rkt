@@ -20,6 +20,7 @@
 (define fib-benchmark-path "fib.scm")
 (define nqueens-2-benchmark-path "nqueens 2.scm")
 (define rotate-2-benchmark-path "rotate 2.scm")
+(define sat-benchmark-path "sat.scm")
 (define trace-explosion-benchmark-path "trace-explosion.scm")
 (define tree-sort-benchmark-path "tree-sort.scm")
 (define towers-of-hanoi-benchmark-path "towers-of-hanoi.scm")
@@ -31,7 +32,12 @@
 ;
 
 (define output display)
-(define output-newline newline)
+(define (output-newline)
+  (output #\newline))
+
+(define (output-metric metric-name result)
+  (output "Metric ") (output metric-name) (output " got result ") (output result)
+  (output-newline))
 
 (define (output-result benchmark-file evaluator result)
   (output "=> ") (output evaluator) (output " evaluated ") (output benchmark-file) (output " and got result: ") (output result)
@@ -74,12 +80,28 @@
     (define (run-rec-slip-interpreter-traced)
       (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-exp))) rec-slip-interpreter-traced-name))
     
+    (define (run-metrics)
+      (let ((total-number-of-traces-metric-name "total-number-of-traces")
+            (average-trace-length-metric-name "average-trace-length")
+            (trace-duplication-metric-name "trace-duplicity"))
+        (define (run-total-number-of-traces-metric)
+          (output-metric total-number-of-traces-metric-name (calculate-total-number-of-traces)))
+        (define (run-average-trace-length-metric)
+          (output-metric average-trace-length-metric-name (calculate-average-trace-length)))
+        (define (run-trace-duplication-metric)
+          (output-metric trace-duplication-metric-name (calculate-duplicity)))
+        (run-total-number-of-traces-metric)
+        (run-average-trace-length-metric)
+        (run-trace-duplication-metric)))
+    
     (output-benchmark-start)
     (overwrite-input-file benchmark-path)
     
     (run-tracing-interpreter)
     (run-rec-slip-interpreter-normal)
     (run-rec-slip-interpreter-traced)
+    
+    (run-metrics)
     
     (output-benchmark-end)))
 
