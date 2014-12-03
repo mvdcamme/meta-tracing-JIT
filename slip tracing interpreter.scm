@@ -1,7 +1,10 @@
 (module tracing-interpreter racket
-  (provide (rename-out [duplicating-inject inject])
+  (provide 
+           ;;running interpreter
+           (rename-out [duplicating-inject inject])
            run
            
+           ;;trace instructions
            add-continuation
            alloc-var
            apply-native
@@ -27,7 +30,14 @@
            save-vals
            set-env
            set-var
-           switch-to-clo-env)
+           switch-to-clo-env
+           
+           ;;metrics
+           calculate-average-trace-length
+           calculate-duplicity
+           calculate-total-number-of-traces
+           calculate-total-traces-length)
+           
   
   (require rnrs/arithmetic/bitwise-6)
   
@@ -416,7 +426,10 @@
     sum)
   
   (define (calculate-average-trace-length)
-    (/ (calculate-total-traces-length) (calculate-total-number-of-traces)))
+    (let ((total-number-of-traces (calculate-total-number-of-traces)))
+      (if (= total-number-of-traces 0)
+          "No traces were formed"
+          (/ (calculate-total-traces-length) total-number-of-traces))))
   
   (define (calculate-duplicity)
     (define number-of-nodes 0)
@@ -436,7 +449,9 @@
                             (set! total-times-traced (+ total-times-traced (length (u-counter node))))))
             ((list? node) (map tree-rec (cdr node)))))
     (tree-rec global-e)
-    (/ total-times-traced number-of-nodes))
+    (if (= number-of-nodes 0)
+        "No traces were formed"
+        (/ total-times-traced number-of-nodes)))
   
   ;
   ;evaluation
