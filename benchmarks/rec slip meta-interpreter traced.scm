@@ -128,9 +128,6 @@
       value)
     
     (define (evaluate-if predicate consequent . alternate)
-      (display "If: ") (display predicate) (newline)
-      (display consequent) (newline)
-      (display alternate) (newline)
       (if (evaluate predicate)
           (return-from-control-flow-split (thunkify consequent))
           (if (null? alternate)

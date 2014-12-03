@@ -124,9 +124,6 @@
       (evaluate (evaluate expression)))
     
     (define (evaluate-if predicate consequent . alternate)
-      (display "If: ") (display predicate) (newline)
-      (display consequent) (newline)
-      (display alternate) (newline)
       (if (evaluate predicate)
           (thunkify consequent)
           (if (null? alternate)
