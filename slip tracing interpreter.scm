@@ -13,6 +13,10 @@
            literal-value
            lookup-var
            quote-value
+           pop-head-executing!
+           pop-label-executing!
+           push-head-executing!
+           push-label-executing!
            remove-continuation
            restore-env
            restore-val
