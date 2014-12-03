@@ -6,9 +6,11 @@
 ;
 ; Interpreters
 ;
-(define rec-slip-interpreter-path "rec slip meta-interpreter.scm")
+(define rec-slip-interpreter-normal-path "rec slip meta-interpreter normal.scm")
+(define rec-slip-interpreter-traced-path "rec slip meta-interpreter traced.scm")
 
-(define rec-slip-interpreter-exp (file->value rec-slip-interpreter-path))
+(define rec-slip-interpreter-normal-exp (file->value rec-slip-interpreter-normal-path))
+(define rec-slip-interpreter-traced-exp (file->value rec-slip-interpreter-traced-path))
 
 ;
 ; Benchmarks
@@ -42,9 +44,9 @@
     (define (run-tracing-interpreter)
       (run (inject s-exp)))
     (define (run-rec-slip-interpreter-normal)
-      (eval rec-slip-interpreter-exp))
+      (eval rec-slip-interpreter-normal-exp))
     (define (run-rec-slip-interpreter-traced)
-      (run (inject rec-slip-interpreter-exp)))
+      (run (inject rec-slip-interpreter-traced-exp)))
     (overwrite-input-file benchmark-path)
     (output-result-from-evaluator "Racket" (run-racket))
     (output-result-from-evaluator "Tracing interpreter" (run-tracing-interpreter))
