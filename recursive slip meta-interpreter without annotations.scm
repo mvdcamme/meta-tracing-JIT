@@ -70,8 +70,8 @@
       (lambda operands
         (apply (evaluate operator) (map evaluate operands))))
     
-    (define (evaluate-apply operator operands)
-      (apply (evaluate operator) (evaluate operands)))
+    (define (evaluate-apply . expressions)
+      (apply (evaluate (car expressions)) (evaluate (cadr expressions))))
     
     (define (evaluate-begin . expressions)
       (evaluate-sequence expressions))
