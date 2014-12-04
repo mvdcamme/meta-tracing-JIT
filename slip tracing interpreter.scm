@@ -73,6 +73,7 @@
   (struct ev (e κ) #:transparent)
   (struct ko (φ κ) #:transparent)
   (struct andk (es))
+  (struct apply-failedk (rator i))
   (struct applicationk (debug))
   (struct applyk (rator))
   (struct can-close-loopk (debug-info) #:transparent)
@@ -105,6 +106,8 @@
   (define θ #f) ; non-kont stack
   (define v #f) ; value
   (define τ #f) ; trace
+  
+  (define ι #f) ; nr of args
   
   (define τ-κ #f) ;continuation stack
   
@@ -425,6 +428,18 @@
          (output "Closure guard failed, expected: ") (output clo) (output ", evaluated: ") (output v) (output-newline)
          (bootstrap-from-continuation guard-id (closure-guard-failedk i))))
   
+  (define (guard-same-nr-of-args i rator guard-id)
+    (let ((current-i (length v)))
+      (and (not (= i current-i))
+           (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
+           (bootstrap-from-continuation guard-id (apply-failedk rator current-i)))))
+  
+  (define (dec-ι)
+    (set! ι (- ι 1)))
+  
+  (define (set-ι i)
+    (set! ι i))
+  
   (define (contains-env? lst)
     (cond ((null? lst) #f)
           ((env? (car lst)) #t)
@@ -684,9 +699,15 @@
        (execute `(restore-env)
                 `(remove-continuation))
        (ko (car κ) (cdr κ)))
+      ((ko (apply-failedk rator i) κ)
+       (execute `(save-all-vals)
+                `(save-env)
+                `(add-continuation ,(ratork i 'apply)))
+       (ev rator (cons (ratork i 'apply) κ)))
       ((ko (applyk rator) κ)
        (let ((i (length v)))
-         (execute `(save-all-vals)
+         (execute `(guard-same-nr-of-args ,i ',rator ,(inc-guard-id!))
+                  `(save-all-vals)
                   `(save-env)
                   `(add-continuation ,(ratork i 'apply)))
          (ev rator (cons (ratork i 'apply) κ))))
@@ -819,6 +840,7 @@
     (set! σ '());
     (set! θ '())
     (set! τ '())
+    (set! ι #f)
     (set! τ-κ `(,(haltk)))
     (set! global-tracer-context (new-tracer-context)))
   
