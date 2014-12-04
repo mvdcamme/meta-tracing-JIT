@@ -516,6 +516,10 @@
   
   (define (eval-seq es κ)
     (match es
+      ('()
+       (execute `(literal-value '())
+                `(remove-continuation))
+       (ko (car κ) (cdr κ)))
       ((list e)
        (ev e κ))
       ((cons e es)
