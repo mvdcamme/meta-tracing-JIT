@@ -42,7 +42,7 @@
   (require "stack.scm")
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #f)
+  (define ENABLE_OUTPUT #t)
   (define TRACING_THRESHOLD 5)
   
   (define guard-id 0)
@@ -425,14 +425,25 @@
          (output "Closure guard failed, expected: ") (output clo) (output ", evaluated: ") (output v) (output-newline)
          (bootstrap-from-continuation guard-id (closure-guard-failedk i))))
   
+  (define (contains-env? lst)
+    (cond ((null? lst) #f)
+          ((env? (car lst)) #t)
+          (else (contains-env? (cdr lst)))))
+  
   (define (save-val)
+    (and (env? v)
+         (error "Save-val: saved an environment instead of a val!"))
     (set! θ (cons v θ)))
   
   (define (save-vals i)
+    (and (contains-env? v)
+         (error "Save-vals: saved an environment instead of a val!"))
     (set! θ (append (take v i) θ))
     (set! v (drop v i)))
   
   (define (save-all-vals)
+    (and (contains-env? v)
+         (error "Save-all-vals: saved an environment instead of a val!"))
     (set! θ (append v θ)))
   
   (define (save-env)
@@ -447,19 +458,23 @@
   
   (define (restore-val)
     (set! v (car θ))
+    (and (env? v)
+         (error "Restore-val: restored an environment instead of a val!"))
     (set! θ (cdr θ)))
   
   (define (restore-vals i)
     (set! v (take θ i))
+    (and (contains-env? v)
+         (error "Restore-vals: restored an environment instead of a val!"))
     (set! θ (drop θ i)))
   
   (define (alloc-var x)
     (let ((a (gensym)))
-      (set! ρ (cons (cons x a) ρ))
+      (set! ρ (add-var-to-env ρ x a))
       (set! σ (cons (cons a v) σ))))
   
   (define (set-var x)
-    (let ((a (cdr (assoc x ρ))))
+    (let ((a (cdr (assoc x (env-lst ρ)))))
       (set! σ (cons (cons a v) σ))))
   
   (define (debug)
@@ -467,7 +482,7 @@
   
   (define (lookup-var x)
     (and (eq? x 'debug) (debug))
-    (let ((binding (assoc x ρ)))
+    (let ((binding (assoc x (env-lst ρ))))
       (match binding
         ((cons _ a) (set! v (cdr (assoc a σ))))
         (_ (set! v (eval x))))))
@@ -483,6 +498,8 @@
   
   (define (apply-native i)
     (let ((rands (take θ i)))
+    (and (contains-env? rands)
+         (error "Apply-native: rands contains an environment"))
       (set! θ (drop θ i))
       (set! v (apply v rands))))
   
@@ -530,7 +547,9 @@
   (define (do-function-call i κ)
     (match v
       ((clo (lam x es) ρ)
-       (execute `(switch-to-clo-env ,i))
+       (execute `(display ',x)
+                `(newline)
+                `(switch-to-clo-env ,i))
        (let loop ((i i) (x x))
          (match x
            ('()
@@ -786,8 +805,17 @@
   (define (inject e)
     (ev e `(,(haltk))))
   
+  (struct env (lst) #:transparent)
+  
+  (define (make-new-env)
+    (env '()))
+  
+  (define (add-var-to-env old-env var adr)
+    (let ((old-lst (env-lst old-env)))
+      (env (cons (cons var adr) old-lst))))
+  
   (define (reset!)
-    (set! ρ '());
+    (set! ρ (make-new-env));
     (set! σ '());
     (set! θ '())
     (set! τ '())
