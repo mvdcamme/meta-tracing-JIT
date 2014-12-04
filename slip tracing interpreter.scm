@@ -11,6 +11,7 @@
            guard-false
            guard-true
            guard-same-closure
+           guard-same-nr-of-args
            literal-value
            lookup-var
            quote-value
