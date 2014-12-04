@@ -43,7 +43,7 @@
   (require "stack.scm")
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #t)
+  (define ENABLE_OUTPUT #f)
   (define TRACING_THRESHOLD 5)
   
   (define guard-id 0)
@@ -563,9 +563,7 @@
   (define (do-function-call i κ)
     (match v
       ((clo (lam x es) ρ)
-       (execute `(display ',x)
-                `(newline)
-                `(switch-to-clo-env ,i))
+       (execute `(switch-to-clo-env ,i))
        (let loop ((i i) (x x))
          (match x
            ('()

@@ -60,8 +60,6 @@
     (define (close parameters expressions)
       (define lexical-environment environment)
       (define (closure . arguments)
-        (display "SLIP interpreter 2, parameters = ") (display parameters)
-        (display "SLIP interpreter 2, arguments = ") (display arguments)
         (define dynamic-environment environment)
         (set! environment lexical-environment)
         (bind-parameters parameters arguments)
