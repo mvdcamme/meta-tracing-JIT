@@ -107,8 +107,6 @@
   (define v #f) ; value
   (define τ #f) ; trace
   
-  (define ι #f) ; nr of args
-  
   (define τ-κ #f) ;continuation stack
   
   (define global-continuation #f) ;This continuation should be called when the interpreter is being bootstrapped
@@ -445,12 +443,6 @@
       (and (not (= i current-i))
            (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
            (bootstrap-from-continuation guard-id (apply-failedk rator current-i)))))
-  
-  (define (dec-ι)
-    (set! ι (- ι 1)))
-  
-  (define (set-ι i)
-    (set! ι i))
   
   (define (contains-env? lst)
     (cond ((null? lst) #f)
@@ -850,7 +842,6 @@
     (set! σ '());
     (set! θ '())
     (set! τ '())
-    (set! ι #f)
     (set! τ-κ `(,(haltk)))
     (set! global-tracer-context (new-tracer-context)))
   
