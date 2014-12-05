@@ -56,12 +56,14 @@
       value)
     
     (define (evaluate-sequence expressions)
-      (define head (car expressions))
-      (define tail (cdr expressions))
-      (let* ((value (evaluate head)))
-        (if (null? tail)
-            value
-            (evaluate-sequence tail))))
+      (if (null? expressions)
+          '()
+          (let* ((head (car expressions))
+                 (tail (cdr expressions))
+                 (value (evaluate head)))
+            (if (null? tail)
+                value
+                (evaluate-sequence tail)))))
     
     (define (close parameters expressions)
       (define lexical-environment environment)
