@@ -55,8 +55,9 @@
   (define ns (make-base-namespace))
   
   (define (output s)
-    (and ENABLE_OUTPUT
-         (display s)))
+    (if ENABLE_OUTPUT
+        (display s)
+        (void)))
   
   (define (output-newline)
     (output #\newline))
