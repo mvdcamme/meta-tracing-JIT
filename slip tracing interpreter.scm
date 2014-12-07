@@ -33,6 +33,7 @@
            save-vals
            set-env
            set-var
+           start-executing-label-trace!
            switch-to-clo-env
            top-continuation
            
@@ -396,29 +397,51 @@
     (set-tracer-context-trace-key-to-be-traced! global-tracer-context #f)
     (set-tracer-context-closing-function! global-tracer-context #f))
   
-  (define (transform-and-optimize-trace trace loop-closed?)
+  (define (transform-and-optimize-trace trace transformation-function)
     (if ENABLE_OPTIMIZATIONS
-        (transform-trace (optimize-trace trace) loop-closed?)
-        (transform-trace trace loop-closed?)))
+        (transformation-function (optimize-trace trace))
+        (transformation-function trace)))
   
-  (define (make-stop-tracing-after-label-function looping?)
-    (define (stop-tracing-label! trace)
-      (let ((transformed-trace (transform-and-optimize-trace trace looping?)))
+  (define (transform-label-trace-looping trace)
+    `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
+           (loop)))
+  
+  (define (transform-label-trace-non-looping trace)
+    `(letrec ((non-loop ,(append '(lambda ()) trace)))
+       (non-loop)))
+  
+  (define (make-transform-label-trace-function looping?)
+    (if looping?
+        transform-label-trace-looping
+        transform-label-trace-non-looping))
+  
+  (define (make-stop-tracing-after-label-function)
+    (define (stop-tracing-label! trace looping?)
+      (let ((transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
         (add-label-trace! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)))
     stop-tracing-label!)
   
+  (define transform-guard-trace-looping transform-label-trace-looping)
+  
+  (define transform-guard-trace-non-looping transform-label-trace-non-looping)
+  
+  (define (make-transform-guard-trace-function looping?)
+    (if looping?
+        transform-guard-trace-looping
+        transform-guard-trace-non-looping))
+  
   (define (make-stop-tracing-after-guard-function)
-    (define (stop-tracing-after-guard! trace)
-      (let* ((transformed-trace (transform-and-optimize-trace trace #f))
+    (define (stop-tracing-after-guard! trace looping?)
+      (let* ((transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function #f))) ;TODO change #f to looping? 
              (trace-key (tracer-context-trace-key-to-be-traced global-tracer-context))
              (label (trace-key-label trace-key))
              (guard-ids (trace-key-guard-ids trace-key)))
         (add-guard-trace! label (reverse guard-ids) transformed-trace)))
     stop-tracing-after-guard!)
   
-  (define (stop-tracing!)
+  (define (stop-tracing! looping?)
     (let ((stop-tracing-function (tracer-context-closing-function global-tracer-context)))
-      (stop-tracing-function (reverse τ))
+      (stop-tracing-function (reverse τ) looping?)
       (stop-tracer-context-tracing!)))
   
   (define global-tracer-context #f)
@@ -944,8 +967,9 @@
        ;(execute `(remove-continuation))
        (and (is-tracing-label? v)
             (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-            (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #f))
-            (stop-tracing!))
+            (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function))
+            (stop-tracing! #f))
+       (execute `(remove-continuation))
        (step* (ko φ κ)))
       ((ko (can-start-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
@@ -953,8 +977,8 @@
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
               ;(execute `(remove-continuation))
-              (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #t))
-              (stop-tracing!)
+              (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function))
+              (stop-tracing! #t)
               (start-executing-label-trace! v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
              ((label-traced? v)
