@@ -45,9 +45,19 @@
   (require "dictionary.scm")
   (require "stack.scm")
   
+  ;
+  ; constants
+  ;
+  
   (define ENABLE_OPTIMIZATIONS #f)
   (define ENABLE_OUTPUT #t)
   (define TRACING_THRESHOLD 5)
+  
+  (define ns (make-base-namespace))
+  
+  ;
+  ; misc
+  ;
   
   (define guard-id 0)
   
@@ -55,8 +65,6 @@
     (let ((temp guard-id))
       (set! guard-id (+ guard-id 1))
       temp))
-  
-  (define ns (make-base-namespace))
   
   (define (output s)
     (if ENABLE_OUTPUT
@@ -70,6 +78,13 @@
     (cond ((null? lst) #f)
           ((eq? el (mcar (car lst))) (car lst))
           (else (massoc el (cdr lst)))))
+  
+  (define (clo-equal? clo1 clo2)
+    (or (eq? clo1 clo2)
+        (and (clo? clo1)
+             (clo? clo2)
+             (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
+             (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2))))))
   
   ;
   ; continuations
@@ -99,12 +114,9 @@
   (struct seqk (es))
   (struct setk (x))
   
-  (define (clo-equal? clo1 clo2)
-    (or (eq? clo1 clo2)
-        (and (clo? clo1)
-             (clo? clo2)
-             (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
-             (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2))))))
+  ;
+  ; registers
+  ;
   
   (define ρ #f) ; env
   (define σ #f) ; store
@@ -113,6 +125,10 @@
   (define τ #f) ; trace
   
   (define τ-κ #f) ;continuation stack
+  
+  (define flag #f)
+  
+  (define global-continuation #f)
   
   ;
   ;tracing
@@ -275,9 +291,9 @@
                            (push-continuation! k)
                            (eval ,trace)))
                `(pop-continuation!)
-               `(pop-head-executing!)
-               `(remove-continuation))
-      (kk)))
+               `(pop-head-executing!))
+      (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+        (kk (list new-state)))))
   
   (define (push-guard-id! guard-id)
     (push! (tracer-context-guards-id-stack global-tracer-context) guard-id))
@@ -554,6 +570,12 @@
       (save-env)
       (save-vals i)
       (set-env (clo-ρ clo))))
+  
+  (define (set-flag)
+    (set! flag #t))
+  
+  (define (unset-flag)
+    (set! flag #f))
   
   (define (run-trace ms)
     (if (pair? ms)
@@ -863,6 +885,7 @@
     (set! θ '())
     (set! τ '())
     (set! τ-κ `(,(haltk)))
+    (set! flag #f)
     (set! global-tracer-context (new-tracer-context)))
   
   (define (clear-trace!)
@@ -873,26 +896,29 @@
       (cond (existing-trace
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute `(push-head-executing! ,existing-trace)
-                      `(let ((kk (top-continuation)))
-                         (call/cc (lambda (k)
-                                    (push-continuation! k)
-                                    (eval ,(label-trace-trace existing-trace))))
+                      `(let* ((kk (top-continuation))
+                              (value (call/cc (lambda (k)
+                                                (push-continuation! k)
+                                                (eval ,(label-trace-trace existing-trace))))))
                          (pop-head-executing!)
                          (pop-continuation!)
-                         (kk))))
+                         (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+                           ;(and (sentinel? value)
+                           ;     (remove-continuation))
+                           (kk (list new-state))))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (generate-guard-trace-key)))
-               (execute ;`(pop-head-executing!))
-                        `(pop-continuation!))
+               ;(execute ;`(pop-head-executing!))
+                ;        `(pop-continuation!))
                (start-tracing-after-guard! guard-id old-trace-key)
-               (step* (ev e τ-κ))))
+               (global-continuation (list (ev e τ-κ)))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-             (execute ;`(pop-head-executing!))
-                      `(pop-continuation!))
-             (step* (ev e τ-κ))))))
+             ;(execute ;`(pop-head-executing!))
+              ;        `(pop-continuation!))
+             (global-continuation (list (ev e τ-κ)))))))
   
   (define (bootstrap-from-continuation guard-id φ)
     (let ((old-trace-key (generate-guard-trace-key)))
@@ -915,17 +941,18 @@
       ((ko (can-close-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
             (output "closing annotation: tracing loop ") (output v) (output-newline))
+       ;(execute `(remove-continuation))
        (and (is-tracing-label? v)
             (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
             (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #f))
             (stop-tracing!))
-       (execute `(remove-continuation))
        (step* (ko φ κ)))
       ((ko (can-start-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
             (output "opening annotation: tracing loop ") (output v) (output-newline))
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
+              ;(execute `(remove-continuation))
               (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function #t))
               (stop-tracing!)
               (start-executing-label-trace! v)
@@ -953,9 +980,10 @@
   
   (define (run s)
     (reset!)
-    (push-continuation! (lambda ()
-                          (step* (ko (car τ-κ) (cdr τ-κ)))))
-    (step* s))
+    (apply step* (call/cc (lambda (k)
+                            (set! global-continuation k)
+                            (push-continuation! k)
+                            (list s)))))
   
   (define (start)
     (run (inject (read)))))
