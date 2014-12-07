@@ -62,7 +62,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #f)
+  (define ENABLE_OUTPUT #t)
   (define TRACING_THRESHOLD 5)
   
   (define ns (make-base-namespace))
@@ -438,21 +438,27 @@
         (add-label-trace! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)))
     stop-tracing-label!)
   
-  (define transform-guard-trace-looping transform-label-trace-looping)
+  (define (make-transform-guard-trace-looping label)
+    (define (transform-guard-trace-looping trace)
+      `(letrec ((non-loop ,(append '(lambda ()) trace)))
+         (non-loop)
+         (output "----------- EXECUTING TRACE ") (output ',label) (output " -----------") (output-newline)
+         (start-executing-label-trace! ',label)))
+    transform-guard-trace-looping)
   
   (define transform-guard-trace-non-looping transform-label-trace-non-looping)
   
-  (define (make-transform-guard-trace-function looping?)
+  (define (make-transform-guard-trace-function label looping?)
     (if looping?
-        transform-guard-trace-looping
+        (make-transform-guard-trace-looping label)
         transform-guard-trace-non-looping))
   
   (define (make-stop-tracing-after-guard-function)
     (define (stop-tracing-after-guard! trace looping?)
-      (let* ((transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function #f))) ;TODO change #f to looping? 
-             (trace-key (tracer-context-trace-key-to-be-traced global-tracer-context))
+      (let* ((trace-key (tracer-context-trace-key-to-be-traced global-tracer-context))
              (label (trace-key-label trace-key))
-             (guard-ids (trace-key-guard-ids trace-key)))
+             (guard-ids (trace-key-guard-ids trace-key))
+             (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label looping?))))
         (add-guard-trace! label (reverse guard-ids) transformed-trace)))
     stop-tracing-after-guard!)
   
