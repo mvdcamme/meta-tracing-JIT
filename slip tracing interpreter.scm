@@ -2,6 +2,17 @@
   (provide inject
            run
            
+           ;;structs
+           ev
+           ko
+           sentinel
+           
+           sentinel?
+           unwrap-possible-sentinel
+           
+           ;;registers
+           τ-κ
+           
            ;;trace instructions
            add-continuation
            alloc-var
@@ -51,7 +62,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #t)
+  (define ENABLE_OUTPUT #f)
   (define TRACING_THRESHOLD 5)
   
   (define ns (make-base-namespace))
@@ -87,6 +98,13 @@
              (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
              (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2))))))
   
+  (struct sentinel (value) #:transparent)
+  
+  (define (unwrap-possible-sentinel value)
+    (if (sentinel? value)
+        (car (sentinel-value value))
+        value))
+  
   ;
   ; continuations
   ;
@@ -110,9 +128,9 @@
   (struct let*k (x bds es))
   (struct letreck (x bds es))
   (struct ork (es))
-  (struct randk (e es i))
+  (struct randk (e es i) #:transparent)
   (struct ratork (i debug))
-  (struct seqk (es))
+  (struct seqk (es) #:transparent)
   (struct setk (x))
   
   ;
@@ -126,8 +144,6 @@
   (define τ #f) ; trace
   
   (define τ-κ #f) ;continuation stack
-  
-  (define flag #f)
   
   (define global-continuation #f)
   
@@ -285,16 +301,19 @@
   
   (define (start-executing-label-trace! label)
     (let* ((label-trace (get-label-trace label))
-           (trace (label-trace-trace label-trace))
-           (kk (top-continuation)))
+           (trace (label-trace-trace label-trace)))
       (execute `(push-head-executing! ,label-trace)
-               `(call/cc (lambda (k)
-                           (push-continuation! k)
-                           (eval ,trace)))
-               `(pop-continuation!)
-               `(pop-head-executing!))
-      (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
-        (kk (list new-state)))))
+               `(let ((value (call/cc (lambda (k)
+                                        (push-continuation! k)
+                                        (eval ,trace)
+                                        (ko (car τ-κ) (cdr τ-κ))))))
+                  (pop-continuation!)
+                  (pop-head-executing!)
+                  (let ((kk (top-continuation)))
+                    (and (not (sentinel? value))
+                         (remove-continuation))
+                    ;(output "in start-executing-label-trace!: sentinel? ")  (output (sentinel? value)) (output ", value = ") (output value) (output-newline)
+                    (kk (sentinel (list (unwrap-possible-sentinel value)))))))))
   
   (define (push-guard-id! guard-id)
     (push! (tracer-context-guards-id-stack global-tracer-context) guard-id))
@@ -593,12 +612,6 @@
       (save-env)
       (save-vals i)
       (set-env (clo-ρ clo))))
-  
-  (define (set-flag)
-    (set! flag #t))
-  
-  (define (unset-flag)
-    (set! flag #f))
   
   (define (run-trace ms)
     (if (pair? ms)
@@ -908,7 +921,6 @@
     (set! θ '())
     (set! τ '())
     (set! τ-κ `(,(haltk)))
-    (set! flag #f)
     (set! global-tracer-context (new-tracer-context)))
   
   (define (clear-trace!)
@@ -919,29 +931,30 @@
       (cond (existing-trace
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute `(push-head-executing! ,existing-trace)
-                      `(let* ((kk (top-continuation))
-                              (value (call/cc (lambda (k)
+                      `(let* ((value (call/cc (lambda (k)
                                                 (push-continuation! k)
-                                                (eval ,(label-trace-trace existing-trace))))))
-                         (pop-head-executing!)
+                                                (eval ,(label-trace-trace existing-trace))
+                                                (ko (car τ-κ) (cdr τ-κ))))))
                          (pop-continuation!)
-                         (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
-                           ;(and (sentinel? value)
-                           ;     (remove-continuation))
-                           (kk (list new-state))))))
+                         (pop-head-executing!)
+                         (let ((kk (top-continuation)))
+                           (and (not (sentinel? value))
+                                (remove-continuation))
+                           ;(output "in bootstrap: sentinel? ") (output (sentinel? value)) (output ", value = ") (output value) (output-newline)
+                           (kk (sentinel (list (unwrap-possible-sentinel value))))))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (generate-guard-trace-key)))
-               ;(execute ;`(pop-head-executing!))
-                ;        `(pop-continuation!))
+               (execute ;`(pop-head-executing!))
+                        `(pop-continuation!))
                (start-tracing-after-guard! guard-id old-trace-key)
-               (global-continuation (list (ev e τ-κ)))))
+               (global-continuation (sentinel (list (ev e τ-κ))))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-             ;(execute ;`(pop-head-executing!))
-              ;        `(pop-continuation!))
-             (global-continuation (list (ev e τ-κ)))))))
+             (execute ;`(pop-head-executing!))
+                      `(pop-continuation!))
+             (global-continuation (sentinel (list (ev e τ-κ))))))))
   
   (define (bootstrap-from-continuation guard-id φ)
     (let ((old-trace-key (generate-guard-trace-key)))
@@ -1004,10 +1017,13 @@
   
   (define (run s)
     (reset!)
-    (apply step* (call/cc (lambda (k)
-                            (set! global-continuation k)
-                            (push-continuation! k)
-                            (list s)))))
+    (apply step* (sentinel-value (let ((v (call/cc (lambda (k)
+                                                 (set! global-continuation k)
+                                                 (push-continuation! k)
+                                                 (sentinel (list s))))))
+                                   ;(display "topmost continuation") (newline)
+                                   ;(display v) (newline)
+                                   v))))
   
   (define (start)
     (run (inject (read)))))
