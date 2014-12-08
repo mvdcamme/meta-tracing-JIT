@@ -33,7 +33,6 @@
            push-continuation!
            push-head-executing!
            remove-continuation
-           reset-head-executing!
            restore-env
            restore-val
            restore-vals
@@ -220,8 +219,14 @@
       (set-tracer-context-heads-executing! global-tracer-context
                                            (cons label-trace heads-executing))))
   
-  (define (reset-head-executing!)
-    (set-tracer-context-heads-executing! global-tracer-context '()))
+  (define (push-continuation! k)
+    (push! (tracer-context-continuation-calls-stack global-tracer-context) k))
+  
+  (define (pop-continuation!)
+    (pop! (tracer-context-continuation-calls-stack global-tracer-context)))
+  
+  (define (top-continuation)
+    (top (tracer-context-continuation-calls-stack global-tracer-context)))
   
   (define (find-label-trace label)
     (define (loop label-traces)
@@ -317,15 +322,6 @@
   
   (define (pop-guard-id!)
     (pop! (tracer-context-guards-id-stack global-tracer-context)))
-  
-  (define (push-continuation! k)
-    (push! (tracer-context-continuation-calls-stack global-tracer-context) k))
-  
-  (define (pop-continuation!)
-    (pop! (tracer-context-continuation-calls-stack global-tracer-context)))
-  
-  (define (top-continuation)
-    (top (tracer-context-continuation-calls-stack global-tracer-context)))
   
   (define (save-next-guard-id?)
     (tracer-context-save-next-guard-id? global-tracer-context))
