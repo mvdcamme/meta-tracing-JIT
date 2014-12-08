@@ -29,9 +29,11 @@
            pop-continuation!
            pop-guard-id!
            pop-head-executing!
+           pop-trace-frame!
            push-guard-id!
            push-continuation!
            push-head-executing!
+           push-trace-frame!
            remove-continuation
            restore-env
            restore-val
@@ -207,6 +209,11 @@
           (error "Heads-executing stack is empty!")
           (car heads-executing))))
   
+  (define (push-head-executing! label-trace)
+    (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
+      (set-tracer-context-heads-executing! global-tracer-context
+                                           (cons label-trace heads-executing))))
+  
   (define (pop-head-executing!)
     (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
       (if (null? heads-executing)
@@ -214,16 +221,19 @@
           (set-tracer-context-heads-executing! global-tracer-context
                                                (cdr heads-executing)))))
   
-  (define (push-head-executing! label-trace)
-    (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
-      (set-tracer-context-heads-executing! global-tracer-context
-                                           (cons label-trace heads-executing))))
+  (define (pop-continuation!)
+    (pop! (tracer-context-continuation-calls-stack global-tracer-context)))
   
   (define (push-continuation! k)
     (push! (tracer-context-continuation-calls-stack global-tracer-context) k))
   
-  (define (pop-continuation!)
-    (pop! (tracer-context-continuation-calls-stack global-tracer-context)))
+  (define (pop-trace-frame!)
+    (pop-head-executing!)
+    (pop-continuation!))
+  
+  (define (push-trace-frame! head-executing continuation)
+    (push-head-executing! head-executing)
+    (push-continuation! continuation))
   
   (define (top-continuation)
     (top (tracer-context-continuation-calls-stack global-tracer-context)))
