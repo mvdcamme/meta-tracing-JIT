@@ -26,7 +26,6 @@
            literal-value
            lookup-var
            quote-value
-           pop-and-call-continuation!
            pop-continuation!
            pop-guard-id!
            pop-head-executing!
@@ -62,7 +61,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #t)
+  (define ENABLE_OUTPUT #f)
   (define TRACING_THRESHOLD 5)
   
   (define ns (make-base-namespace))
@@ -327,9 +326,6 @@
   
   (define (top-continuation)
     (top (tracer-context-continuation-calls-stack global-tracer-context)))
-  
-  (define (pop-and-call-continuation! value)
-    ((pop-continuation!) value))
   
   (define (save-next-guard-id?)
     (tracer-context-save-next-guard-id? global-tracer-context))
@@ -965,9 +961,8 @@
   
   (define (bootstrap-from-continuation guard-id φ)
     (let ((old-trace-key (generate-guard-trace-key)))
-      (start-tracing-after-guard! guard-id old-trace-key)
-      ;(pop-head-executing!)
-      (pop-and-call-continuation!)))
+      (start-tracing-after-guard! guard-id old-trace-key)))
+      ;(pop-head-executing!))) TODO refactor along with regular bootstrap
   
   (define (step* s)
     (match s
