@@ -4,3 +4,4 @@ cpSlip.bak
 *.zo
 compiled/
 benchmarks/input_file.scm
+input_file.scm
