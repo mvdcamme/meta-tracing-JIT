@@ -17,6 +17,7 @@
            add-continuation
            alloc-var
            apply-native
+           call-label-trace!
            create-closure
            debug
            guard-false
@@ -29,7 +30,9 @@
            pop-continuation!
            pop-guard-id!
            pop-head-executing!
+           pop-label-trace-frame-from-stack!
            pop-trace-frame!
+           pop-trace-frame-until-label!
            push-guard-id!
            push-continuation!
            push-head-executing!
@@ -62,7 +65,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #f)
+  (define ENABLE_OUTPUT #t)
   (define TRACING_THRESHOLD 5)
   
   (define ns (make-base-namespace))
@@ -230,6 +233,14 @@
   (define (pop-trace-frame!)
     (pop-head-executing!)
     (pop-continuation!))
+  
+  (define (pop-trace-frame-until-label! label)
+    (let ((current-head-executing (get-head-executing)))
+      (define (loop current-head-executing)
+        (and (not (equal? (label-trace-label current-head-executing) label))
+             (begin (pop-trace-frame!)
+                    (loop (get-head-executing)))))
+      (loop current-head-executing)))
   
   (define (push-trace-frame! head-executing continuation)
     (push-head-executing! head-executing)
@@ -438,12 +449,22 @@
         (add-label-trace! (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)) transformed-trace)))
     stop-tracing-label!)
   
+  (define (pop-label-trace-frame-from-stack! label)
+    ;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
+    ;Then pop one more time to get it off the stack.
+    (pop-trace-frame-until-label! label)
+    (pop-trace-frame!))
+  
+  (define (call-label-trace! label)
+    (execute `(pop-label-trace-frame-from-stack! ',label))
+    (start-executing-label-trace! label))
+  
   (define (make-transform-guard-trace-looping label)
     (define (transform-guard-trace-looping trace)
       `(letrec ((non-loop ,(append '(lambda ()) trace)))
          (non-loop)
          (output "----------- EXECUTING TRACE ") (output ',label) (output " -----------") (output-newline)
-         (start-executing-label-trace! ',label)))
+         (call-label-trace! ',label)))
     transform-guard-trace-looping)
   
   (define transform-guard-trace-non-looping transform-label-trace-non-looping)
