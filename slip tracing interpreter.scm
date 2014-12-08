@@ -145,8 +145,6 @@
   
   (define τ-κ #f) ;continuation stack
   
-  (define global-continuation #f)
-  
   ;
   ;tracing
   ;
@@ -330,8 +328,8 @@
   (define (top-continuation)
     (top (tracer-context-continuation-calls-stack global-tracer-context)))
   
-  (define (pop-and-call-continuation!)
-    ((pop-continuation!)))
+  (define (pop-and-call-continuation! value)
+    ((pop-continuation!) value))
   
   (define (save-next-guard-id?)
     (tracer-context-save-next-guard-id? global-tracer-context))
@@ -928,6 +926,7 @@
   
   (define (bootstrap guard-id e)
     (let ((existing-trace (get-guard-trace guard-id)))
+      (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (generate-guard-trace-key)) (output " ------") (output-newline)
       (cond (existing-trace
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute `(push-head-executing! ,existing-trace)
@@ -944,17 +943,19 @@
                            (kk (sentinel (list (unwrap-possible-sentinel value))))))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-             (let ((old-trace-key (generate-guard-trace-key)))
-               (execute ;`(pop-head-executing!))
-                        `(pop-continuation!))
+             (let ((old-trace-key (generate-guard-trace-key))
+                   (kk (top-continuation)))
+               ;(execute ;`(pop-head-executing!))
+               ;         `(pop-continuation!))
                (start-tracing-after-guard! guard-id old-trace-key)
-               (global-continuation (sentinel (list (ev e τ-κ))))))
+               (kk (sentinel (list (ev e τ-κ))))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-             (execute ;`(pop-head-executing!))
-                      `(pop-continuation!))
-             (global-continuation (sentinel (list (ev e τ-κ))))))))
+             (let ((kk (top-continuation)))
+             ;(execute ;`(pop-head-executing!))
+             ;         `(pop-continuation!))
+               (kk (sentinel (list (ev e τ-κ)))))))))
   
   (define (bootstrap-from-continuation guard-id φ)
     (let ((old-trace-key (generate-guard-trace-key)))
@@ -977,7 +978,6 @@
       ((ko (can-close-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
             (output "closing annotation: tracing loop ") (output v) (output-newline))
-       ;(execute `(remove-continuation))
        (and (is-tracing-label? v)
             (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
             (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function))
@@ -989,7 +989,6 @@
             (output "opening annotation: tracing loop ") (output v) (output-newline))
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-              ;(execute `(remove-continuation))
               (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function))
               (stop-tracing! #t)
               (start-executing-label-trace! v)
@@ -1018,7 +1017,6 @@
   (define (run s)
     (reset!)
     (apply step* (sentinel-value (let ((v (call/cc (lambda (k)
-                                                 (set! global-continuation k)
                                                  (push-continuation! k)
                                                  (sentinel (list s))))))
                                    ;(display "topmost continuation") (newline)
