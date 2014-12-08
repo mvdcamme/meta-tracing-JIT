@@ -528,24 +528,24 @@
   
   (define (guard-false guard-id e)
     (if v
-        (begin (output "Guard-false failed") (output-newline) (bootstrap guard-id e))
+        (begin (output "Guard-false failed") (output-newline) (bootstrap-to-ev guard-id e))
         (begin (output "Guard passed") (output-newline))))
   
   (define (guard-true guard-id e)
     (if v
         (begin (output "Guard passed") (output-newline))
-        (begin (output "Guard-true failed") (output-newline) (bootstrap guard-id e))))
+        (begin (output "Guard-true failed") (output-newline) (bootstrap-to-ev guard-id e))))
   
   (define (guard-same-closure clo i guard-id)
     (and (not (clo-equal? v clo))
          (output "Closure guard failed, expected: ") (output clo) (output ", evaluated: ") (output v) (output-newline)
-         (bootstrap-from-continuation guard-id (closure-guard-failedk i))))
+         (bootstrap-to-ko guard-id (closure-guard-failedk i))))
   
   (define (guard-same-nr-of-args i rator guard-id)
     (let ((current-i (length v)))
       (and (not (= i current-i))
            (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
-           (bootstrap-from-continuation guard-id (apply-failedk rator current-i)))))
+           (bootstrap-to-ko guard-id (apply-failedk rator current-i)))))
   
   (define (contains-env? lst)
     (cond ((null? lst) #f)
@@ -951,7 +951,7 @@
   (define (clear-trace!)
     (set! τ '()))
   
-  (define (bootstrap guard-id e)
+  (define (bootstrap guard-id state)
     (let ((existing-trace (get-guard-trace guard-id)))
       (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (generate-guard-trace-key)) (output " ------") (output-newline)
       (cond (existing-trace
@@ -973,19 +973,20 @@
                ;(execute ;`(pop-head-executing!))
                ;         `(pop-continuation!))
                (start-tracing-after-guard! guard-id old-trace-key)
-               (kk (sentinel (list (ev e τ-κ))))))
+               (kk (sentinel (list state)))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
              (let ((kk (top-continuation)))
              ;(execute ;`(pop-head-executing!))
              ;         `(pop-continuation!))
-               (kk (sentinel (list (ev e τ-κ)))))))))
+               (kk (sentinel (list state))))))))
   
-  (define (bootstrap-from-continuation guard-id φ)
-    (let ((old-trace-key (generate-guard-trace-key)))
-      (start-tracing-after-guard! guard-id old-trace-key)))
-      ;(pop-head-executing!))) TODO refactor along with regular bootstrap
+  (define (bootstrap-to-ev guard-id e)
+    (bootstrap guard-id (ev e τ-κ)))
+  
+  (define (bootstrap-to-ko guard-id φ)
+    (bootstrap guard-id (ko φ τ-κ)))
   
   (define (step* s)
     (match s
