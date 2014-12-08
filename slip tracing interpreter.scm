@@ -65,7 +65,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #t)
+  (define ENABLE_OUTPUT #f)
   (define TRACING_THRESHOLD 5)
   
   (define ns (make-base-namespace))
@@ -276,7 +276,7 @@
       (define (find-next-node-in-path label-trace guard-id)
         (define (loop children)
           (cond ((null? children) (error "Trace-key was not found: " (trace-key label guard-ids)))
-                ((eq? (label-trace-label (car children)) guard-id) (car children))
+                ((equal? (label-trace-label (car children)) guard-id) (car children))
                 (else (loop (cdr children)))))
         (loop (label-trace-children label-trace)))
       (define (follow-path label-trace guard-ids)
@@ -296,7 +296,7 @@
     (let ((head-executing-children (label-trace-children (get-head-executing))))
       (define (loop lst)
         (cond ((null? lst) #f)
-              ((eq? (label-trace-label (car lst)) guard-id) (car lst))
+              ((equal? (label-trace-label (car lst)) guard-id) (car lst))
               (else (loop (cdr lst)))))
       (loop head-executing-children)))
   
@@ -545,7 +545,7 @@
     (let ((current-i (length v)))
       (and (not (= i current-i))
            (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
-           (bootstrap-to-ko guard-id (apply-failedk rator current-i)))))
+           (bootstrap-to-ko (cons guard-id current-i) (apply-failedk rator current-i)))))
   
   (define (contains-env? lst)
     (cond ((null? lst) #f)
