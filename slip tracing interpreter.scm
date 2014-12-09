@@ -108,6 +108,8 @@
         (car (sentinel-value value))
         value))
   
+  (struct env (lst) #:transparent)
+  
   ;
   ; continuations
   ;
@@ -147,6 +149,20 @@
   (define τ #f) ; trace
   
   (define τ-κ #f) ;continuation stack
+  
+  ;
+  ; predefined functions
+  ;
+  
+  (define PSEUDO_RANDOM_GENERATOR_STATE '#(1842099444 2669855047 116122093 2587168346 679409090 3792812305))
+  (define PSEUDO_RANDOM_GENERATOR (vector->pseudo-random-generator PSEUDO_RANDOM_GENERATOR_STATE))
+  
+  (define pseudo-random-address 'u-pseudo-rand)
+  (define pseudo-random-generator-address 'u-pseudo-rand-gen)
+  
+  (define pseudo-random (clo (lam '(max)
+                                  '((random max pseudo-random-generator)))
+                             (env `((pseudo-random-generator . ,pseudo-random-generator-address)))))
   
   ;
   ;tracing
@@ -940,10 +956,8 @@
   (define (inject e)
     (ev e `(,(haltk))))
   
-  (struct env (lst) #:transparent)
-  
   (define (make-new-env)
-    (env '()))
+    (env `((random . ,pseudo-random-address))))
   
   (define (add-var-to-env old-env var adr)
     (let ((old-lst (env-lst old-env)))
@@ -951,7 +965,8 @@
   
   (define (reset!)
     (set! ρ (make-new-env));
-    (set! σ '());
+    (set! σ `((,pseudo-random-address . ,pseudo-random)
+              (,pseudo-random-generator-address . ,PSEUDO_RANDOM_GENERATOR)))
     (set! θ '())
     (set! τ '())
     (set! τ-κ `(,(haltk)))
