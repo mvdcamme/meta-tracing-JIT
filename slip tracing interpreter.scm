@@ -162,8 +162,14 @@
                       trace
                       (children #:mutable)))
   
-  (define (make-trace-node label trace)
-    (trace-node label trace '()))
+  (struct label-trace trace-node ())
+  (struct guard-trace trace-node ())
+  
+  (define (make-label-trace label trace)
+    (label-trace label trace '()))
+  
+  (define (make-guard-trace label trace)
+    (guard-trace label trace '()))
   
   (struct tracer-context (is-tracing?
                           trace-key-to-be-traced
@@ -267,7 +273,7 @@
   
   (define (add-label-trace! label transformed-trace)
     (set-tracer-context-trace-nodes! global-tracer-context
-                                     (cons (make-trace-node label transformed-trace)
+                                     (cons (make-label-trace label transformed-trace)
                                            (tracer-context-trace-nodes global-tracer-context))))
   
   ;guard-ids should go from the top of the tree to the bottom
@@ -289,7 +295,7 @@
     (let ((parent-trace-node (find-guard-trace label guard-ids))
           (new-guard-id (last guard-ids)))
       (set-trace-node-children! parent-trace-node
-                                (cons (make-trace-node new-guard-id trace)
+                                (cons (make-guard-trace new-guard-id trace)
                                       (trace-node-children parent-trace-node)))))
   
   (define (get-guard-trace guard-id)
@@ -312,7 +318,7 @@
            (guard-ids-path '()))
       (define (loop list)
         (cond ((null? list) '())
-              ((pair? (trace-node-label (car list))) (display "## found a symbol! ##") (newline) '())
+              ((label-trace? (car list)) (display "## found a label-trace ##") (newline) '())
               (else (set! guard-ids-path (cons (trace-node-label (car list)) guard-ids-path))
                     (loop (cdr list)))))
       (loop guards)
