@@ -374,6 +374,12 @@
   (define (save-next-guard-id?)
     (tracer-context-save-next-guard-id? global-tracer-context))
   
+  (define (save-next-guard-id?!)
+    (set-tracer-context-save-next-guard-id?! global-tracer-context #t))
+  
+  (define (reset-save-next-guard-id?!)
+    (set-tracer-context-save-next-guard-id?! global-tracer-context #f))
+  
   (define (set-closing-function-if-not-yet-existing! closing-function)
     (or (tracer-context-closing-function global-tracer-context)
         (set-tracer-context-closing-function! global-tracer-context closing-function)))
@@ -895,6 +901,7 @@
        (execute `(restore-env))
        (let ((new-guard-id (inc-guard-id!)))
          (and (save-next-guard-id?)
+              (reset-save-next-guard-id?!)
               (execute `(push-guard-id! ,new-guard-id)))
          (if v
              (begin (execute `(guard-true ,new-guard-id ',(if (null? e2)
@@ -1056,7 +1063,7 @@
        v)
       ((ev `(splits-control-flow) (cons φ κ))
        (execute `(remove-continuation))
-       (set-tracer-context-save-next-guard-id?! global-tracer-context #t)
+       (save-next-guard-id?!)
        (step* (ko φ κ)))
       ((ev `(merges-control-flow) (cons φ κ))
        (let ((merge-point-id (top (tracer-context-guards-id-stack global-tracer-context))))
