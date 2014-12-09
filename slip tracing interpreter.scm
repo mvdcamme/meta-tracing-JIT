@@ -55,7 +55,7 @@
            calculate-average-trace-length
            calculate-total-number-of-traces
            calculate-total-traces-length)
-           
+  
   
   (require "dictionary.scm")
   (require "stack.scm")
@@ -159,8 +159,8 @@
     (not (eq? (trace-key-guard-ids trace-key) '())))
   
   (struct trace-node (label
-                       trace
-                       (children #:mutable)))
+                      trace
+                      (children #:mutable)))
   
   (define (make-trace-node label trace)
     (trace-node label trace '()))
@@ -267,8 +267,8 @@
   
   (define (add-label-trace! label transformed-trace)
     (set-tracer-context-trace-nodes! global-tracer-context
-                                      (cons (make-trace-node label transformed-trace)
-                                            (tracer-context-trace-nodes global-tracer-context))))
+                                     (cons (make-trace-node label transformed-trace)
+                                           (tracer-context-trace-nodes global-tracer-context))))
   
   ;guard-ids should go from the top of the tree to the bottom
   (define (find-guard-trace label guard-ids)
@@ -289,8 +289,8 @@
     (let ((parent-trace-node (find-guard-trace label guard-ids))
           (new-guard-id (last guard-ids)))
       (set-trace-node-children! parent-trace-node
-                                 (cons (make-trace-node new-guard-id trace)
-                                       (trace-node-children parent-trace-node)))))
+                                (cons (make-trace-node new-guard-id trace)
+                                      (trace-node-children parent-trace-node)))))
   
   (define (get-guard-trace guard-id)
     (let ((head-executing-children (trace-node-children (get-head-executing))))
@@ -435,7 +435,7 @@
   
   (define (transform-label-trace-looping trace)
     `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
-           (loop)))
+       (loop)))
   
   (define (transform-label-trace-non-looping trace)
     `(letrec ((non-loop ,(append '(lambda ()) trace)))
@@ -623,8 +623,8 @@
   
   (define (apply-native i)
     (let ((rands (take θ i)))
-    (and (contains-env? rands)
-         (error "Apply-native: rands contains an environment"))
+      (and (contains-env? rands)
+           (error "Apply-native: rands contains an environment"))
       (set! θ (drop θ i))
       (set! v (apply v rands))))
   
@@ -981,8 +981,8 @@
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
              (let ((kk (top-continuation)))
-             ;(execute ;`(pop-head-executing!))
-             ;         `(pop-continuation!))
+               ;(execute ;`(pop-head-executing!))
+               ;         `(pop-continuation!))
                (kk (sentinel (list state))))))))
   
   (define (bootstrap-to-ev guard-id e)
@@ -1045,8 +1045,8 @@
   (define (run s)
     (reset!)
     (apply step* (sentinel-value (let ((v (call/cc (lambda (k)
-                                                 (push-continuation! k)
-                                                 (sentinel (list s))))))
+                                                     (push-continuation! k)
+                                                     (sentinel (list s))))))
                                    ;(display "topmost continuation") (newline)
                                    ;(display v) (newline)
                                    v))))
