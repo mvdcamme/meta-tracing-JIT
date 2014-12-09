@@ -7,6 +7,7 @@
 ;; Mathematical support.
 
 ; square(x) = x^2
+(begin
 (define (square x) (* x x))
 
 ; modulo-power: a fast modular exponentiation routine.
@@ -95,4 +96,4 @@
 (define iterations 10)
 (define byte-size 15)
 
-(generate-fermat-prime byte-size iterations)
+(generate-fermat-prime byte-size iterations))
