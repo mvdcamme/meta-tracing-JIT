@@ -85,6 +85,21 @@
 ;; Utilities.
 
 (begin
+  
+  ;; Forward references:
+  (define c-compile-exp '())
+  (define c-compile-const '())
+  (define c-compile-prim '())
+  (define c-compile-ref '())
+  (define c-compile-if '())
+  (define c-compile-cell '())
+  (define c-compile-cell-get '())
+  (define c-compile-set-cell! '())
+  (define c-compile-closure '())
+  (define c-compile-env-get '())
+  (define c-compile-env-make '())
+  (define c-compile-app '())
+  
   (define (cadr p) (car (cdr p)))
   (define (cddr p) (cdr (cdr p)))
   (define (caadr p) (car (car (cdr p))))
@@ -861,7 +876,7 @@
   
   
   ; c-compile-exp : exp (string -> void) -> string
-  (define (c-compile-exp exp append-preamble)
+  (define (c-compile-exp-act exp append-preamble)
     (cond
       ; Core forms:
       ((const? exp)       (c-compile-const exp))
@@ -884,7 +899,7 @@
       (else               (error "unknown exp in c-compile-exp: " exp))))
   
   ; c-compile-const : const-exp -> string
-  (define (c-compile-const exp)
+  (define (c-compile-const-act exp)
     (cond
       ((integer? exp) (string-append 
                        "MakeInt(" (number->string exp) ")"))
@@ -893,7 +908,7 @@
       (else           (error "unknown constant: " exp))))
   
   ; c-compile-prim : prim-exp -> string
-  (define (c-compile-prim p)
+  (define (c-compile-prim-act p)
     (cond
       ((eq? '+ p)       "__sum")
       ((eq? '- p)       "__difference")
@@ -903,7 +918,7 @@
       (else             (error "unhandled primitive: " p))))
   
   ; c-compile-ref : ref-exp -> string
-  (define (c-compile-ref exp)
+  (define (c-compile-ref-act exp)
     (mangle exp))
   
   ; c-compile-args : list[exp] (string -> void) -> string
@@ -917,7 +932,7 @@
              ""))))
   
   ; c-compile-app : app-exp (string -> void) -> string
-  (define (c-compile-app exp append-preamble)
+  (define (c-compile-app-act exp append-preamble)
     (let (($tmp (mangle (gensym 'tmp))))
       
       (append-preamble (string-append
@@ -934,14 +949,14 @@
          (c-compile-args args append-preamble) "))"))))
   
   ; c-compile-if : if-exp -> string
-  (define (c-compile-if exp append-preamble)
+  (define (c-compile-if-act exp append-preamble)
     (string-append
      "(" (c-compile-exp (if->condition exp) append-preamble) ").b.value ? "
      "(" (c-compile-exp (if->then exp) append-preamble)      ") : "
      "(" (c-compile-exp (if->else exp) append-preamble)      ")"))
   
   ; c-compile-set-cell! : set-cell!-exp (string -> void) -> string 
-  (define (c-compile-set-cell! exp append-preamble)
+  (define (c-compile-set-cell!-act exp append-preamble)
     (string-append
      "(*"
      "(" (c-compile-exp (set-cell!->cell exp) append-preamble) ".cell.addr)" " = "
@@ -949,7 +964,7 @@
      ")"))
   
   ; c-compile-cell-get : cell-get-exp (string -> void) -> string 
-  (define (c-compile-cell-get exp append-preamble)
+  (define (c-compile-cell-get-act exp append-preamble)
     (string-append
      "(*("
      (c-compile-exp (cell-get->cell exp) append-preamble)
@@ -957,12 +972,12 @@
      "))"))
   
   ; c-compile-cell : cell-exp (string -> void) -> string
-  (define (c-compile-cell exp append-preamble)
+  (define (c-compile-cell-act exp append-preamble)
     (string-append
      "NewCell(" (c-compile-exp (cell->value exp) append-preamble) ")"))
   
   ; c-compile-env-make : env-make-exp (string -> void) -> string
-  (define (c-compile-env-make exp append-preamble)
+  (define (c-compile-env-make-act exp append-preamble)
     (string-append
      "MakeEnv(__alloc_env" (number->string (env-make->id exp))
      "(" 
@@ -970,7 +985,7 @@
      "))"))
   
   ; c-compile-env-get : env-get (string -> void) -> string
-  (define (c-compile-env-get exp append-preamble)
+  (define (c-compile-env-get-act exp append-preamble)
     (string-append
      "((struct __env_"
      (number->string (env-get->id exp)) "*)" 
@@ -1009,7 +1024,7 @@
     (cdr (assv id lambdas)))
   
   ; c-compile-closure : closure-exp (string -> void) -> string
-  (define (c-compile-closure exp append-preamble)
+  (define (c-compile-closure-act exp append-preamble)
     (let* ((lam (closure->lam exp))
            (env (closure->env exp))
            (lid (allocate-lambda (c-compile-lambda lam))))
@@ -1155,6 +1170,20 @@ Value __numEqual ;
      lambdas)
     
     (emit compiled-program))
+  
+  ;; Set forward references
+  (set! c-compile-exp c-compile-exp-act)
+  (set! c-compile-const c-compile-const-act)
+  (set! c-compile-prim c-compile-prim-act)
+  (set! c-compile-ref c-compile-ref-act)
+  (set! c-compile-if c-compile-if-act)
+  (set! c-compile-cell c-compile-cell-act)
+  (set! c-compile-cell-get c-compile-cell-get-act)
+  (set! c-compile-set-cell! c-compile-set-cell!-act)
+  (set! c-compile-closure c-compile-closure-act)
+  (set! c-compile-env-get c-compile-env-get-act)
+  (set! c-compile-env-make c-compile-env-make-act)
+  (set! c-compile-app c-compile-app-act)
   
   
   ;; Compile and emit:
