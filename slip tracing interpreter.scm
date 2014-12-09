@@ -1054,7 +1054,8 @@
       (let* ((transformed-trace (transform-and-optimize-trace trace #f))
              (label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
              (guard-ids (trace-key-guard-ids (tracer-context-trace-key-to-be-traced global-tracer-context))))
-        (add-guard-trace! label (reverse guard-ids) transformed-trace)))
+        (add-guard-trace! guard-id transformed-trace)
+        (stop-tracer-context-tracing!)))
     merges-cf-function)
   
   (define (step* s)
