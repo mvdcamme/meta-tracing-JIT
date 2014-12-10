@@ -1081,7 +1081,7 @@
          (execute `(remove-continuation)
                   `(pop-guard-id!))
          (and (is-tracing?)
-              (append-trace `(execute-merge-point-tail ,merge-point-id))
+              (append-trace `((execute-merge-point-tail ,merge-point-id)))
               ((tracer-context-merges-cf-function global-tracer-context) (reverse τ))
               (if (find (tracer-context-merge-points-dictionary global-tracer-context) merge-point-id)
                   (begin ((tracer-context-closing-function global-tracer-context) (reverse τ) #f)
