@@ -526,7 +526,7 @@
     (define (merges-cf-function! trace)
       (let ((trace-label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
             (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f))))
-        (add-label-trace! trace-label trace)))
+        (add-label-trace! trace-label transformed-trace)))
     merges-cf-function!)
   
   (define (stop-tracing! looping?)
