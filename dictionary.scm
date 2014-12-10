@@ -12,7 +12,7 @@
 
 (module dictionary racket
  (provide (rename-out (new new-dictionary))
-          dictionary? insert! delete! find)
+          dictionary? insert! delete! find table-for-each)
  
  (define make-assoc mcons)
  (define assoc-key mcar)
@@ -87,4 +87,16 @@
         table)
        (else
         (delete-from-bucket next set-mcdr! (mcdr next)))))
-   table))
+   table)
+  
+  (define (table-for-each f table)
+    (let ((storage (storage table)))
+      (define (loop-bucket bucket)
+        (if (null? bucket)
+            (void)
+            (begin (f (assoc-key (mcar bucket)) (assoc-value (mcar bucket)))
+                   (loop-bucket (mcdr bucket)))))
+      (vector-map (lambda (bucket)
+                    (loop-bucket bucket))
+                  storage)
+      (void))))
