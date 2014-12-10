@@ -342,7 +342,7 @@
            (guard-ids-path '()))
       (define (loop list)
         (cond ((null? list) '())
-              ((label-trace? (car list)) (display "## found a label-trace ##") (newline) '())
+              ((label-trace? (car list)) '())
               (else (set! guard-ids-path (cons (trace-node-label (car list)) guard-ids-path))
                     (loop (cdr list)))))
       (loop guards)
@@ -366,7 +366,6 @@
                   (let ((kk (top-continuation)))
                     (and (not (sentinel? value))
                          (remove-continuation))
-                    ;(output "in start-executing-label-trace!: sentinel? ")  (output (sentinel? value)) (output ", value = ") (output value) (output-newline)
                     (kk (sentinel (list (unwrap-possible-sentinel value)))))))))
   
   (define (push-guard-id! guard-id)
@@ -553,12 +552,10 @@
     (define sum 0)
     (define (tree-rec lst)
       (for-each (lambda (child)
-                  (display "child: ") (display (caadr (trace-node-trace child))) (newline)
                   (set! sum (+ sum (length (cddadr (caadr (trace-node-trace child))))))
                   (tree-rec (trace-node-children child)))
                 lst))
     (for-each (lambda (global-trace-nodes)
-                (display "global-trace-node: ") (display (caadr (trace-node-trace global-trace-nodes))) (newline)
                 (set! sum (+ sum (length (cddadr (caadr (trace-node-trace global-trace-nodes))))))
                 (tree-rec (trace-node-children global-trace-nodes)))
               (tracer-context-trace-nodes global-tracer-context))
@@ -686,7 +683,6 @@
       (save-vals i)
       (set-env (clo-ρ clo))))
   
-  ;mp-tail-trace
   (define (execute-merge-point-tail merge-point-id)
     (let* ((merge-point-tails-dictionary (tracer-context-merge-points-dictionary global-tracer-context))
            (mp-tail-trace (find merge-point-tails-dictionary merge-point-id))
@@ -1005,7 +1001,7 @@
       (env (cons (cons var adr) old-lst))))
   
   (define (reset!)
-    (set! ρ (make-new-env));
+    (set! ρ (make-new-env))
     (set! σ `((,pseudo-random-address . ,pseudo-random)
               (,pseudo-random-generator-address . ,PSEUDO_RANDOM_GENERATOR)))
     (set! θ '())
@@ -1029,22 +1025,17 @@
                          (let ((kk (top-continuation)))
                            (and (not (sentinel? value))
                                 (remove-continuation))
-                           ;(output "in bootstrap: sentinel? ") (output (sentinel? value)) (output ", value = ") (output value) (output-newline)
                            (kk (sentinel (list (unwrap-possible-sentinel value))))))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (generate-guard-trace-key))
                    (kk (top-continuation)))
-               ;(execute ;`(pop-head-executing!))
-               ;         `(pop-continuation!))
                (start-tracing-after-guard! guard-id old-trace-key)
                (kk (sentinel (list state)))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
              (let ((kk (top-continuation)))
-               ;(execute ;`(pop-head-executing!))
-               ;         `(pop-continuation!))
                (kk (sentinel (list state))))))))
   
   (define (bootstrap-to-ev guard-id e)
@@ -1144,8 +1135,6 @@
     (apply step* (sentinel-value (let ((v (call/cc (lambda (k)
                                                      (push-continuation! k)
                                                      (sentinel (list s))))))
-                                   ;(display "topmost continuation") (newline)
-                                   ;(display v) (newline)
                                    v))))
   
   (define (start)
