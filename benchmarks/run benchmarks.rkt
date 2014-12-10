@@ -42,6 +42,7 @@
 (define sat-benchmark-path "sat.scm")
 (define scheme2c-benchmark-path "scheme2c.scm")
 (define scheme2java-benchmark-path "scm2java.scm")
+(define simple-guard-trace-merging-benchmark-path "simple guard-trace merging.scm")
 (define solovay-strassen-benchmark-path "solovay-strassen.scm")
 (define trace-explosion-benchmark-path "trace-explosion.scm")
 (define tree-sort-benchmark-path "tree-sort.scm")

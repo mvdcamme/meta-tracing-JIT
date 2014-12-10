@@ -132,9 +132,9 @@
       value)
     
     (define (evaluate-if predicate consequent . alternate)
-      (display "If: ") (display predicate) (newline)
-      (display consequent) (newline)
-      (display alternate) (newline)
+      ;(display "If: ") (display predicate) (newline)
+      ;(display consequent) (newline)
+      ;(display alternate) (newline)
       (let* ((cond (evaluate predicate)))
         (splits-control-flow)
         (if cond
