@@ -204,7 +204,7 @@
                           trace-nodes
                           labels-encountered
                           heads-executing
-                          guards-id-stack
+                          splits-cf-id-stack
                           continuation-calls-stack
                           closing-function
                           merge-points-dictionary
@@ -377,13 +377,13 @@
                     (kk (sentinel (list (unwrap-possible-sentinel value)))))))))
   
   (define (push-splits-cf-id! splits-cf-id)
-    (push! (tracer-context-guards-id-stack global-tracer-context) splits-cf-id))
+    (push! (tracer-context-splits-cf-id-stack global-tracer-context) splits-cf-id))
   
   (define (pop-splits-cf-id!)
-    (pop! (tracer-context-guards-id-stack global-tracer-context)))
+    (pop! (tracer-context-splits-cf-id-stack global-tracer-context)))
   
   (define (top-splits-cf-id)
-    (top (tracer-context-guards-id-stack global-tracer-context)))
+    (top (tracer-context-splits-cf-id-stack global-tracer-context)))
   
   (define (set-closing-function-if-not-yet-existing! closing-function)
     (or (tracer-context-closing-function global-tracer-context)
