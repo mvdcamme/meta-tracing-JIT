@@ -219,7 +219,7 @@
                     (new-stack)
                     (new-stack)
                     #f
-                    (new-dictionary = 100 (lambda (guard-id) guard-id))
+                    (new-dictionary = 100 (lambda (splits-cf-id) splits-cf-id))
                     #f))
   
   (define (is-tracing?)
@@ -376,8 +376,8 @@
                          (remove-continuation))
                     (kk (sentinel (list (unwrap-possible-sentinel value)))))))))
   
-  (define (push-splits-cf-id! guard-id)
-    (push! (tracer-context-guards-id-stack global-tracer-context) guard-id))
+  (define (push-splits-cf-id! splits-cf-id)
+    (push! (tracer-context-guards-id-stack global-tracer-context) splits-cf-id))
   
   (define (pop-splits-cf-id!)
     (pop! (tracer-context-guards-id-stack global-tracer-context)))
