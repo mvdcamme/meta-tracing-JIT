@@ -537,8 +537,8 @@
              (label (trace-key-label trace-key))
              (guard-ids (trace-key-guard-ids trace-key))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label #f))))
-        (add-guard-trace! label (reverse guard-ids) transformed-trace)
-        (stop-tracer-context-tracing!)))
+        (set-tracer-context-closing-function! global-tracer-context (lambda (trace looping?) '()))
+        (add-guard-trace! label (reverse guard-ids) transformed-trace)))
     merges-cf!)
   
   (define (stop-tracing! looping?)
@@ -1104,6 +1104,7 @@
               ((tracer-context-merges-cf-function global-tracer-context) (reverse τ))
               (if (find (tracer-context-merge-points-dictionary global-tracer-context) merge-point-id)
                   (begin ;((tracer-context-closing-function global-tracer-context) (reverse τ) #f)
+                         (stop-tracer-context-tracing!)
                          (eval `(execute-merge-point-tail ,merge-point-id)))
                   (begin (clear-trace!)
                          (set-tracer-context-closing-function! global-tracer-context (make-closing-function-after-merge merge-point-id)))))
