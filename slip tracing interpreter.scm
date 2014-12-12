@@ -29,12 +29,12 @@
            lookup-var
            quote-value
            pop-continuation!
-           pop-guard-id!
+           pop-splits-cf-id!
            pop-head-executing!
            pop-trace-node-frame-from-stack!
            pop-trace-frame!
            pop-trace-frame-until-label!
-           push-guard-id!
+           push-splits-cf-id!
            push-continuation!
            push-head-executing!
            push-trace-frame!
@@ -51,6 +51,7 @@
            start-executing-label-trace!
            switch-to-clo-env
            top-continuation
+           top-splits-cf-id
            
            ;;metrics
            calculate-average-trace-length
@@ -76,10 +77,16 @@
   ;
   
   (define guard-id 0)
+  (define splits-cf-id 0)
   
   (define (inc-guard-id!)
     (let ((temp guard-id))
       (set! guard-id (+ guard-id 1))
+      temp))
+  
+  (define (inc-splits-cf-id!)
+    (let ((temp splits-cf-id))
+      (set! splits-cf-id (+ splits-cf-id 1))
       temp))
   
   (define (output s)
@@ -194,7 +201,6 @@
   
   (struct tracer-context (is-tracing?
                           trace-key-to-be-traced
-                          save-next-guard-id?
                           trace-nodes
                           labels-encountered
                           heads-executing
@@ -206,7 +212,6 @@
   
   (define (new-tracer-context)
     (tracer-context #f
-                    #f
                     #f
                     '()
                     '()
@@ -371,20 +376,14 @@
                          (remove-continuation))
                     (kk (sentinel (list (unwrap-possible-sentinel value)))))))))
   
-  (define (push-guard-id! guard-id)
+  (define (push-splits-cf-id! guard-id)
     (push! (tracer-context-guards-id-stack global-tracer-context) guard-id))
   
-  (define (pop-guard-id!)
+  (define (pop-splits-cf-id!)
     (pop! (tracer-context-guards-id-stack global-tracer-context)))
   
-  (define (save-next-guard-id?)
-    (tracer-context-save-next-guard-id? global-tracer-context))
-  
-  (define (save-next-guard-id?!)
-    (set-tracer-context-save-next-guard-id?! global-tracer-context #t))
-  
-  (define (reset-save-next-guard-id?!)
-    (set-tracer-context-save-next-guard-id?! global-tracer-context #f))
+  (define (top-splits-cf-id)
+    (top (tracer-context-guards-id-stack global-tracer-context)))
   
   (define (set-closing-function-if-not-yet-existing! closing-function)
     (or (tracer-context-closing-function global-tracer-context)
@@ -933,9 +932,6 @@
       ((ko (ifk e1 e2) κ)
        (execute `(restore-env))
        (let ((new-guard-id (inc-guard-id!)))
-         (and (save-next-guard-id?)
-              (reset-save-next-guard-id?!)
-              (execute `(push-guard-id! ,new-guard-id)))
          (if v
              (begin (execute `(guard-true ,new-guard-id ',(if (null? e2)
                                                               '()
@@ -1092,13 +1088,13 @@
       ((ko (haltk) _)
        v)
       ((ev `(splits-control-flow) (cons φ κ))
-       (execute `(remove-continuation))
-       (save-next-guard-id?!)
+       (execute `(remove-continuation)
+                `(push-splits-cf-id! ,(inc-splits-cf-id!)))
        (step* (ko φ κ)))
       ((ev `(merges-control-flow) (cons φ κ))
-       (let ((merge-point-id (top (tracer-context-guards-id-stack global-tracer-context))))
+       (let ((merge-point-id (top-splits-cf-id)))
          (execute `(remove-continuation)
-                  `(pop-guard-id!))
+                  `(pop-splits-cf-id!))
          (and (is-tracing?)
               (append-trace `((execute-merge-point-tail ,merge-point-id)))
               ((tracer-context-merges-cf-function global-tracer-context) (reverse τ))
