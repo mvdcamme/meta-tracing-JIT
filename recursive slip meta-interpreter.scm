@@ -24,7 +24,11 @@
   
   (define meta-circularity-level 0)
   
-  (define environment '())
+  ;;Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;;tracing interpreter in the environment in which this recursive SLIP evaluator is running.
+  (define random-binding (vector 'random random))
+  
+  (define environment (list random-binding))
   
   (define (loop output)
     
