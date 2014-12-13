@@ -306,35 +306,39 @@
                                      (cons (make-label-trace label transformed-trace)
                                            (tracer-context-trace-nodes global-tracer-context))))
   
+  (define (take-all-but-last lst)
+    (reverse (cdr (reverse lst))))
+  
   ;guard-ids should go from the top of the tree to the bottom
   (define (find-guard-trace label guard-ids)
     (let ((first-trace-node (get-trace-node label)))
       (define (find-next-node-in-path trace-node guard-id)
         (define (loop children)
-          (cond ((null? children) (error "Trace-key was not found: " (trace-key label guard-ids)))
+          (cond ((null? children) #f)
                 ((equal? (trace-node-label (car children)) guard-id) (car children))
                 (else (loop (cdr children)))))
         (loop (trace-node-children trace-node)))
       (define (follow-path trace-node guard-ids)
-        (if (null? (cdr guard-ids))
+        (if (null? guard-ids)
             trace-node
             (follow-path (find-next-node-in-path trace-node (car guard-ids)) (cdr guard-ids))))
       (follow-path first-trace-node guard-ids)))
   
   (define (add-guard-trace! label guard-ids trace)
-    (let ((parent-trace-node (find-guard-trace label guard-ids))
+    (let ((parent-trace-node (find-guard-trace label (take-all-but-last guard-ids)))
           (new-guard-id (last guard-ids)))
-      (set-trace-node-children! parent-trace-node
-                                (cons (make-guard-trace new-guard-id trace)
-                                      (trace-node-children parent-trace-node)))))
+      (if (not parent-trace-node)
+          (error "Trace-key was not found: " (trace-key label guard-ids))
+          (set-trace-node-children! parent-trace-node
+                                    (cons (make-guard-trace new-guard-id trace)
+                                          (trace-node-children parent-trace-node))))))
   
   (define (get-guard-trace guard-id)
-    (let ((head-executing-children (trace-node-children (get-head-executing))))
-      (define (loop lst)
-        (cond ((null? lst) #f)
-              ((equal? (trace-node-label (car lst)) guard-id) (car lst))
-              (else (loop (cdr lst)))))
-      (loop head-executing-children)))
+    (let* ((old-trace-key (generate-guard-trace-key))
+           (label (trace-key-label old-trace-key))
+           (guards (trace-key-guard-ids old-trace-key))
+           (existing-trace (find-guard-trace label (reverse (cons guard-id guards)))))
+      existing-trace))
   
   (define (start-tracing-label! label)
     (clear-trace!)
