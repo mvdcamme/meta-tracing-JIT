@@ -490,8 +490,8 @@
     stop-tracing-label!)
   
   (define (pop-trace-node-frame-from-stack! label)
-    ;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
-    ;Then pop one more time to get it off the stack.
+    ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
+    ;;Then pop one more time to get it off the stack.
     (pop-trace-frame-until-label! label)
     (pop-trace-frame!))
   
@@ -1073,14 +1073,14 @@
         (insert! dictionary merge-point-id mp-tail-trace)))
     closing-function)
     
-  (define (make-merges-cf-function-after-merge)
-    (define (merges-cf-function trace)
-      (error "Not implemented yet!"))
-      ;(let* ((transformed-trace (transform-and-optimize-trace trace #f))
-      ;       (label (trace-key-label (tracer-context-trace-key-to-be-traced global-tracer-context)))
-      ;       (guard-ids (trace-key-guard-ids (tracer-context-trace-key-to-be-traced global-tracer-context))))
-      ; (add-guard-trace! guard-id transformed-trace)
-      ;  (stop-tracer-context-tracing!)))
+  (define (make-merges-cf-function-after-merge merge-point-id)
+    (define (merges-cf-function merge-point-tail-trace)
+      (let* ((trace-key (tracer-context-trace-key-to-be-traced global-tracer-context))
+             (label (trace-key-label trace-key))
+             (dictionary (tracer-context-merge-points-dictionary global-tracer-context))
+             (transformed-merge-point-tail-trace (transform-and-optimize-trace merge-point-tail-trace (make-transform-guard-trace-function label #f)))
+             (mp-tail-trace (make-mp-tail-trace label transformed-merge-point-tail-trace)))
+        (insert! dictionary merge-point-id mp-tail-trace)))
     merges-cf-function)
   
   (define (step* s)
@@ -1103,8 +1103,8 @@
                          (stop-tracer-context-tracing!)
                          (eval `(execute-merge-point-tail ,merge-point-id)))
                   (begin (clear-trace!)
-                         (set-tracer-context-closing-function! global-tracer-context (make-closing-function-after-merge merge-point-id)))))
-                         ;(set-tracer-context-merges-cf-function! global-tracer-context (make-merges-cf-function-after-merge))))) 
+                         (set-tracer-context-closing-function! global-tracer-context (make-closing-function-after-merge merge-point-id))
+                         (set-tracer-context-merges-cf-function! global-tracer-context (make-merges-cf-function-after-merge merge-point-id)))))
                   ;TODO: bepalen wat er moet gebeuren als er meerdere merges zijn in dezelfde trace
          (step* (ko φ κ))))
       ((ko (can-close-loopk debug-info) (cons φ κ))
