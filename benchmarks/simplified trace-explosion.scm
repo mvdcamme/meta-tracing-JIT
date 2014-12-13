@@ -1,4 +1,3 @@
-#lang racket
 (begin (define (loop n)
          (if (= (random 2) 0)
              (begin (display "f 0") (newline))
