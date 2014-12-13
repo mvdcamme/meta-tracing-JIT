@@ -350,6 +350,7 @@
       (define (loop list)
         (cond ((null? list) '())
               ((label-trace? (car list)) '())
+              ((mp-tail-trace? (car list)) (loop (cdr list)))
               (else (set! guard-ids-path (cons (trace-node-label (car list)) guard-ids-path))
                     (loop (cdr list)))))
       (loop guards)
