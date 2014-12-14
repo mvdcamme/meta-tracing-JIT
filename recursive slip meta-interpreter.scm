@@ -144,7 +144,7 @@
         (if cond
             (return-from-control-flow-split (thunkify consequent))
             (if (null? alternate)
-                '()
+                (return-from-control-flow-split '())
                 (return-from-control-flow-split (thunkify (car alternate)))))))
     
     (define (evaluate-lambda parameters . expressions)
