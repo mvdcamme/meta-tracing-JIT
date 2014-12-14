@@ -406,8 +406,6 @@
   ; Transform trace
   ;
   
-  
-  
   (define (transform-trace trace loop-closed?)
     (if loop-closed?
         `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
@@ -1030,7 +1028,7 @@
   
   (define (reset!)
     (set! ρ (make-new-env))
-    (set! σ `((,pseudo-random-address . ,pseudo-random)
+    (set! σ `((,meta-random-address . ,meta-random)
               (,pseudo-random-generator-address . ,PSEUDO_RANDOM_GENERATOR)))
     (set! θ '())
     (set! τ '())
@@ -1081,7 +1079,6 @@
              (label (trace-key-label trace-key))
              (dictionary (tracer-context-merge-points-dictionary global-tracer-context))
              (transformed-merge-point-tail-trace (transform-and-optimize-trace merge-point-tail-trace (make-transform-guard-trace-function label looping?)))
-             ;(mp-tail-label (create-mp-tail-trace-label merge-point-id))
              (mp-tail-trace (make-mp-tail-trace label transformed-merge-point-tail-trace)))
         (insert! dictionary merge-point-id mp-tail-trace)))
     closing-function)
