@@ -342,7 +342,7 @@
                                           (trace-node-children parent-trace-node))))))
   
   (define (get-guard-trace guard-id)
-    (let* ((old-trace-key (generate-guard-trace-key))
+    (let* ((old-trace-key (get-path-to-new-guard-trace))
            (label (trace-key-label old-trace-key))
            (guards (trace-key-guard-ids old-trace-key))
            (existing-trace (find-guard-trace label (reverse (cons guard-id guards)))))
@@ -354,7 +354,10 @@
     (set-tracer-context-is-tracing?! global-tracer-context #t)
     (set-tracer-context-trace-key-to-be-traced! global-tracer-context (trace-key label '())))
   
-  (define (generate-guard-trace-key)
+  ;; Looks at the current heads-executing stack and creates a trace-key containing the label
+  ;; that is the ancestor of any new guard-trace that would be created, as well as the path from
+  ;; this label to the new guard-trace through the trace tree.
+  (define (get-path-to-new-guard-trace)
     (let* ((list (tracer-context-heads-executing global-tracer-context))
            (result #f))
       (define (loop list path)
@@ -1038,7 +1041,7 @@
   
   (define (bootstrap guard-id state)
     (let ((existing-trace (get-guard-trace guard-id)))
-      (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (generate-guard-trace-key)) (output " ------") (output-newline)
+      (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
       (cond (existing-trace
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute `(let* ((value (call/cc (lambda (k)
@@ -1052,7 +1055,7 @@
                            (kk (sentinel (list (unwrap-possible-sentinel value))))))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-             (let ((old-trace-key (generate-guard-trace-key))
+             (let ((old-trace-key (get-path-to-new-guard-trace))
                    (kk (top-continuation)))
                (start-tracing-after-guard! guard-id old-trace-key)
                (kk (sentinel (list state)))))
