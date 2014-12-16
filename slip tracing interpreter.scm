@@ -187,8 +187,9 @@
   (struct trace-key (label
                      guard-ids) #:transparent)
   
-  (define (is-tracing-guard? trace-key)
-    (not (eq? (trace-key-guard-ids trace-key) '())))
+  (define (is-tracing-guard?)
+    (let ((trace-key (tracer-context-trace-key-to-be-traced global-tracer-context)))
+      (not (eq? (trace-key-guard-ids trace-key) '()))))
   
   (struct trace-node (label
                       (trace #:mutable)
