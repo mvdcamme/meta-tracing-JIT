@@ -361,10 +361,12 @@
   (define (get-path-to-new-guard-trace)
     (let* ((list (tracer-context-heads-executing global-tracer-context)))
       (define (loop list path)
+        (display "list = ") (display list) (display "; path = ") (display path) (newline)
         (cond ((null? list) '())
               ((label-trace? (car list)) (trace-key (trace-node-label (car list))
                                                     path))
-              ((mp-tail-trace? (car list)) (loop (cdr list) path))
+              ((mp-tail-trace? (car list)) (trace-key (trace-node-label (car list))
+                                                    path))
               (else (loop (cdr list) (cons (trace-node-label (car list)) path)))))
       (loop list '())))
   
