@@ -114,7 +114,7 @@
   
   (define (unwrap-possible-sentinel value)
     (if (sentinel? value)
-        (car (sentinel-value value))
+        (sentinel-value value)
         value))
   
   (struct env (lst) #:transparent)
@@ -386,7 +386,7 @@
                   (let ((kk (top-continuation)))
                     (and (not (sentinel? value))
                          (remove-continuation))
-                    (kk (sentinel (list (unwrap-possible-sentinel value)))))))))
+                    (kk (sentinel (unwrap-possible-sentinel value))))))))
   
   (define (push-splits-cf-id! splits-cf-id)
     (push! (tracer-context-splits-cf-id-stack global-tracer-context) splits-cf-id))
@@ -724,7 +724,7 @@
             (let ((kk (top-continuation)))
               (and (not (sentinel? value))
                    (remove-continuation))
-              (kk (sentinel (list (unwrap-possible-sentinel value))))))
+              (kk (sentinel (unwrap-possible-sentinel value)))))
           (error "Trace for merge-point was not found; merge-point-id: " merge-point-id))))
   
   (define (run-trace ms)
@@ -1050,18 +1050,18 @@
                          (let ((kk (top-continuation)))
                            (and (not (sentinel? value))
                                 (remove-continuation))
-                           (kk (sentinel (list (unwrap-possible-sentinel value))))))))
+                           (kk (sentinel (unwrap-possible-sentinel value)))))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (get-path-to-new-guard-trace))
                    (kk (top-continuation)))
                (start-tracing-after-guard! guard-id old-trace-key)
-               (kk (sentinel (list state)))))
+               (kk (sentinel state))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
              (let ((kk (top-continuation)))
-               (kk (sentinel (list state))))))))
+               (kk (sentinel state)))))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
@@ -1157,10 +1157,10 @@
   
   (define (run s)
     (reset!)
-    (apply step* (sentinel-value (let ((v (call/cc (lambda (k)
-                                                     (push-continuation! k)
-                                                     (sentinel (list s))))))
-                                   v))))
+    (apply step* (list (sentinel-value (let ((v (call/cc (lambda (k)
+                                                           (push-continuation! k)
+                                                           (sentinel s)))))
+                                         v)))))
   
   (define (start)
     (run (inject (read)))))
