@@ -360,6 +360,7 @@
   
   (define (start-tracing-label! label)
     (clear-trace!)
+    (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-label-function))
     (set-tracer-context-merges-cf-function! global-tracer-context (make-label-merges-cf-function))
     (set-tracer-context-is-tracing?! global-tracer-context #t)
     (set-tracer-context-trace-key! global-tracer-context (make-label-trace-key label)))
@@ -408,10 +409,6 @@
   
   (define (top-splits-cf-id)
     (top (tracer-context-splits-cf-id-stack global-tracer-context)))
-  
-  (define (set-closing-function-if-not-yet-existing! closing-function)
-    (or (tracer-context-closing-function global-tracer-context)
-        (set-tracer-context-closing-function! global-tracer-context closing-function)))
   
   ;
   ; Transform trace
@@ -1138,7 +1135,6 @@
             (output "closing annotation: tracing loop ") (output v) (output-newline))
        (and (is-tracing-label? v)
             (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-            (set-closing-function-if-not-yet-existing! (make-stop-tracing-label-function))
             (stop-tracing! #f))
        (execute `(remove-continuation))
        (step* (ko φ κ)))
@@ -1147,7 +1143,6 @@
             (output "opening annotation: tracing loop ") (output v) (output-newline))
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-              (set-closing-function-if-not-yet-existing! (make-stop-tracing-label-function))
               (stop-tracing! #t)
               (start-executing-label-trace! v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
