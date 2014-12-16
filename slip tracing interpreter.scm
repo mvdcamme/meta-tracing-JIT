@@ -545,11 +545,12 @@
   
   (define (make-merges-cf-after-guard-function)
     (define (merges-cf! trace)
-      (let* ((trace-key (tracer-context-trace-key-to-be-traced global-tracer-context))
-             (label (trace-key-label trace-key))
-             (guard-ids (trace-key-guard-ids trace-key))
+      (let* ((trace-key-to-trace (tracer-context-trace-key-to-be-traced global-tracer-context))
+             (label (trace-key-label trace-key-to-trace))
+             (guard-ids (trace-key-guard-ids trace-key-to-trace))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label #f))))
         (set-tracer-context-closing-function! global-tracer-context (lambda (trace looping?) '()))
+        (set-tracer-context-trace-key-to-be-traced! global-tracer-context (trace-key label '()))
         (add-guard-trace! label guard-ids transformed-trace)))
     merges-cf!)
   
