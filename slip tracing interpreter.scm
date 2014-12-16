@@ -187,9 +187,14 @@
   (struct trace-key (label
                      guard-ids) #:transparent)
   
-  (define (is-tracing-guard?)
-    (let ((trace-key (tracer-context-trace-key global-tracer-context)))
-      (not (eq? (trace-key-guard-ids trace-key) '()))))
+  (define (make-guard-trace-key label guard-ids)
+    (trace-key label guard-ids))
+  
+  (define (make-label-trace-key label)
+    (trace-key label '()))
+  
+  (define (make-mp-tail-trace-key label)
+    (trace-key label '()))
   
   (struct trace-node (label
                       (trace #:mutable)
@@ -237,6 +242,10 @@
   (define (is-tracing-label? label)
     (and (tracer-context-trace-key global-tracer-context)
          (equal? (trace-key-label (tracer-context-trace-key global-tracer-context)) label)))
+  
+  (define (is-tracing-guard?)
+    (let ((trace-key (tracer-context-trace-key global-tracer-context)))
+      (not (eq? (trace-key-guard-ids trace-key) '()))))
   
   (define (get-times-label-encountered label)
     (let ((pair (massoc label (tracer-context-labels-encountered global-tracer-context))))
@@ -337,7 +346,7 @@
     (let ((parent-trace-node (find-guard-trace label (take-all-but-last guard-ids)))
           (new-guard-id (last guard-ids)))
       (if (not parent-trace-node)
-          (error "Trace-key was not found: " (trace-key label guard-ids))
+          (error "Trace-key was not found: " (make-guard-trace-key label guard-ids))
           (set-trace-node-children! parent-trace-node
                                     (cons (make-guard-trace new-guard-id trace)
                                           (trace-node-children parent-trace-node))))))
@@ -353,7 +362,7 @@
     (clear-trace!)
     (set-tracer-context-merges-cf-function! global-tracer-context (make-default-merges-cf-function))
     (set-tracer-context-is-tracing?! global-tracer-context #t)
-    (set-tracer-context-trace-key! global-tracer-context (trace-key label '())))
+    (set-tracer-context-trace-key! global-tracer-context (make-label-trace-key label)))
   
   ;; Looks at the current heads-executing stack and creates a trace-key containing the label
   ;; that is the ancestor of any new guard-trace that would be created, as well as the path from
@@ -363,10 +372,10 @@
       (define (loop list path)
         (display "list = ") (display list) (display "; path = ") (display path) (newline)
         (cond ((null? list) '())
-              ((label-trace? (car list)) (trace-key (trace-node-label (car list))
-                                                    path))
-              ((mp-tail-trace? (car list)) (trace-key (trace-node-label (car list))
-                                                    path))
+              ((label-trace? (car list)) (make-guard-trace-key (trace-node-label (car list))
+                                                               path))
+              ((mp-tail-trace? (car list)) (make-guard-trace-key (trace-node-label (car list))
+                                                                 path))
               (else (loop (cdr list) (cons (trace-node-label (car list)) path)))))
       (loop list '())))
   
@@ -375,8 +384,8 @@
     (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-after-guard-function))
     (set-tracer-context-merges-cf-function! global-tracer-context (make-merges-cf-after-guard-function))
     (set-tracer-context-is-tracing?! global-tracer-context #t)
-    (set-tracer-context-trace-key! global-tracer-context (trace-key (trace-key-label old-trace-key)
-                                                                                 (append (trace-key-guard-ids old-trace-key) (list guard-id)))))
+    (set-tracer-context-trace-key! global-tracer-context (make-guard-trace-key (trace-key-label old-trace-key)
+                                                                               (append (trace-key-guard-ids old-trace-key) (list guard-id)))))
   
   (define (start-executing-label-trace! label)
     (let* ((trace-node (get-trace-node label))
@@ -550,7 +559,7 @@
              (guard-ids (trace-key-guard-ids trace-key-to-trace))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label #f))))
         (set-tracer-context-closing-function! global-tracer-context (lambda (trace looping?) '()))
-        (set-tracer-context-trace-key! global-tracer-context (trace-key label '()))
+        (set-tracer-context-trace-key! global-tracer-context (make-mp-tail-trace-key label))
         (add-guard-trace! label guard-ids transformed-trace)))
     merges-cf!)
   
