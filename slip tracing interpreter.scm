@@ -379,7 +379,7 @@
               (else (loop (cdr list) (cons (trace-node-label (car list)) path)))))
       (loop list '())))
   
-  (define (start-tracing-after-guard! guard-id old-trace-key)
+  (define (start-tracing-guard! guard-id old-trace-key)
     (clear-trace!)
     (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-guard-function))
     (set-tracer-context-merges-cf-function! global-tracer-context (make-guard-merges-cf-function))
@@ -537,13 +537,13 @@
         transform-guard-trace-non-looping))
   
   (define (make-stop-tracing-guard-function)
-    (define (stop-tracing-after-guard! trace looping?)
+    (define (stop-tracing-guard! trace looping?)
       (let* ((trace-key (tracer-context-trace-key global-tracer-context))
              (label (trace-key-label trace-key))
              (guard-ids (trace-key-guard-ids trace-key))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label looping?))))
         (add-guard-trace! label guard-ids transformed-trace)))
-    stop-tracing-after-guard!)
+    stop-tracing-guard!)
   
   (define (make-label-merges-cf-function)
     (define (merges-cf! trace)
@@ -1068,7 +1068,7 @@
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (get-path-to-new-guard-trace))
                    (kk (top-continuation)))
-               (start-tracing-after-guard! guard-id old-trace-key)
+               (start-tracing-guard! guard-id old-trace-key)
                (kk (sentinel state))))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
