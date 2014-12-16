@@ -360,7 +360,7 @@
   
   (define (start-tracing-label! label)
     (clear-trace!)
-    (set-tracer-context-merges-cf-function! global-tracer-context (make-default-merges-cf-function))
+    (set-tracer-context-merges-cf-function! global-tracer-context (make-label-merges-cf-function))
     (set-tracer-context-is-tracing?! global-tracer-context #t)
     (set-tracer-context-trace-key! global-tracer-context (make-label-trace-key label)))
   
@@ -381,8 +381,8 @@
   
   (define (start-tracing-after-guard! guard-id old-trace-key)
     (clear-trace!)
-    (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-after-guard-function))
-    (set-tracer-context-merges-cf-function! global-tracer-context (make-merges-cf-after-guard-function))
+    (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-guard-function))
+    (set-tracer-context-merges-cf-function! global-tracer-context (make-guard-merges-cf-function))
     (set-tracer-context-is-tracing?! global-tracer-context #t)
     (set-tracer-context-trace-key! global-tracer-context (make-guard-trace-key (trace-key-label old-trace-key)
                                                                                (append (trace-key-guard-ids old-trace-key) (list guard-id)))))
@@ -505,7 +505,7 @@
         transform-label-trace-looping
         transform-label-trace-non-looping))
   
-  (define (make-stop-tracing-after-label-function)
+  (define (make-stop-tracing-label-function)
     (define (stop-tracing-label! trace looping?)
       (let ((transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
         (add-label-trace! (trace-key-label (tracer-context-trace-key global-tracer-context)) transformed-trace)))
@@ -536,7 +536,7 @@
         (make-transform-guard-trace-looping label)
         transform-guard-trace-non-looping))
   
-  (define (make-stop-tracing-after-guard-function)
+  (define (make-stop-tracing-guard-function)
     (define (stop-tracing-after-guard! trace looping?)
       (let* ((trace-key (tracer-context-trace-key global-tracer-context))
              (label (trace-key-label trace-key))
@@ -545,14 +545,14 @@
         (add-guard-trace! label guard-ids transformed-trace)))
     stop-tracing-after-guard!)
   
-  (define (make-default-merges-cf-function)
+  (define (make-label-merges-cf-function)
     (define (merges-cf! trace)
       (let ((trace-label (trace-key-label (tracer-context-trace-key global-tracer-context)))
             (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f))))
         (add-label-trace! trace-label transformed-trace)))
     merges-cf!)
   
-  (define (make-merges-cf-after-guard-function)
+  (define (make-guard-merges-cf-function)
     (define (merges-cf! trace)
       (let* ((trace-key-to-trace (tracer-context-trace-key global-tracer-context))
              (label (trace-key-label trace-key-to-trace))
@@ -1085,7 +1085,7 @@
   (define (create-mp-tail-trace-label merge-point-id)
     (string->symbol (string-append "mp-tail-" (number->string merge-point-id))))
   
-  (define (make-closing-function-after-merge merge-point-id)
+  (define (make-stop-tracing-mp-tail-function merge-point-id)
     (define (closing-function merge-point-tail-trace looping?)
       (let* ((trace-key (tracer-context-trace-key global-tracer-context))
              (label (trace-key-label trace-key))
@@ -1095,7 +1095,7 @@
         (insert! dictionary merge-point-id mp-tail-trace)))
     closing-function)
     
-  (define (make-merges-cf-function-after-merge merge-point-id)
+  (define (make-mp-tail-merges-cf-function merge-point-id)
     (define (merges-cf-function merge-point-tail-trace)
       (let* ((trace-key (tracer-context-trace-key global-tracer-context))
              (label (trace-key-label trace-key))
@@ -1129,8 +1129,8 @@
                          (stop-tracer-context-tracing!)
                          (eval `(execute-merge-point-tail ,merge-point-id)))
                   (begin (clear-trace!)
-                         (set-tracer-context-closing-function! global-tracer-context (make-closing-function-after-merge merge-point-id))
-                         (set-tracer-context-merges-cf-function! global-tracer-context (make-merges-cf-function-after-merge merge-point-id)))))
+                         (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-mp-tail-function merge-point-id))
+                         (set-tracer-context-merges-cf-function! global-tracer-context (make-mp-tail-merges-cf-function merge-point-id)))))
                   ;TODO: bepalen wat er moet gebeuren als er meerdere merges zijn in dezelfde trace
          (step* (ko φ κ))))
       ((ko (can-close-loopk debug-info) (cons φ κ))
@@ -1138,7 +1138,7 @@
             (output "closing annotation: tracing loop ") (output v) (output-newline))
        (and (is-tracing-label? v)
             (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-            (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function))
+            (set-closing-function-if-not-yet-existing! (make-stop-tracing-label-function))
             (stop-tracing! #f))
        (execute `(remove-continuation))
        (step* (ko φ κ)))
@@ -1147,7 +1147,7 @@
             (output "opening annotation: tracing loop ") (output v) (output-newline))
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-              (set-closing-function-if-not-yet-existing! (make-stop-tracing-after-label-function))
+              (set-closing-function-if-not-yet-existing! (make-stop-tracing-label-function))
               (stop-tracing! #t)
               (start-executing-label-trace! v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
