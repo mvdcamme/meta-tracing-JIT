@@ -1139,7 +1139,7 @@
        (and (is-tracing-label? v)
             (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
             (stop-tracing! #f))
-       (remove-continuation)
+       (execute `(remove-continuation))
        (step* (ko φ κ)))
       ((ko (can-start-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
