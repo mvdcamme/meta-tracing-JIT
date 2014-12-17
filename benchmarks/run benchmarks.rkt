@@ -46,6 +46,7 @@
 (define simplified-trace-explosion-benchmark-path "simplified trace-explosion.scm")
 (define solovay-strassen-benchmark-path "solovay-strassen.scm")
 (define trace-explosion-benchmark-path "trace-explosion.scm")
+(define trace-explosion-not-random-benchmark-path "trace-explosion not random.scm")
 (define tree-sort-benchmark-path "tree-sort.scm")
 (define towers-of-hanoi-benchmark-path "towers-of-hanoi.scm")
 
