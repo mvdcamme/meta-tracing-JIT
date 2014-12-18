@@ -438,7 +438,7 @@
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
              (transformed-mp-tail (transform-and-optimize-trace mp-tail (make-transform-mp-tail-trace-function label looping?))))
-        (add-mp-tail-trace! mp-id transformed-mp-tail)))
+        (add-mp-tail-trace! label transformed-mp-tail)))
     stop-tracing-mp-tail!)
   
   (define (stop-tracer-context-tracing!)
@@ -538,10 +538,10 @@
                                      (cons (make-label-trace label transformed-trace)
                                            (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))))
   
-  (define (add-mp-tail-trace! mp-id transformed-trace)
+  (define (add-mp-tail-trace! label transformed-trace)
     (let ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
           (mp-tail-trace (make-mp-tail-trace mp-id transformed-trace)))
-      (insert! mp-tails-dictionary mp-id mp-tail-trace)))
+      (insert! mp-tails-dictionary label mp-tail-trace)))
   
   ;
   ; Trace exists
@@ -767,7 +767,7 @@
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-mp-tail-trace-function label #f))))
-        (add-mp-tail-trace! mp-id transformed-trace)))
+        (add-mp-tail-trace! label transformed-trace)))
     mp-tail-merges-cf!)
   
   ;
