@@ -509,15 +509,15 @@
   
   (define (get-label-trace label)
     (let ((trace-node-found (search-label-trace label)))
-      (return-if-existing "Label-trace not found!" label)))
+      (return-if-existing trace-node-found "Label-trace not found!" label)))
   
   (define (search-mp-tail-trace mp-id)
     (let ((mp-tail-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT)))
       (find mp-tail-dictionary mp-id)))
   
   (define (get-mp-tail-trace mp-id)
-    (let ((trace-found (search-mp-tail-trace mp-id)))
-      (return-if-existing trace-found "Mp-tail-trace not found!" mp-id)))
+    (let ((trace-node-found (search-mp-tail-trace mp-id)))
+      (return-if-existing trace-node-found "Mp-tail-trace not found!" mp-id)))
   
   ;
   ; Adding traces
