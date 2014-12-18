@@ -458,7 +458,7 @@
   (define (return-if-existing trace . errormessage)
     (if trace
         trace
-        (error errormessage)))
+        (apply error errormessage)))
   
   ;guard-ids should go from the top of the tree to the bottom
   (define (search-guard-trace label guard-ids)
