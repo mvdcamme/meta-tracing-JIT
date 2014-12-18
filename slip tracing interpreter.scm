@@ -490,14 +490,7 @@
     `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
        (loop)))
   
-  (define (transform-label-trace-non-looping trace)
-    `(letrec ((non-loop ,(append '(lambda ()) trace)))
-       (non-loop)
-       (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
-         (remove-continuation)
-         new-state)))
-  
-  (define (transform-mp-tail-trace-non-looping trace)
+  (define (transform-trace-non-looping trace)
     `(letrec ((non-loop ,(append '(lambda ()) trace)))
        (non-loop)
        (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
@@ -507,7 +500,7 @@
   (define (make-transform-label-trace-function looping?)
     (if looping?
         transform-label-trace-looping
-        transform-label-trace-non-looping))
+        transform-trace-non-looping))
   
   (define (make-stop-tracing-label-function)
     (define (stop-tracing-label! trace looping?)
@@ -533,17 +526,15 @@
          (call-label-trace! ',label)))
     transform-guard-trace-looping)
   
-  (define transform-guard-trace-non-looping transform-label-trace-non-looping)
-  
   (define (make-transform-guard-trace-function label looping?)
     (if looping?
         (make-transform-guard-trace-looping label)
-        transform-guard-trace-non-looping))
+        transform-trace-non-looping))
   
   (define (make-transform-mp-tail-trace-function label looping?)
     (if looping?
         (make-transform-guard-trace-looping label)
-        transform-mp-tail-trace-non-looping))
+        transform-trace-non-looping))
   
   (define (make-stop-tracing-guard-function)
     (define (stop-tracing-guard! trace looping?)
