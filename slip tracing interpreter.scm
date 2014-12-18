@@ -454,24 +454,17 @@
       (stop-tracer-context-tracing!)))
   
   ;
-  ; Finding/adding traces
+  ; Finding traces
   ;
   
-  (define (take-all-but-last lst)
-    (reverse (cdr (reverse lst))))
-  
-  (define (add-guard-trace! label guard-ids trace)
-    (let ((parent-trace-node (find-guard-trace label (take-all-but-last guard-ids)))
-          (new-guard-id (last guard-ids)))
-      (if (not parent-trace-node)
-          (error "Trace-key was not found: " (make-guard-trace-key label guard-ids))
-          (set-trace-node-children! parent-trace-node
-                                    (cons (make-guard-trace new-guard-id trace)
-                                          (trace-node-children parent-trace-node))))))
+  (define (return-if-existing trace . errormessage)
+    (if trace
+        trace
+        (error errormessage)))
   
   ;guard-ids should go from the top of the tree to the bottom
-  (define (find-guard-trace label guard-ids)
-    (let ((first-trace-node (get-trace-node label)))
+  (define (search-guard-trace label guard-ids)
+    (let ((first-trace-node (get-label-trace label)))
       (define (find-next-node-in-path trace-node guard-id)
         (define (loop children)
           (cond ((null? children) #f)
@@ -502,43 +495,71 @@
   (define (get-guard-trace guard-id)
     (let* ((old-trace-key (get-path-to-new-guard-trace))
            (label (trace-key-label old-trace-key))
-           (guards (trace-key-guard-ids old-trace-key))
-           (existing-trace (find-guard-trace label (append guards (list guard-id)))))
-      existing-trace))
+           (parent-guards (trace-key-guard-ids old-trace-key))
+           (all-guards (append parent-guards (list guard-id)))
+           (trace-node-found (search-guard-trace label all-guards)))
+      (return-if-existing trace-node-found "Guard-trace not found!" all-guards)))
   
-  (define (add-label-trace! label transformed-trace)
-    (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
-                                     (cons (make-label-trace label transformed-trace)
-                                           (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))))
-  
-  (define (find-trace-node label)
+  (define (search-label-trace label)
     (define (loop trace-nodes)
       (cond ((null? trace-nodes) #f)
             ((equal? (trace-node-label (car trace-nodes)) label) (car trace-nodes)) ;TODO verander equal? naar eq?
             (else (loop (cdr trace-nodes)))))
     (loop (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT)))
   
-  (define (get-trace-node label)
-    (let ((trace-node-found (find-trace-node label)))
-      (if trace-node-found
-          trace-node-found
-          (error "Label was not found in global-tracer-context: " label))))
+  (define (get-label-trace label)
+    (let ((trace-node-found (search-label-trace label)))
+      (return-if-existing "Label-trace not found!" label)))
+  
+  (define (search-mp-tail-trace mp-id)
+    (let ((mp-tail-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT)))
+      (find mp-tail-dictionary mp-id)))
+  
+  (define (get-mp-tail-trace mp-id)
+    (let ((trace-found (search-mp-tail-trace mp-id)))
+      (return-if-existing trace-found "Mp-tail-trace not found!" mp-id)))
+  
+  ;
+  ; Adding traces
+  ;
+  
+  (define (take-all-but-last lst)
+    (reverse (cdr (reverse lst))))
+  
+  (define (add-guard-trace! label guard-ids trace)
+    (let ((parent-trace-node (search-guard-trace label (take-all-but-last guard-ids)))
+          (new-guard-id (last guard-ids)))
+      (if (not parent-trace-node)
+          (error "Trace-key was not found: " (make-guard-trace-key label guard-ids))
+          (set-trace-node-children! parent-trace-node
+                                    (cons (make-guard-trace new-guard-id trace)
+                                          (trace-node-children parent-trace-node))))))
+  
+  (define (add-label-trace! label transformed-trace)
+    (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
+                                     (cons (make-label-trace label transformed-trace)
+                                           (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))))
   
   ;
   ; Trace exists
   ;
   
+  (define (trace-exists? trace)
+    (if trace
+        #t
+        #f))
+  
   (define (guard-trace-exists? guard-id)
     (let* ((old-trace-key (get-path-to-new-guard-trace))
            (label (trace-key-label old-trace-key))
            (guards (trace-key-guard-ids old-trace-key)))
-      (not (eq? (find-guard-trace label (append guards (list guard-id))) #f))))
+      (trace-exists? (search-guard-trace label (append guards (list guard-id))))))
   
   (define (label-trace-exists? label)
-    (not (eq? (find-trace-node label) #f)))
+    (trace-exists? (search-label-trace label)))
   
   (define (mp-tail-trace-exists? mp-id)
-    (not (eq? (find (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT) mp-id) #f)))
+    (trace-exists? (search-mp-tail-trace mp-id)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -767,7 +788,7 @@
                     (kk value))))))
   
   (define (execute-label-trace label)
-    (let* ((label-trace (get-trace-node label))
+    (let* ((label-trace (get-label-trace label))
            (trace (trace-node-trace label-trace)))
       (execute `(let ((value (call/cc (lambda (k)
                                         (push-trace-frame! ,label-trace k)
@@ -778,7 +799,7 @@
   
   (define (execute-mp-tail-trace mp-id)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-           (mp-tail-trace (find mp-tails-dictionary mp-id))
+           (mp-tail-trace (get-mp-tail-trace mp-id))
            (trace (trace-node-trace mp-tail-trace)))
       (if trace
           (let ((value (call/cc (lambda (k)
