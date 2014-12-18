@@ -28,13 +28,13 @@
            quote-value
            pop-continuation!
            pop-splits-cf-id!
-           pop-head-executing!
+           pop-trace-node-executing!
            pop-trace-node-frame-from-stack!
            pop-trace-frame!
            pop-trace-frame-until-label!
            push-splits-cf-id!
            push-continuation!
-           push-head-executing!
+           push-trace-node-executing!
            push-trace-frame!
            remove-continuation
            restore-env
@@ -242,7 +242,7 @@
                           trace-key
                           trace-nodes
                           labels-encountered
-                          heads-executing
+                          trace-nodes-executing
                           splits-cf-id-stack
                           continuation-calls-stack
                           closing-function
@@ -335,26 +335,26 @@
     (top (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
   
   ;
-  ; Head executing stack
+  ; Trace node executing stack
   ;
   
-  (define (get-head-executing)
-    (let ((heads-executing (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
-      (if (null? heads-executing)
-          (error "Heads-executing stack is empty!")
-          (car heads-executing))))
+  (define (pop-trace-node-executing!)
+    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+      (if (null? trace-nodes-executing)
+          (error "Trace-nodes-executing stack is empty!")
+          (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT
+                                                     (cdr trace-nodes-executing)))))
   
-  (define (push-head-executing! trace-node)
-    (let ((heads-executing (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
-      (set-tracer-context-heads-executing! GLOBAL_TRACER_CONTEXT
-                                           (cons trace-node heads-executing))))
+  (define (push-trace-node-executing! trace-node)
+    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+      (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT
+                                                 (cons trace-node trace-nodes-executing))))
   
-  (define (pop-head-executing!)
-    (let ((heads-executing (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
-      (if (null? heads-executing)
-          (error "Heads-executing stack is empty!")
-          (set-tracer-context-heads-executing! GLOBAL_TRACER_CONTEXT
-                                               (cdr heads-executing)))))
+  (define (top-trace-node-executing)
+    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+      (if (null? trace-nodes-executing)
+          (error "Trace-nodes-executing stack is empty!")
+          (car trace-nodes-executing))))
   
   ;
   ; Continuation (call/cc stack)
@@ -374,16 +374,16 @@
   ;
   
   (define (pop-trace-frame!)
-    (pop-head-executing!)
+    (pop-trace-node-executing!)
     (pop-continuation!))
   
   (define (pop-trace-frame-until-label! label)
-    (let ((current-head-executing (get-head-executing)))
-      (define (loop current-head-executing)
-        (and (not (equal? (trace-node-label current-head-executing) label))
+    (let ((current-trace-node-executing (top-trace-node-executing)))
+      (define (loop current-trace-node-executing)
+        (and (not (equal? (trace-node-label current-trace-node-executing) label))
              (begin (pop-trace-frame!)
-                    (loop (get-head-executing)))))
-      (loop current-head-executing)))
+                    (loop (top-trace-node-executing)))))
+      (loop current-trace-node-executing)))
   
   (define (pop-trace-node-frame-from-stack! label)
     ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
@@ -391,8 +391,8 @@
     (pop-trace-frame-until-label! label)
     (pop-trace-frame!))
   
-  (define (push-trace-frame! head-executing continuation)
-    (push-head-executing! head-executing)
+  (define (push-trace-frame! trace-node-executing continuation)
+    (push-trace-node-executing! trace-node-executing)
     (push-continuation! continuation))
   
   ;
@@ -486,11 +486,11 @@
             (follow-path (find-next-node-in-path trace-node (car guard-ids)) (cdr guard-ids))))
       (follow-path first-trace-node guard-ids)))
   
-  ;; Looks at the current heads-executing stack and creates a trace-key containing the label
+  ;; Looks at the current trace-nodes-executing stack and creates a trace-key containing the label
   ;; that is the ancestor of any new guard-trace that would be created, as well as the path from
   ;; this label to the new guard-trace through the trace tree.
   (define (get-path-to-new-guard-trace)
-    (let* ((list (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
+    (let* ((list (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (define (loop list path)
         (display "list = ") (display list) (display "; path = ") (display path) (newline)
         (cond ((null? list) '())
