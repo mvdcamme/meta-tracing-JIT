@@ -72,21 +72,8 @@
   (define ns (make-base-namespace))
   
   ;
-  ; Misc
+  ; Outputting
   ;
-  
-  (define guard-id 0)
-  (define splits-cf-id 0)
-  
-  (define (inc-guard-id!)
-    (let ((temp guard-id))
-      (set! guard-id (+ guard-id 1))
-      temp))
-  
-  (define (inc-splits-cf-id!)
-    (let ((temp splits-cf-id))
-      (set! splits-cf-id (+ splits-cf-id 1))
-      temp))
   
   (define (output s)
     (if ENABLE_OUTPUT
@@ -96,10 +83,61 @@
   (define (output-newline)
     (output #\newline))
   
-  (define (massoc el lst)
-    (cond ((null? lst) #f)
-          ((eq? el (mcar (car lst))) (car lst))
-          (else (massoc el (cdr lst)))))
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                             CK machine                                               ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  ;
+  ; CK wrappers
+  ;
+  
+  (struct ev (e κ) #:transparent)
+  (struct ko (φ κ) #:transparent)
+  
+  ;
+  ; Registers
+  ;
+  
+  (define ρ #f) ; env
+  (define σ #f) ; store
+  (define θ #f) ; non-kont stack
+  (define v #f) ; value
+  (define τ #f) ; trace
+  
+  (define τ-κ #f) ;continuation stack
+  
+  ;
+  ; Continuations
+  ;
+  
+  (struct andk (es))
+  (struct apply-failedk (rator i))
+  (struct applicationk (debug))
+  (struct applyk (rator))
+  (struct can-close-loopk (debug-info) #:transparent)
+  (struct can-start-loopk (debug-info) #:transparent)
+  (struct closure-guard-failedk (i))
+  (struct condk (pes es))
+  (struct definevk (x)) ;define variable
+  (struct haltk ())
+  (struct ifk (e1 e2))
+  (struct letk (x es))
+  (struct let*k (x bds es))
+  (struct letreck (x bds es))
+  (struct ork (es))
+  (struct randk (e es i) #:transparent)
+  (struct ratork (i debug))
+  (struct seqk (es) #:transparent)
+  (struct setk (x))
+  
+  ;
+  ; Closures
+  ;
+  
+  (struct clo (λ ρ))
+  (struct lam (x es))
   
   (define (clo-equal? clo1 clo2)
     (or (eq? clo1 clo2)
@@ -125,46 +163,6 @@
     (cond ((null? lst) #f)
           ((env? (car lst)) #t)
           (else (contains-env? (cdr lst)))))
-  
-  ;
-  ; Continuations
-  ;
-  
-  (struct ev (e κ) #:transparent)
-  (struct ko (φ κ) #:transparent)
-  (struct andk (es))
-  (struct apply-failedk (rator i))
-  (struct applicationk (debug))
-  (struct applyk (rator))
-  (struct can-close-loopk (debug-info) #:transparent)
-  (struct can-start-loopk (debug-info) #:transparent)
-  (struct clo (λ ρ))
-  (struct closure-guard-failedk (i))
-  (struct condk (pes es))
-  (struct definevk (x)) ;define variable
-  (struct haltk ())
-  (struct ifk (e1 e2))
-  (struct lam (x es))
-  (struct letk (x es))
-  (struct let*k (x bds es))
-  (struct letreck (x bds es))
-  (struct ork (es))
-  (struct randk (e es i) #:transparent)
-  (struct ratork (i debug))
-  (struct seqk (es) #:transparent)
-  (struct setk (x))
-  
-  ;
-  ; Registers
-  ;
-  
-  (define ρ #f) ; env
-  (define σ #f) ; store
-  (define θ #f) ; non-kont stack
-  (define v #f) ; value
-  (define τ #f) ; trace
-  
-  (define τ-κ #f) ;continuation stack
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -282,6 +280,11 @@
   ;
   ; Loop hotness
   ;
+  
+  (define (massoc el lst)
+    (cond ((null? lst) #f)
+          ((eq? el (mcar (car lst))) (car lst))
+          (else (massoc el (cdr lst)))))
   
   (define (get-times-label-encountered label)
     (let ((pair (massoc label (tracer-context-labels-encountered global-tracer-context))))
