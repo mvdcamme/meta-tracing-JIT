@@ -335,7 +335,7 @@
     (top (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
   
   ;
-  ; Pushing/popping trace frames
+  ; Head executing stack
   ;
   
   (define (get-head-executing)
@@ -356,6 +356,10 @@
           (set-tracer-context-heads-executing! GLOBAL_TRACER_CONTEXT
                                                (cdr heads-executing)))))
   
+  ;
+  ; Continuation (call/cc stack)
+  ;
+  
   (define (pop-continuation!)
     (pop! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
   
@@ -364,6 +368,10 @@
   
   (define (top-continuation)
     (top (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
+  
+  ;
+  ; Trace frames stack
+  ;
   
   (define (pop-trace-frame!)
     (pop-head-executing!)
