@@ -7,10 +7,6 @@
            ;; Structs
            ev
            ko
-           sentinel
-           
-           sentinel?
-           unwrap-possible-sentinel
            
            ;; Registers
            τ-κ
@@ -111,13 +107,6 @@
              (clo? clo2)
              (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
              (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2))))))
-  
-  (struct sentinel (value) #:transparent)
-  
-  (define (unwrap-possible-sentinel value)
-    (if (sentinel? value)
-        (sentinel-value value)
-        value))
   
   ;
   ; Environment
@@ -728,7 +717,7 @@
                                   (eval trace)))))
             (pop-trace-frame!)
             (let ((kk (top-continuation)))
-              (kk (sentinel (unwrap-possible-sentinel value)))))
+              (kk value)))
           (error "Trace for merge-point was not found; merge-point-id: " merge-point-id))))
   
   (define (start-executing-label-trace! label)
@@ -739,7 +728,7 @@
                                         (eval ,trace)))))
                   (pop-trace-frame!)
                   (let ((kk (top-continuation)))
-                    (kk (sentinel (unwrap-possible-sentinel value))))))))
+                    (kk value))))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1232,18 +1221,18 @@
                                                 (eval ,(trace-node-trace existing-trace))))))
                          (pop-trace-frame!)
                          (let ((kk (top-continuation)))
-                           (kk (sentinel (unwrap-possible-sentinel value)))))))
+                           (kk value)))))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (get-path-to-new-guard-trace))
                    (kk (top-continuation)))
                (start-tracing-guard! guard-id old-trace-key)
-               (kk (sentinel state))))
+               (kk state)))
             (else
              (output "----------- CANNOT TRACE GUARD ") (output guard-id)
              (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
              (let ((kk (top-continuation)))
-               (kk (sentinel state)))))))
+               (kk state))))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
@@ -1282,10 +1271,10 @@
   
   (define (run s)
     (reset!)
-    (apply step* (list (sentinel-value (let ((v (call/cc (lambda (k)
-                                                           (push-continuation! k)
-                                                           (sentinel s)))))
-                                         v)))))
+    (apply step* (list (let ((v (call/cc (lambda (k)
+                                           (push-continuation! k)
+                                           s))))
+                         v))))
   
   (define (start)
     (run (inject (read)))))
