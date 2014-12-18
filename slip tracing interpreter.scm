@@ -18,7 +18,9 @@
            call-label-trace!
            create-closure
            debug
-           execute-mp-tail
+           execute-guard-trace
+           execute-label-trace
+           execute-mp-tail-trace
            guard-false
            guard-true
            guard-same-closure
@@ -46,7 +48,6 @@
            save-vals
            set-env
            set-var
-           start-executing-label-trace!
            switch-to-clo-env
            top-continuation
            top-splits-cf-id
@@ -740,7 +741,27 @@
   
   (define (call-label-trace! label)
     (execute `(pop-trace-node-frame-from-stack! ',label))
-    (start-executing-label-trace! label))
+    (execute-label-trace label))
+  
+  (define (execute-guard-trace guard-id)
+    (let* ((guard-trace (get-guard-trace guard-id))
+           (trace (trace-node-trace guard-trace)))
+      (execute `(let* ((value (call/cc (lambda (k)
+                                         (push-trace-frame! ,guard-trace k)
+                                         (eval ,trace)))))
+                  (pop-trace-frame!)
+                  (let ((kk (top-continuation)))
+                    (kk value))))))
+  
+  (define (execute-label-trace label)
+    (let* ((label-trace (get-trace-node label))
+           (trace (trace-node-trace label-trace)))
+      (execute `(let ((value (call/cc (lambda (k)
+                                        (push-trace-frame! ,label-trace k)
+                                        (eval ,trace)))))
+                  (pop-trace-frame!)
+                  (let ((kk (top-continuation)))
+                    (kk value))))))
   
   (define (execute-mp-tail-trace mp-id)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
@@ -754,16 +775,6 @@
             (let ((kk (top-continuation)))
               (kk value)))
           (error "Trace for merge point was not found; mp id: " mp-id))))
-  
-  (define (start-executing-label-trace! label)
-    (let* ((trace-node (get-trace-node label))
-           (trace (trace-node-trace trace-node)))
-      (execute `(let ((value (call/cc (lambda (k)
-                                        (push-trace-frame! ,trace-node k)
-                                        (eval ,trace)))))
-                  (pop-trace-frame!)
-                  (let ((kk (top-continuation)))
-                    (kk value))))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1217,11 +1228,11 @@
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
               (stop-tracing! #t)
-              (start-executing-label-trace! v)
+              (execute-label-trace v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
              ((label-traced? v)
               (output "----------- EXECUTING TRACE -----------") (output-newline)
-              (start-executing-label-trace! v)
+              (execute-label-trace v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
              ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
               (output "----------- STARTED TRACING -----------") (output-newline)
@@ -1251,12 +1262,7 @@
       (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
       (cond (existing-trace
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
-             (execute `(let* ((value (call/cc (lambda (k)
-                                                (push-trace-frame! ,existing-trace k)
-                                                (eval ,(trace-node-trace existing-trace))))))
-                         (pop-trace-frame!)
-                         (let ((kk (top-continuation)))
-                           (kk value)))))
+             (execute-guard-trace guard-id))
             ((not (is-tracing?))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((old-trace-key (get-path-to-new-guard-trace))
