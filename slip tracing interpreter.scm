@@ -1,10 +1,10 @@
 (module tracing-interpreter racket
   (provide 
-           ;;Running interpreter   
+           ;; Starting evaluator   
            inject
            run
            
-           ;;Structs
+           ;; Structs
            ev
            ko
            sentinel
@@ -12,10 +12,10 @@
            sentinel?
            unwrap-possible-sentinel
            
-           ;;Registers
+           ;; Registers
            τ-κ
            
-           ;;Trace instructions
+           ;; Trace instructions
            add-continuation
            alloc-var
            apply-native
@@ -55,7 +55,7 @@
            top-continuation
            top-splits-cf-id
            
-           ;;Metrics
+           ;; Metrics
            calculate-average-trace-length
            calculate-total-number-of-traces
            calculate-total-traces-length)
@@ -177,9 +177,11 @@
   
   (define τ-κ #f) ;continuation stack
   
-  ;
-  ; Predefined functions
-  ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                       Predefined functions                                           ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   ;
   ; Random
@@ -202,9 +204,11 @@
                           pseudo-random
                           regular-random))
   
-  ;
-  ; Tracing bookkeeping
-  ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                        Tracing bookkeeping                                           ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   ;
   ; Trace keys
@@ -370,48 +374,6 @@
     (push-continuation! continuation))
   
   ;
-  ; Metrics
-  ;
-  
-  (define (calculate-total-number-of-traces)
-    (define sum 0)
-    (define (tree-rec lst)
-      (for-each (lambda (child)
-                  (set! sum (+ sum 1))
-                  (tree-rec (trace-node-children child)))
-                lst))
-    (for-each (lambda (global-trace-nodes)
-                (set! sum (+ sum 1))
-                (tree-rec (trace-node-children global-trace-nodes)))
-              (tracer-context-trace-nodes global-tracer-context))
-    sum)
-  
-  (define (calculate-total-traces-length)
-    (define sum 0)
-    (define (get-instruction-list s-expression)
-      (cddadr (caadr s-expression)))
-    (define (tree-rec lst)
-      (for-each (lambda (child)
-                  (set! sum (+ sum (length (get-instruction-list (trace-node-trace child)))))
-                  (tree-rec (trace-node-children child)))
-                lst))
-    (for-each (lambda (global-trace-nodes)
-                (set! sum (+ sum (length (get-instruction-list (trace-node-trace global-trace-nodes)))))
-                (tree-rec (trace-node-children global-trace-nodes)))
-              (tracer-context-trace-nodes global-tracer-context))
-    (table-for-each (lambda (key mp-tail-trace)
-                      (set! sum (+ sum (length (get-instruction-list (trace-node-trace mp-tail-trace)))))
-                      (tree-rec (trace-node-children mp-tail-trace)))
-                    (tracer-context-merge-points-dictionary global-tracer-context))
-    sum)
-  
-  (define (calculate-average-trace-length)
-    (let ((total-number-of-traces (calculate-total-number-of-traces)))
-      (if (= total-number-of-traces 0)
-          "No traces were formed"
-          (/ (calculate-total-traces-length) total-number-of-traces))))
-  
-  ;
   ; Start tracing
   ;
   
@@ -540,6 +502,68 @@
           trace-node-found
           (error "Label was not found in global-tracer-context: " label))))
   
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                              Metrics                                                 ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  ;
+  ; Total nr of traces
+  ;
+  
+  (define (calculate-total-number-of-traces)
+    (define sum 0)
+    (define (tree-rec lst)
+      (for-each (lambda (child)
+                  (set! sum (+ sum 1))
+                  (tree-rec (trace-node-children child)))
+                lst))
+    (for-each (lambda (global-trace-nodes)
+                (set! sum (+ sum 1))
+                (tree-rec (trace-node-children global-trace-nodes)))
+              (tracer-context-trace-nodes global-tracer-context))
+    sum)
+  
+  ;
+  ; Total trace length
+  ;
+  
+  (define (calculate-total-traces-length)
+    (define sum 0)
+    (define (get-instruction-list s-expression)
+      (cddadr (caadr s-expression)))
+    (define (tree-rec lst)
+      (for-each (lambda (child)
+                  (set! sum (+ sum (length (get-instruction-list (trace-node-trace child)))))
+                  (tree-rec (trace-node-children child)))
+                lst))
+    (for-each (lambda (global-trace-nodes)
+                (set! sum (+ sum (length (get-instruction-list (trace-node-trace global-trace-nodes)))))
+                (tree-rec (trace-node-children global-trace-nodes)))
+              (tracer-context-trace-nodes global-tracer-context))
+    (table-for-each (lambda (key mp-tail-trace)
+                      (set! sum (+ sum (length (get-instruction-list (trace-node-trace mp-tail-trace)))))
+                      (tree-rec (trace-node-children mp-tail-trace)))
+                    (tracer-context-merge-points-dictionary global-tracer-context))
+    sum)
+  
+  ;
+  ; Average trace length
+  ;
+  
+  (define (calculate-average-trace-length)
+    (let ((total-number-of-traces (calculate-total-number-of-traces)))
+      (if (= total-number-of-traces 0)
+          "No traces were formed"
+          (/ (calculate-total-traces-length) total-number-of-traces))))
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                        Transforming traces                                           ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
   ;
   ; Optimizing traces
   ;
@@ -648,6 +672,12 @@
         (transformation-function (optimize-trace trace))
         (transformation-function trace)))
   
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                      Trace merging/execution                                         ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
   ;
   ; Merging traces
   ;
@@ -710,6 +740,12 @@
                   (pop-trace-frame!)
                   (let ((kk (top-continuation)))
                     (kk (sentinel (unwrap-possible-sentinel value))))))))
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                         Running evaluator                                            ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   ;
   ; Evaluator/trace instructions
@@ -1180,9 +1216,11 @@
        (let ((new-state (step s)))
          (step* new-state)))))
   
-  ;
-  ; Bootstrapping
-  ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                           Bootstrapping                                              ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   (define (bootstrap guard-id state)
     (let ((existing-trace (get-guard-trace guard-id)))
@@ -1213,6 +1251,12 @@
   (define (bootstrap-to-ko guard-id φ)
     (bootstrap guard-id (ko φ τ-κ)))
   
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                         Starting evaluator                                           ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
   ;
   ; Resetting evaluator
   ;
@@ -1230,7 +1274,7 @@
     (set! τ '()))
   
   ;
-  ; Starting interpreter
+  ; Starting evaluator
   ;
   
   (define (inject e)
