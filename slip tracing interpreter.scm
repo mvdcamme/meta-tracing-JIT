@@ -437,10 +437,8 @@
     (define (stop-tracing-mp-tail! mp-tail looping?)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-             (transformed-mp-tail (transform-and-optimize-trace mp-tail (make-transform-mp-tail-trace-function label looping?)))
-             (mp-tail-trace (make-mp-tail-trace label transformed-mp-tail)))
-        (insert! dictionary mp-id mp-tail-trace)))
+             (transformed-mp-tail (transform-and-optimize-trace mp-tail (make-transform-mp-tail-trace-function label looping?))))
+        (add-mp-tail-trace! mp-id transformed-mp-tail)))
     stop-tracing-mp-tail!)
   
   (define (stop-tracer-context-tracing!)
@@ -539,6 +537,11 @@
     (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
                                      (cons (make-label-trace label transformed-trace)
                                            (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))))
+  
+  (define (add-mp-tail-trace! mp-id transformed-trace)
+    (let ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
+          (mp-tail-trace (make-mp-tail-trace mp-id transformed-trace)))
+      (insert! mp-tails-dictionary mp-id mp-tail-trace)))
   
   ;
   ; Trace exists
@@ -763,10 +766,8 @@
     (define (mp-tail-merges-cf! trace)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-             (transformed-trace (transform-and-optimize-trace trace (make-transform-mp-tail-trace-function label #f)))
-             (mp-tail-trace (make-mp-tail-trace label transformed-trace)))
-        (insert! dictionary mp-id mp-tail-trace)))
+             (transformed-trace (transform-and-optimize-trace trace (make-transform-mp-tail-trace-function label #f))))
+        (add-mp-tail-trace! mp-id transformed-trace)))
     mp-tail-merges-cf!)
   
   ;
