@@ -249,7 +249,7 @@
                           merge-points-dictionary
                           merges-cf-function) #:transparent #:mutable)
   
-  (define global-tracer-context #f)
+  (define GLOBAL_TRACER_CONTEXT #f)
   
   (define (new-tracer-context)
     (tracer-context #f
@@ -264,14 +264,14 @@
                     #f))
   
   (define (is-tracing?)
-    (tracer-context-is-tracing? global-tracer-context))
+    (tracer-context-is-tracing? GLOBAL_TRACER_CONTEXT))
   
   (define (is-tracing-label? label)
-    (and (tracer-context-trace-key global-tracer-context)
-         (equal? (trace-key-label (tracer-context-trace-key global-tracer-context)) label)))
+    (and (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)
+         (equal? (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)) label)))
   
   (define (is-tracing-guard?)
-    (let ((trace-key (tracer-context-trace-key global-tracer-context)))
+    (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
       (not (eq? (trace-key-guard-ids trace-key) '()))))
   
   (define (label-traced? label)
@@ -287,61 +287,83 @@
           (else (massoc el (cdr lst)))))
   
   (define (get-times-label-encountered label)
-    (let ((pair (massoc label (tracer-context-labels-encountered global-tracer-context))))
+    (let ((pair (massoc label (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))))
       (if pair
           (mcdr pair)
           0)))
   
   (define (inc-times-label-encountered! label)
-    (let ((pair (massoc label (tracer-context-labels-encountered global-tracer-context))))
+    (let ((pair (massoc label (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))))
       (if pair
           (set-mcdr! pair (+ (mcdr pair) 1))
-          (set-tracer-context-labels-encountered! global-tracer-context 
-                                                  (cons (mcons label 1) (tracer-context-labels-encountered global-tracer-context))))))
+          (set-tracer-context-labels-encountered! GLOBAL_TRACER_CONTEXT 
+                                                  (cons (mcons label 1) (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))))))
+  
+  ;
+  ; Guard counter
+  ;
+  
+  (define guard-id 0)
+  
+  (define (inc-guard-id!)
+    (let ((temp guard-id))
+      (set! guard-id (+ guard-id 1))
+      temp))
+  
+  ;
+  ; Splits-cf counter
+  ;
+  
+  (define splits-cf-id 0)
+  
+  (define (inc-splits-cf-id!)
+    (let ((temp splits-cf-id))
+      (set! splits-cf-id (+ splits-cf-id 1))
+      temp))
   
   ;
   ; Pushing/popping cf-ids
   ;
   
   (define (push-splits-cf-id! splits-cf-id)
-    (push! (tracer-context-splits-cf-id-stack global-tracer-context) splits-cf-id))
+    (push! (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT) splits-cf-id))
   
   (define (pop-splits-cf-id!)
-    (pop! (tracer-context-splits-cf-id-stack global-tracer-context)))
+    (pop! (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
   
   (define (top-splits-cf-id)
-    (top (tracer-context-splits-cf-id-stack global-tracer-context)))
+    (top (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
   
   ;
   ; Pushing/popping trace frames
   ;
   
   (define (get-head-executing)
-    (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
+    (let ((heads-executing (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
       (if (null? heads-executing)
           (error "Heads-executing stack is empty!")
           (car heads-executing))))
   
   (define (push-head-executing! trace-node)
-    (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
-      (set-tracer-context-heads-executing! global-tracer-context
+    (let ((heads-executing (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
+      (set-tracer-context-heads-executing! GLOBAL_TRACER_CONTEXT
                                            (cons trace-node heads-executing))))
   
   (define (pop-head-executing!)
-    (let ((heads-executing (tracer-context-heads-executing global-tracer-context)))
+    (let ((heads-executing (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
       (if (null? heads-executing)
           (error "Heads-executing stack is empty!")
-          (set-tracer-context-heads-executing! global-tracer-context
+          (set-tracer-context-heads-executing! GLOBAL_TRACER_CONTEXT
                                                (cdr heads-executing)))))
   
   (define (pop-continuation!)
-    (pop! (tracer-context-continuation-calls-stack global-tracer-context)))
+    (pop! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
   
   (define (push-continuation! k)
-    (push! (tracer-context-continuation-calls-stack global-tracer-context) k))
+    (push! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT) k))
   
   (define (top-continuation)
-    (top (tracer-context-continuation-calls-stack global-tracer-context)))
+    (top (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
   
   (define (pop-trace-frame!)
     (pop-head-executing!)
@@ -371,18 +393,18 @@
   
   (define (start-tracing-guard! guard-id old-trace-key)
     (clear-trace!)
-    (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-guard-function))
-    (set-tracer-context-merges-cf-function! global-tracer-context (make-guard-merges-cf-function))
-    (set-tracer-context-is-tracing?! global-tracer-context #t)
-    (set-tracer-context-trace-key! global-tracer-context (make-guard-trace-key (trace-key-label old-trace-key)
+    (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-guard-function))
+    (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-guard-merges-cf-function))
+    (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #t)
+    (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-guard-trace-key (trace-key-label old-trace-key)
                                                                                (append (trace-key-guard-ids old-trace-key) (list guard-id)))))
   
   (define (start-tracing-label! label)
     (clear-trace!)
-    (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-label-function))
-    (set-tracer-context-merges-cf-function! global-tracer-context (make-label-merges-cf-function))
-    (set-tracer-context-is-tracing?! global-tracer-context #t)
-    (set-tracer-context-trace-key! global-tracer-context (make-label-trace-key label)))
+    (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-label-function))
+    (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-label-merges-cf-function))
+    (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #t)
+    (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-label-trace-key label)))
   
   ;
   ; Stop tracing
@@ -390,7 +412,7 @@
   
   (define (make-stop-tracing-guard-function)
     (define (stop-tracing-guard! trace looping?)
-      (let* ((trace-key (tracer-context-trace-key global-tracer-context))
+      (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
              (guard-ids (trace-key-guard-ids trace-key))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label looping?))))
@@ -400,26 +422,26 @@
   (define (make-stop-tracing-label-function)
     (define (stop-tracing-label! trace looping?)
       (let ((transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
-        (add-label-trace! (trace-key-label (tracer-context-trace-key global-tracer-context)) transformed-trace)))
+        (add-label-trace! (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)) transformed-trace)))
     stop-tracing-label!)
   
   (define (make-stop-tracing-mp-tail-function merge-point-id)
     (define (closing-function merge-point-tail-trace looping?)
-      (let* ((trace-key (tracer-context-trace-key global-tracer-context))
+      (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (dictionary (tracer-context-merge-points-dictionary global-tracer-context))
+             (dictionary (tracer-context-merge-points-dictionary GLOBAL_TRACER_CONTEXT))
              (transformed-merge-point-tail-trace (transform-and-optimize-trace merge-point-tail-trace (make-transform-mp-tail-trace-function label looping?)))
              (mp-tail-trace (make-mp-tail-trace label transformed-merge-point-tail-trace)))
         (insert! dictionary merge-point-id mp-tail-trace)))
     closing-function)
   
   (define (stop-tracer-context-tracing!)
-    (set-tracer-context-is-tracing?! global-tracer-context #f)
-    (set-tracer-context-trace-key! global-tracer-context #f)
-    (set-tracer-context-closing-function! global-tracer-context #f))
+    (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #f)
+    (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT #f)
+    (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT #f))
   
   (define (stop-tracing! looping?)
-    (let ((stop-tracing-function (tracer-context-closing-function global-tracer-context)))
+    (let ((stop-tracing-function (tracer-context-closing-function GLOBAL_TRACER_CONTEXT)))
       (stop-tracing-function (reverse τ) looping?)
       (stop-tracer-context-tracing!)))
   
@@ -458,7 +480,7 @@
   ;; that is the ancestor of any new guard-trace that would be created, as well as the path from
   ;; this label to the new guard-trace through the trace tree.
   (define (get-path-to-new-guard-trace)
-    (let* ((list (tracer-context-heads-executing global-tracer-context)))
+    (let* ((list (tracer-context-heads-executing GLOBAL_TRACER_CONTEXT)))
       (define (loop list path)
         (display "list = ") (display list) (display "; path = ") (display path) (newline)
         (cond ((null? list) '())
@@ -477,16 +499,16 @@
       existing-trace))
   
   (define (add-label-trace! label transformed-trace)
-    (set-tracer-context-trace-nodes! global-tracer-context
+    (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
                                      (cons (make-label-trace label transformed-trace)
-                                           (tracer-context-trace-nodes global-tracer-context))))
+                                           (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))))
   
   (define (find-trace-node label)
     (define (loop trace-nodes)
       (cond ((null? trace-nodes) #f)
             ((equal? (trace-node-label (car trace-nodes)) label) (car trace-nodes)) ;TODO verander equal? naar eq?
             (else (loop (cdr trace-nodes)))))
-    (loop (tracer-context-trace-nodes global-tracer-context)))
+    (loop (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT)))
   
   (define (get-trace-node label)
     (let ((trace-node-found (find-trace-node label)))
@@ -514,7 +536,7 @@
     (for-each (lambda (global-trace-nodes)
                 (set! sum (+ sum 1))
                 (tree-rec (trace-node-children global-trace-nodes)))
-              (tracer-context-trace-nodes global-tracer-context))
+              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))
     sum)
   
   ;
@@ -533,11 +555,11 @@
     (for-each (lambda (global-trace-nodes)
                 (set! sum (+ sum (length (get-instruction-list (trace-node-trace global-trace-nodes)))))
                 (tree-rec (trace-node-children global-trace-nodes)))
-              (tracer-context-trace-nodes global-tracer-context))
+              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))
     (table-for-each (lambda (key mp-tail-trace)
                       (set! sum (+ sum (length (get-instruction-list (trace-node-trace mp-tail-trace)))))
                       (tree-rec (trace-node-children mp-tail-trace)))
-                    (tracer-context-merge-points-dictionary global-tracer-context))
+                    (tracer-context-merge-points-dictionary GLOBAL_TRACER_CONTEXT))
     sum)
   
   ;
@@ -676,27 +698,27 @@
   
   (define (make-label-merges-cf-function)
     (define (merges-cf! trace)
-      (let ((trace-label (trace-key-label (tracer-context-trace-key global-tracer-context)))
+      (let ((trace-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
             (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f))))
         (add-label-trace! trace-label transformed-trace)))
     merges-cf!)
   
   (define (make-guard-merges-cf-function)
     (define (merges-cf! trace)
-      (let* ((trace-key-to-trace (tracer-context-trace-key global-tracer-context))
+      (let* ((trace-key-to-trace (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key-to-trace))
              (guard-ids (trace-key-guard-ids trace-key-to-trace))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label #f))))
-        (set-tracer-context-closing-function! global-tracer-context (lambda (trace looping?) '()))
-        (set-tracer-context-trace-key! global-tracer-context (make-mp-tail-trace-key label))
+        (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (lambda (trace looping?) '()))
+        (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-mp-tail-trace-key label))
         (add-guard-trace! label guard-ids transformed-trace)))
     merges-cf!)
     
   (define (make-mp-tail-merges-cf-function merge-point-id)
     (define (merges-cf-function merge-point-tail-trace)
-      (let* ((trace-key (tracer-context-trace-key global-tracer-context))
+      (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (dictionary (tracer-context-merge-points-dictionary global-tracer-context))
+             (dictionary (tracer-context-merge-points-dictionary GLOBAL_TRACER_CONTEXT))
              (transformed-merge-point-tail-trace (transform-and-optimize-trace merge-point-tail-trace (make-transform-mp-tail-trace-function label #f)))
              (mp-tail-trace (make-mp-tail-trace label transformed-merge-point-tail-trace)))
         (insert! dictionary merge-point-id mp-tail-trace)))
@@ -711,7 +733,7 @@
     (start-executing-label-trace! label))
   
   (define (execute-merge-point-tail merge-point-id)
-    (let* ((merge-point-tails-dictionary (tracer-context-merge-points-dictionary global-tracer-context))
+    (let* ((merge-point-tails-dictionary (tracer-context-merge-points-dictionary GLOBAL_TRACER_CONTEXT))
            (mp-tail-trace (find merge-point-tails-dictionary merge-point-id))
            (trace (trace-node-trace mp-tail-trace)))
       (if trace
@@ -1161,14 +1183,14 @@
                   (void))
               (append-trace `((pop-trace-frame!)
                               (execute-merge-point-tail ,merge-point-id)))
-              ((tracer-context-merges-cf-function global-tracer-context) (reverse τ))
-              (if (find (tracer-context-merge-points-dictionary global-tracer-context) merge-point-id)
-                  (begin ;((tracer-context-closing-function global-tracer-context) (reverse τ) #f)
+              ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
+              (if (find (tracer-context-merge-points-dictionary GLOBAL_TRACER_CONTEXT) merge-point-id)
+                  (begin ;((tracer-context-closing-function GLOBAL_TRACER_CONTEXT) (reverse τ) #f)
                          (stop-tracer-context-tracing!)
                          (eval `(execute-merge-point-tail ,merge-point-id)))
                   (begin (clear-trace!)
-                         (set-tracer-context-closing-function! global-tracer-context (make-stop-tracing-mp-tail-function merge-point-id))
-                         (set-tracer-context-merges-cf-function! global-tracer-context (make-mp-tail-merges-cf-function merge-point-id)))))
+                         (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function merge-point-id))
+                         (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function merge-point-id)))))
                   ;TODO: bepalen wat er moet gebeuren als er meerdere merges zijn in dezelfde trace
          (step* (ko φ κ))))
       ((ko (can-close-loopk debug-info) (cons φ κ))
@@ -1260,7 +1282,7 @@
     (set! θ '())
     (set! τ '())
     (set! τ-κ `(,(haltk)))
-    (set! global-tracer-context (new-tracer-context)))
+    (set! GLOBAL_TRACER_CONTEXT (new-tracer-context)))
   
   (define (clear-trace!)
     (set! τ '()))
