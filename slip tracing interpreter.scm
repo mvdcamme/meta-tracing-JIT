@@ -275,9 +275,6 @@
     (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
       (not (eq? (trace-key-guard-ids trace-key) '()))))
   
-  (define (label-traced? label)
-    (not (eq? (find-trace-node label) #f)))
-  
   ;
   ; Loop hotness
   ;
@@ -526,6 +523,22 @@
       (if trace-node-found
           trace-node-found
           (error "Label was not found in global-tracer-context: " label))))
+  
+  ;
+  ; Trace exists
+  ;
+  
+  (define (guard-trace-exists? guard-id)
+    (let* ((old-trace-key (get-path-to-new-guard-trace))
+           (label (trace-key-label old-trace-key))
+           (guards (trace-key-guard-ids old-trace-key)))
+      (not (eq? (find-guard-trace label (append guards (list guard-id))) #f))))
+  
+  (define (label-trace-exists? label)
+    (not (eq? (find-trace-node label) #f)))
+  
+  (define (mp-tail-trace-exists? mp-id)
+    (not (eq? (find (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT) mp-id) #f)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1205,7 +1218,7 @@
               (append-trace `((pop-trace-frame!)
                               (execute-mp-tail-trace ,mp-id)))
               ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
-              (if (find (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT) mp-id)
+              (if (mp-tail-trace-exists? mp-id)
                   (begin ;((tracer-context-closing-function GLOBAL_TRACER_CONTEXT) (reverse τ) #f)
                          (stop-tracer-context-tracing!)
                          (eval `(execute-mp-tail-trace ,mp-id)))
@@ -1230,7 +1243,7 @@
               (stop-tracing! #t)
               (execute-label-trace v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
-             ((label-traced? v)
+             ((label-trace-exists? v)
               (output "----------- EXECUTING TRACE -----------") (output-newline)
               (execute-label-trace v)
               (step* (ko (car τ-κ) (cdr τ-κ))))
@@ -1258,22 +1271,21 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   (define (bootstrap guard-id state)
-    (let ((existing-trace (get-guard-trace guard-id)))
-      (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
-      (cond (existing-trace
-             (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
-             (execute-guard-trace guard-id))
-            ((not (is-tracing?))
-             (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-             (let ((old-trace-key (get-path-to-new-guard-trace))
-                   (kk (top-continuation)))
-               (start-tracing-guard! guard-id old-trace-key)
-               (kk state)))
-            (else
-             (output "----------- CANNOT TRACE GUARD ") (output guard-id)
-             (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-             (let ((kk (top-continuation)))
-               (kk state))))))
+    (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
+    (cond ((guard-trace-exists? guard-id)
+           (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
+           (execute-guard-trace guard-id))
+          ((not (is-tracing?))
+           (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
+           (let ((old-trace-key (get-path-to-new-guard-trace))
+                 (kk (top-continuation)))
+             (start-tracing-guard! guard-id old-trace-key)
+             (kk state)))
+          (else
+           (output "----------- CANNOT TRACE GUARD ") (output guard-id)
+           (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
+           (let ((kk (top-continuation)))
+             (kk state)))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
