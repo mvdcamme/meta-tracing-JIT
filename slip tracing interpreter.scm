@@ -501,6 +501,7 @@
     `(letrec ((non-loop ,(append '(lambda ()) trace)))
        (non-loop)
        (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+         (remove-continuation)
          new-state)))
   
   (define (make-transform-label-trace-function looping?)
