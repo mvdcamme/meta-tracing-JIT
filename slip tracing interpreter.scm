@@ -66,7 +66,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #t)
+  (define ENABLE_OUTPUT #f)
   (define IS_DEBUGGING #f)
   (define TRACING_THRESHOLD 5)
   
@@ -930,11 +930,8 @@
       (set-env (clo-ρ clo))))
   
   (define (run-trace ms)
-    (if (pair? ms)
-        (begin
-          (eval (car ms))
-          (run-trace (cdr ms)))
-        #f))
+    (for/last ((instruction ms))
+      (eval instruction)))
   
   (define (append-trace ms)
     (and τ (set! τ (append (reverse ms) τ))))
@@ -1261,12 +1258,12 @@
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
               (stop-tracing! #t)
-              (execute-label-trace v)
-              (step* (ko (car τ-κ) (cdr τ-κ))))
+              (let ((new-state (execute-label-trace v)))
+                (step* new-state)))
              ((label-trace-exists? v)
               (output "----------- EXECUTING TRACE -----------") (output-newline)
-              (execute-label-trace v)
-              (step* (ko (car τ-κ) (cdr τ-κ))))
+              (let ((new-state (execute-label-trace v)))
+                (step* new-state)))
              ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
               (output "----------- STARTED TRACING -----------") (output-newline)
               (start-tracing-label! v)
