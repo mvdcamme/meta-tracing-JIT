@@ -1287,6 +1287,10 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define (switch-to-trace-guard! guard-id old-trace-key)
+    (clear-trace!)
+    (start-tracing-guard! guard-id old-trace-key))
+  
   (define (bootstrap guard-id state)
     (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
     (cond ((guard-trace-exists? guard-id)
@@ -1307,6 +1311,7 @@
                   (corresponding-label (trace-key-label old-trace-key)))
              (pop-trace-node-frame-from-stack! corresponding-label)
              (let ((kk (top-continuation)))
+               (switch-to-trace-guard! guard-id old-trace-key)
                (kk state))))))
   
   (define (bootstrap-to-ev guard-id e)
