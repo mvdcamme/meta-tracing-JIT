@@ -386,8 +386,10 @@
   (define (pop-trace-node-frame-from-stack! label)
     ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
     ;;Then pop one more time to get it off the stack.
-    (pop-trace-frame-until-label! label)
-    (pop-trace-frame!))
+    (if (not (null? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+        (begin (pop-trace-frame-until-label! label)
+               (pop-trace-frame!))
+        (void)))
   
   (define (push-trace-frame! trace-node-executing continuation)
     (push-trace-node-executing! trace-node-executing)
