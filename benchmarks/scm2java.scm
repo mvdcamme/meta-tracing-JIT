@@ -222,8 +222,8 @@
 ; let=>lambda : let-exp -> app-exp
 (define (let=>lambda exp)
   (if (let? exp)
-      (let ((vars (map car (let->bindings exp)))
-            (args (map cadr (let->bindings exp))))
+      (let* ((vars (map car (let->bindings exp)))
+             (args (map cadr (let->bindings exp))))
         `((lambda (,@vars) ,(let->exp exp)) ,@args))
       exp))
 
