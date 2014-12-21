@@ -429,7 +429,7 @@
     (define (stop-tracing-label! trace looping?)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
             (label (trace-key-label trace-key))
-            (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
+            (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping? label))))
         (add-label-trace! label transformed-trace)))
     stop-tracing-label!)
   
@@ -688,12 +688,15 @@
   ; Transforming traces
   ;
   
-  (define (transform-trace-non-looping trace)
-    `(letrec ((non-loop ,(append '(lambda ()) trace)))
-       (non-loop)
-       (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
-         (remove-continuation)
-         new-state)))
+  (define (transform-trace-non-looping label)
+    (define (f trace)
+      `(letrec ((non-loop ,(append '(lambda ()) trace)))
+         (non-loop)
+         (display "non-looping trace ended, label = ") (display ',label) (newline)
+         (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+           (remove-continuation)
+           new-state)))
+    f)
   
   (define (make-transform-guard-trace-looping label)
     (define (transform-guard-trace-looping trace)
@@ -710,17 +713,17 @@
   (define (make-transform-guard-trace-function label looping?)
     (if looping?
         (make-transform-guard-trace-looping label)
-        transform-trace-non-looping))
+        (transform-trace-non-looping label)))
   
-  (define (make-transform-label-trace-function looping?)
+  (define (make-transform-label-trace-function looping? label)
     (if looping?
         transform-label-trace-looping
-        transform-trace-non-looping))
+        (transform-trace-non-looping label)))
   
   (define (make-transform-mp-tail-trace-function label looping?)
     (if looping?
         (make-transform-guard-trace-looping label)
-        transform-trace-non-looping))
+        (transform-trace-non-looping label)))
   
   (define (transform-trace trace loop-closed?)
     (if loop-closed?
@@ -757,8 +760,8 @@
   
   (define (make-label-merges-cf-function)
     (define (label-merges-cf! trace)
-      (let ((trace-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
-            (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f))))
+      (let* ((trace-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
+             (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f trace-label))))
         (add-label-trace! trace-label transformed-trace)))
     label-merges-cf!)
     
@@ -786,6 +789,7 @@
       (execute `(let* ((value (call/cc (lambda (k)
                                          (push-trace-frame! ,guard-trace k)
                                          (eval ,trace)))))
+                  (display "guard-trace ended, guard-id = ") (display ,guard-id) (newline)
                   (pop-trace-node-frame-from-stack! ',corresponding-label)
                   (let ((kk (top-continuation)))
                     (kk value))))))

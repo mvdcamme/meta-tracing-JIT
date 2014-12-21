@@ -52,6 +52,8 @@
           v))
     (loop 0))
   
-  (define random-vec (make-random-array 20))
+  ;(define random-vec (make-random-array 20))
+  ;(display random-vec)
+  (define random-vec (vector 897 36 676 31 962 118 605 203 62 676 780 784 292 94 265 206 497 214 140 229))
   
   (tree-sort random-vec))
