@@ -692,7 +692,7 @@
     (define (f trace)
       `(letrec ((non-loop ,(append '(lambda ()) trace)))
          (non-loop)
-         (display "non-looping trace ended, label = ") (display ',label) (newline)
+         ;(display "non-looping trace ended, label = ") (display ',label) (newline)
          (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
            (remove-continuation)
            new-state)))
@@ -706,6 +706,17 @@
          (call-label-trace! ',label)))
     transform-guard-trace-looping)
   
+  (define (make-transform-guard-trace-non-looping label)
+    (define (f trace)
+      `(letrec ((non-loop ,(append '(lambda ()) trace)))
+         (non-loop)
+         (pop-trace-node-frame-from-stack! ',label)
+         ;(display "non-looping trace ended, label = ") (display ',label) (newline)
+         (let ((new-state (ko (car τ-κ) (cdr τ-κ))))
+           (remove-continuation)
+           new-state)))
+    f)
+  
   (define (transform-label-trace-looping trace)
     `(letrec ((loop ,(append '(lambda ()) trace '((loop)))))
        (loop)))
@@ -713,7 +724,7 @@
   (define (make-transform-guard-trace-function label looping?)
     (if looping?
         (make-transform-guard-trace-looping label)
-        (transform-trace-non-looping label)))
+        (make-transform-guard-trace-non-looping label)))
   
   (define (make-transform-label-trace-function looping? label)
     (if looping?
@@ -789,8 +800,8 @@
       (execute `(let* ((value (call/cc (lambda (k)
                                          (push-trace-frame! ,guard-trace k)
                                          (eval ,trace)))))
-                  (display "guard-trace ended, guard-id = ") (display ,guard-id) (newline)
-                  (pop-trace-node-frame-from-stack! ',corresponding-label)
+                  ;(display "guard-trace ended, guard-id = ") (display ,guard-id) (newline)
+                  ;(pop-trace-node-frame-from-stack! ',corresponding-label)
                   (let ((kk (top-continuation)))
                     (kk value))))))
   
