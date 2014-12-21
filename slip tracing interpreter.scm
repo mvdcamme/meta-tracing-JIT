@@ -51,6 +51,7 @@
            switch-to-clo-env
            top-continuation
            top-splits-cf-id
+           trace-node-frame-on-stack?
            
            ;; Metrics
            calculate-average-trace-length
@@ -780,6 +781,15 @@
     (execute `(pop-trace-node-frame-from-stack! ',label))
     (execute-label-trace label))
   
+  (define (trace-node-frame-on-stack? label)
+    (define (loop list)
+      (cond ((null? list) #f)
+            ((or (label-trace? (car list))
+                 (mp-tail-trace? (car list)))
+             (equal? label (trace-node-label (car list))))
+            (else (loop (cdr list)))))
+    (loop (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+  
   (define (execute-guard-trace guard-id)
     (let* ((guard-trace (get-guard-trace guard-id))
            (trace (trace-node-trace guard-trace))
@@ -788,7 +798,8 @@
       (execute `(let* ((value (call/cc (lambda (k)
                                          (push-trace-frame! ,guard-trace k)
                                          (eval ,trace)))))
-                  (pop-trace-node-frame-from-stack! ',corresponding-label)
+                  (and (trace-node-frame-on-stack? ',corresponding-label)
+                       (pop-trace-node-frame-from-stack! ',corresponding-label))
                   (let ((kk (top-continuation)))
                     (kk value))))))
   
