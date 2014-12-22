@@ -821,8 +821,7 @@
                                   (push-trace-frame! mp-tail-trace k)
                                   (eval trace)))))
             (pop-trace-frame!)
-            (let ((kk (top-continuation)))
-              (kk value)))
+            value)
           (error "Trace for merge point was not found; mp id: " mp-id))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
