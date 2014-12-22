@@ -765,7 +765,7 @@
   (define (make-label-merges-cf-function)
     (define (label-merges-cf! trace)
       (let ((trace-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
-            (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f))))
+            (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-label-trace-function #f))))
         (add-label-trace! trace-label transformed-trace)))
     label-merges-cf!)
     
@@ -773,7 +773,7 @@
     (define (mp-tail-merges-cf! trace)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (transformed-trace (transform-and-optimize-trace trace (make-transform-mp-tail-trace-function label #f))))
+             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-mp-tail-trace-function label #f))))
         (add-mp-tail-trace! mp-id label transformed-trace)))
     mp-tail-merges-cf!)
   
