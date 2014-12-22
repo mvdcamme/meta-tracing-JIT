@@ -691,6 +691,10 @@
   ; Transforming traces
   ;
   
+  (define (transform-trace-non-looping-plain trace)
+    `(letrec ((non-loop ,(append '(lambda ()) trace)))
+       (non-loop)))
+  
   (define (transform-trace-non-looping trace)
     `(letrec ((non-loop ,(append '(lambda ()) trace)))
        (non-loop)
@@ -752,7 +756,7 @@
       (let* ((trace-key-to-trace (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key-to-trace))
              (guard-ids (trace-key-guard-ids trace-key-to-trace))
-             (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label #f))))
+             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
         (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (lambda (trace looping?) '()))
         (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-mp-tail-trace-key label))
         (add-guard-trace! label guard-ids transformed-trace)))
