@@ -51,6 +51,7 @@
            switch-to-clo-env
            top-continuation
            top-splits-cf-id
+           trace-node-frame-on-stack?
            
            ;; Metrics
            calculate-average-trace-length
@@ -386,8 +387,10 @@
   (define (pop-trace-node-frame-from-stack! label)
     ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
     ;;Then pop one more time to get it off the stack.
-    (pop-trace-frame-until-label! label)
-    (pop-trace-frame!))
+    (if (not (null? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+        (begin (pop-trace-frame-until-label! label)
+               (pop-trace-frame!))
+        (void)))
   
   (define (push-trace-frame! trace-node-executing continuation)
     (push-trace-node-executing! trace-node-executing)
@@ -688,6 +691,10 @@
   ; Transforming traces
   ;
   
+  (define (transform-trace-non-looping-plain trace)
+    `(letrec ((non-loop ,(append '(lambda ()) trace)))
+       (non-loop)))
+  
   (define (transform-trace-non-looping trace)
     `(letrec ((non-loop ,(append '(lambda ()) trace)))
        (non-loop)
@@ -749,7 +756,7 @@
       (let* ((trace-key-to-trace (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key-to-trace))
              (guard-ids (trace-key-guard-ids trace-key-to-trace))
-             (transformed-trace (transform-and-optimize-trace trace (make-transform-guard-trace-function label #f))))
+             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
         (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (lambda (trace looping?) '()))
         (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-mp-tail-trace-key label))
         (add-guard-trace! label guard-ids transformed-trace)))
@@ -758,7 +765,7 @@
   (define (make-label-merges-cf-function)
     (define (label-merges-cf! trace)
       (let ((trace-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
-            (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function #f))))
+            (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-label-trace-function #f))))
         (add-label-trace! trace-label transformed-trace)))
     label-merges-cf!)
     
@@ -766,7 +773,7 @@
     (define (mp-tail-merges-cf! trace)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (transformed-trace (transform-and-optimize-trace trace (make-transform-mp-tail-trace-function label #f))))
+             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-mp-tail-trace-function label #f))))
         (add-mp-tail-trace! mp-id label transformed-trace)))
     mp-tail-merges-cf!)
   
@@ -778,37 +785,48 @@
     (execute `(pop-trace-node-frame-from-stack! ',label))
     (execute-label-trace label))
   
+  (define (trace-node-frame-on-stack? label)
+    (define (loop list)
+      (cond ((null? list) #f)
+            ((or (label-trace? (car list))
+                 (mp-tail-trace? (car list)))
+             (equal? label (trace-node-label (car list))))
+            (else (loop (cdr list)))))
+    (loop (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+  
   (define (execute-guard-trace guard-id)
     (let* ((guard-trace (get-guard-trace guard-id))
-           (trace (trace-node-trace guard-trace)))
+           (trace (trace-node-trace guard-trace))
+           (old-trace-key (get-path-to-new-guard-trace))
+           (corresponding-label (trace-key-label old-trace-key)))
       (execute `(let* ((value (call/cc (lambda (k)
                                          (push-trace-frame! ,guard-trace k)
                                          (eval ,trace)))))
-                  (pop-trace-frame!)
+                  (and (trace-node-frame-on-stack? ',corresponding-label)
+                       (pop-trace-node-frame-from-stack! ',corresponding-label))
                   (let ((kk (top-continuation)))
                     (kk value))))))
   
   (define (execute-label-trace label)
     (let* ((label-trace (get-label-trace label))
            (trace (trace-node-trace label-trace)))
-      (execute `(let ((value (call/cc (lambda (k)
-                                        (push-trace-frame! ,label-trace k)
-                                        (eval ,trace)))))
+      (execute `(let ((label-value (call/cc (lambda (k)
+                                              (push-trace-frame! ,label-trace k)
+                                              (eval ,trace)))))
                   (pop-trace-frame!)
-                  (let ((kk (top-continuation)))
-                    (kk value))))))
+                  label-value))))
   
   (define (execute-mp-tail-trace mp-id)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
            (mp-tail-trace (get-mp-tail-trace mp-id))
            (trace (trace-node-trace mp-tail-trace)))
       (if trace
-          (let ((value (call/cc (lambda (k)
+          (let ((mp-value (call/cc (lambda (k)
                                   (push-trace-frame! mp-tail-trace k)
                                   (eval trace)))))
             (pop-trace-frame!)
             (let ((kk (top-continuation)))
-              (kk value)))
+              (kk mp-value)))
           (error "Trace for merge point was not found; mp id: " mp-id))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -929,11 +947,8 @@
       (set-env (clo-ρ clo))))
   
   (define (run-trace ms)
-    (if (pair? ms)
-        (begin
-          (eval (car ms))
-          (run-trace (cdr ms)))
-        #f))
+    (for/last ((instruction ms))
+      (eval instruction)))
   
   (define (append-trace ms)
     (and τ (set! τ (append (reverse ms) τ))))
@@ -1232,20 +1247,23 @@
        (let ((mp-id (top-splits-cf-id)))
          (execute `(remove-continuation)
                   `(pop-splits-cf-id!))
-         (and (is-tracing?)
-              (if (is-tracing-guard?)
-                  (append-trace `((pop-trace-frame!)))
-                  (void))
-              (append-trace `((pop-trace-frame!)
-                              (execute-mp-tail-trace ,mp-id)))
-              ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
-              (if (mp-tail-trace-exists? mp-id)
-                  (begin (stop-tracer-context-tracing!)
-                         (eval `(execute-mp-tail-trace ,mp-id)))
-                  (begin (clear-trace!)
-                         (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function mp-id))
-                         (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id)))))
-         (step* (ko φ κ))))
+         (if (is-tracing?)
+             (begin 
+               (if (is-tracing-guard?)
+                   (append-trace `((pop-trace-frame!)))
+                   (void))
+               (append-trace `((pop-trace-frame!)
+                               (execute-mp-tail-trace ,mp-id)))
+               ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
+               (if (mp-tail-trace-exists? mp-id)
+                   (begin (stop-tracer-context-tracing!)
+                          (let ((new-state (eval `(execute-mp-tail-trace ,mp-id))))
+                            (step* new-state)))
+                   (begin (clear-trace!)
+                          (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function mp-id))
+                          (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id))
+                          (step* (ko φ κ)))))
+             (step* (ko φ κ)))))
       ((ko (can-close-loopk debug-info) (cons φ κ))
        (and (not (null? debug-info))
             (output "closing annotation: tracing loop ") (output v) (output-newline))
@@ -1260,12 +1278,12 @@
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
               (stop-tracing! #t)
-              (execute-label-trace v)
-              (step* (ko (car τ-κ) (cdr τ-κ))))
+              (let ((new-state (execute-label-trace v)))
+                (step* new-state)))
              ((label-trace-exists? v)
               (output "----------- EXECUTING TRACE -----------") (output-newline)
-              (execute-label-trace v)
-              (step* (ko (car τ-κ) (cdr τ-κ))))
+              (let ((new-state (execute-label-trace v)))
+                (step* new-state)))
              ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
               (output "----------- STARTED TRACING -----------") (output-newline)
               (start-tracing-label! v)
@@ -1289,6 +1307,10 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define (switch-to-trace-guard! guard-id old-trace-key)
+    (clear-trace!)
+    (start-tracing-guard! guard-id old-trace-key))
+  
   (define (bootstrap guard-id state)
     (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
     (cond ((guard-trace-exists? guard-id)
@@ -1296,15 +1318,21 @@
            (execute-guard-trace guard-id))
           ((not (is-tracing?))
            (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-           (let ((old-trace-key (get-path-to-new-guard-trace))
-                 (kk (top-continuation)))
-             (start-tracing-guard! guard-id old-trace-key)
-             (kk state)))
+           (let* ((old-trace-key (get-path-to-new-guard-trace))
+                  (corresponding-label (trace-key-label old-trace-key)))
+             (pop-trace-node-frame-from-stack! corresponding-label)
+             (let ((kk (top-continuation)))
+               (start-tracing-guard! guard-id old-trace-key)
+               (kk state))))
           (else
            (output "----------- CANNOT TRACE GUARD ") (output guard-id)
            (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-           (let ((kk (top-continuation)))
-             (kk state)))))
+           (let* ((old-trace-key (get-path-to-new-guard-trace))
+                  (corresponding-label (trace-key-label old-trace-key)))
+             (pop-trace-node-frame-from-stack! corresponding-label)
+             (let ((kk (top-continuation)))
+               (switch-to-trace-guard! guard-id old-trace-key)
+               (kk state))))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
