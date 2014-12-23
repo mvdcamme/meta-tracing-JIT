@@ -35,12 +35,12 @@
   (define (tree-sort vec)
     (if (> (vector-length vec) 1)
         (begin (define n (new-tree-node (vector-ref vec 0)))
-               (define (llloop i)
+               (define (loop i)
                  (if (< i (vector-length vec))
                      (begin (insert! n (vector-ref vec i))
-                            (llloop (+ i 1)))
+                            (loop (+ i 1)))
                      n))
-               (llloop 1))
+               (loop 1))
         #f))
   
   (define (make-random-array length)
@@ -52,6 +52,8 @@
           v))
     (loop 0))
   
-  (define random-vec (make-random-array 20))
+  ;(define random-vec (make-random-array 20))
+  (define random-vec (vector 427 795 565 828 533 467 519 630 31 171 572 4 339 665 659 101 780 155 331 636))
+  ;(display random-vec)
   
   (tree-sort random-vec))

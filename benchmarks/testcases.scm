@@ -1,8 +1,8 @@
+#lang racket
+
 ;
 ;test-cases
 ;
-
-#|
 
 ;1
 ;meta-trace
@@ -81,7 +81,7 @@
            (else (loop (cdr expressions)))))
    (loop expressions))
 
- (define (make-queen row col) (display "in make-queen") (list row col))
+ (define (make-queen row col) (list row col))
  (define (get-row queen) (car queen))
  (define (get-col queen) (cadr queen))
 
@@ -95,7 +95,6 @@
    (or (same-row? nq oq) (same-col? nq oq) (same-diag? nq oq)))
 
  (define (safe? target queens)
-   (display "in safe? target = ") (display target) (display ", queens = ") (display queens) (newline)
    (cond ((null? queens) #t)
          ((attacks? target (car queens)) #f)
          (else (safe? target (cdr queens)))))
@@ -111,7 +110,7 @@
        ; If we've advanced past the last row, we have a failure.
        ((> y sz) sols)
        ; If the queen is safe, the fun begins.
-       ((safe? (begin (define a (make-queen x y)) (display "na make-queen") a) pos)
+       ((safe? (make-queen x y) pos)
         ; This is the backtracking call. This is executed once
         ; the inner call is complete.
         (s-rec sz x (+ y 1) pos
@@ -121,7 +120,7 @@
                (s-rec sz (+ x 1) 1
                       ; Add this queen when considering the next
                       ; column's placement.
-                      (cons (begin (define a (make-queen x y)) (display "na make-queen2") a) pos)
+                      (cons (make-queen x y) pos)
                       sols)))
        ; If this queen isn't safe, move on to the next row.
        (else (s-rec sz x (+ y 1) pos sols))))
@@ -171,7 +170,7 @@
 (define (remove-all s lst) 
     (if (null? lst)
         '()
-        (if (eq? s (begin (display "in remove-all, lst = ") (display lst) (car lst)))
+        (if (eq? s (car lst))
             (remove-all s (cdr lst))
             (cons (car lst) (remove-all s (cdr lst))))))
 
@@ -295,6 +294,8 @@
 (tree-sort (vector 50 75 25 100)))
 
 
+#|
+
 OPTIONAL:
 
 (define (make-random-array length)
@@ -309,6 +310,8 @@ OPTIONAL:
 (define random-vec (make-random-array 20))
 
 (tree-sort random-vec))
+
+|#
 
 
 ;11 trace explosion
@@ -327,7 +330,6 @@ OPTIONAL:
         (begin (display "h 1") (newline)))
     'h)
   (define (gg)
-    (display "in g") (newline)
     (if (= (random 2) 0)
         (begin (display "g 0") (newline))
         (begin (display "g 1") (newline)))
@@ -435,4 +437,15 @@ OPTIONAL:
                   
                   (tree-sort v))))
 
-|#
+;14
+;easy trace-merging testcase
+;A testcase with only a single point of control-flow splitting and merging
+;Meant for meta-tracing
+
+(begin (define (loop i)
+         (if (> i 0)
+             (begin (if (= (random 2) 0)
+                        (display "Random was 0")
+                        (display "Random was 1"))
+                    (loop (- i 1)))))
+       (loop 30))

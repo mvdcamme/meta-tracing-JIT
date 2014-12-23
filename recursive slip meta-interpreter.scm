@@ -24,7 +24,11 @@
   
   (define meta-circularity-level 0)
   
-  (define environment '())
+  ;;Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;;tracing interpreter in the environment in which this recursive SLIP evaluator is running.
+  (define random-binding (vector 'random random))
+  
+  (define environment (list random-binding))
   
   (define (loop output)
     
@@ -57,13 +61,19 @@
       (set! environment frozen-environment)
       value)
     
+    (define (return-from-control-flow-split value)
+      (merges-control-flow)
+      value)
+    
     (define (evaluate-sequence expressions)
-      (define head (car expressions))
-      (define tail (cdr expressions))
-      (let* ((value (evaluate head)))
-        (if (null? tail)
-            value
-            (evaluate-sequence tail))))
+      (if (null? expressions)
+          '()
+          (let* ((head (car expressions))
+                 (tail (cdr expressions))
+                 (value (evaluate head)))
+            (if (null? tail)
+                value
+                (evaluate-sequence tail)))))
     
     (define (close parameters expressions)
       (define lexical-environment environment)
@@ -100,14 +110,15 @@
     
     (define (evaluate-cond . expressions)
       (define (cond-loop expressions)
-        (cond ((null? expressions) '())
+        (cond ((null? expressions) (return-from-control-flow-split '()))
               ((eq? (car (car expressions)) 'else)
                (if (not (null? (cdr expressions)))
                    (error "Syntax error: 'else' should be at the end of a cond-expression")
-                   (evaluate-sequence (cdr (car expressions)))))
+                   (return-from-control-flow-split (evaluate-sequence (cdr (car expressions))))))
               ((not (eq? (evaluate (car (car expressions))) #f))
-               (evaluate-sequence (cdr (car expressions))))
+               (return-from-control-flow-split (evaluate-sequence (cdr (car expressions)))))
               (else (cond-loop (cdr expressions)))))
+      (splits-control-flow)
       (cond-loop expressions))
     
     (define (evaluate-define pattern . expressions)
@@ -125,19 +136,17 @@
     (define (evaluate-eval expression)
       (evaluate (evaluate expression)))
     
-    (define (return-from-control-flow-split value)
-      (merges-control-flow)
-      value)
-    
     (define (evaluate-if predicate consequent . alternate)
-      (display "If: ") (display predicate) (newline)
-      (display consequent) (newline)
-      (display alternate) (newline)
-      (if (evaluate predicate)
-          (return-from-control-flow-split (thunkify consequent))
-          (if (null? alternate)
-              '()
-              (return-from-control-flow-split (thunkify (car alternate))))))
+      ;(display "If: ") (display predicate) (newline)
+      ;(display consequent) (newline)
+      ;(display alternate) (newline)
+      (let* ((cond (evaluate predicate)))
+        (splits-control-flow)
+        (if cond
+            (return-from-control-flow-split (thunkify consequent))
+            (if (null? alternate)
+                (return-from-control-flow-split '())
+                (return-from-control-flow-split (thunkify (car alternate)))))))
     
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))

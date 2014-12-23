@@ -1,4 +1,5 @@
 ;; Utilities.
+(begin
 
 (define (cadr p) (car (cdr p)))
 (define (cddr p) (cdr (cdr p)))
@@ -634,4 +635,4 @@
                                  (apply fun arg-values))))))
 
 
-(eval '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)) (initial-environment))
+(eval '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)) (initial-environment)))

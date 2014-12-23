@@ -25,7 +25,11 @@
   
   (define meta-circularity-level 0)
   
-  (define environment '())
+  ;;Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;;tracing interpreter in the environment in which this recursive SLIP evaluator is running.
+  (define random-binding (vector 'random random))
+  
+  (define environment (list random-binding))
   
   (define (loop output)
     
@@ -44,12 +48,14 @@
     (define (bind-parameters parameters arguments)
       (if (symbol? parameters)
           (bind-variable parameters arguments)
-          (if (pair? parameters)
+          (if (and (pair? parameters) (pair? arguments))
               (let* ((variable (car parameters))
                      (value (car arguments)))
                 (bind-variable variable value)
                 (bind-parameters (cdr parameters) (cdr arguments)))
-              '())))
+              (if (not (and (null? parameters) (null? arguments)))
+                  (error "Incorrect number of arguments, parameters: " parameters ", arguments: " arguments)
+                  '()))))
     
     (define (thunkify expression)
       (define frozen-environment environment)
@@ -58,12 +64,14 @@
       value)
     
     (define (evaluate-sequence expressions)
-      (define head (car expressions))
-      (define tail (cdr expressions))
-      (let* ((value (evaluate head)))
-        (if (null? tail)
-            value
-            (evaluate-sequence tail))))
+      (if (null? expressions)
+          '()
+          (let* ((head (car expressions))
+                 (tail (cdr expressions))
+                 (value (evaluate head)))
+            (if (null? tail)
+                value
+                (evaluate-sequence tail)))))
     
     (define (close parameters expressions)
       (define lexical-environment environment)
