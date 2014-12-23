@@ -61,6 +61,10 @@
       (set! environment frozen-environment)
       value)
     
+    (define (return-from-control-flow-split value)
+      (merges-control-flow)
+      value)
+    
     (define (evaluate-sequence expressions)
       (if (null? expressions)
           '()
@@ -106,14 +110,15 @@
     
     (define (evaluate-cond . expressions)
       (define (cond-loop expressions)
-        (cond ((null? expressions) '())
+        (cond ((null? expressions) (return-from-control-flow-split '()))
               ((eq? (car (car expressions)) 'else)
                (if (not (null? (cdr expressions)))
                    (error "Syntax error: 'else' should be at the end of a cond-expression")
-                   (evaluate-sequence (cdr (car expressions)))))
+                   (return-from-control-flow-split (evaluate-sequence (cdr (car expressions))))))
               ((not (eq? (evaluate (car (car expressions))) #f))
-               (evaluate-sequence (cdr (car expressions))))
+               (return-from-control-flow-split (evaluate-sequence (cdr (car expressions)))))
               (else (cond-loop (cdr expressions)))))
+      (splits-control-flow)
       (cond-loop expressions))
     
     (define (evaluate-define pattern . expressions)
@@ -130,10 +135,6 @@
     
     (define (evaluate-eval expression)
       (evaluate (evaluate expression)))
-    
-    (define (return-from-control-flow-split value)
-      (merges-control-flow)
-      value)
     
     (define (evaluate-if predicate consequent . alternate)
       ;(display "If: ") (display predicate) (newline)
