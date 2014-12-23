@@ -58,6 +58,7 @@
            calculate-total-number-of-traces
            calculate-total-traces-length)
   
+  (require racket/date)
   
   (require "dictionary.scm")
   (require "stack.scm")
@@ -239,6 +240,11 @@
   
   (define (make-mp-tail-trace label trace)
     (make-generic-trace-node mp-tail-trace label trace))
+  
+  (define (add-execution! trace-node)
+    (let ((old-executions (trace-node-executions trace-node))
+          (time (current-seconds)))
+      (set-trace-node-executions! trace-node (cons time old-executions))))
   
   ;
   ; Tracer context
@@ -803,6 +809,7 @@
            (trace (trace-node-trace guard-trace))
            (old-trace-key (get-path-to-new-guard-trace))
            (corresponding-label (trace-key-label old-trace-key)))
+      (add-execution! guard-trace)
       (execute `(let* ((value (call/cc (lambda (k)
                                          (push-trace-frame! ,guard-trace k)
                                          (eval ,trace)))))
@@ -814,6 +821,7 @@
   (define (execute-label-trace label)
     (let* ((label-trace (get-label-trace label))
            (trace (trace-node-trace label-trace)))
+      (add-execution! label-trace)
       (execute `(let ((label-value (call/cc (lambda (k)
                                               (push-trace-frame! ,label-trace k)
                                               (eval ,trace)))))
@@ -824,6 +832,7 @@
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
            (mp-tail-trace (get-mp-tail-trace mp-id))
            (trace (trace-node-trace mp-tail-trace)))
+      (add-execution! mp-tail-trace)
       (if trace
           (let ((mp-value (call/cc (lambda (k)
                                   (push-trace-frame! mp-tail-trace k)
