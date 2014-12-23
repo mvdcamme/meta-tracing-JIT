@@ -1105,9 +1105,9 @@
        (execute `(literal-value ())
                 `(remove-continuation))
        (ko φ κ))
-      ((ev (t 'cond `(,(t (u 'else _) es _)) _) κ)
+      ((ev (t 'cond `((,(u 'else _) . ,es)) _) κ)
        (eval-seq es κ))
-      ((ev (t 'cond `((,pred . ,pes) . ,es) labels) κ)   ;`(,(t pred pes _) . ,es) labels) κ) TODO wegdoen
+      ((ev (t 'cond `(,(t pred pes _) . ,es) labels) κ)   ;`(,(t pred pes _) . ,es) labels) κ) TODO wegdoen
        (execute `(save-env)
                 `(add-continuation ,(condk pes es labels)))
        (ev pred (cons (condk pes es labels) κ)))
@@ -1210,14 +1210,14 @@
                            `(literal-value '())
                            `(remove-continuation))
                   (ko (car κ) (cdr κ)))))
-      ((ko (condk pes `((,(u 'else _). ,else-es)) _) κ)
+      ((ko (condk pes `(,(t (u 'else _) else-es _)) labels) κ)
        (execute `(restore-env))
        (if v
            (begin (execute `(guard-true ,(inc-guard-id!) ',(t 'begin else-es '())))
                   (eval-seq pes κ))
            (begin (execute `(guard-false ,(inc-guard-id!) ',(t 'begin pes '())))
                   (eval-seq else-es κ))))
-      ((ko (condk pes `((,pred . ,pred-es) . ,es) labels) κ)
+      ((ko (condk pes `(,(t pred pred-es _) . ,es) labels) κ)
        (execute `(restore-env))
        (if v
            (begin (execute `(guard-true ,(inc-guard-id!) ',(t 'cond es labels)))
