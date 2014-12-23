@@ -583,45 +583,45 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define (trace-tree-rec f trace-node)
+    (for-each (lambda (child)
+                (f child)
+                (trace-tree-rec f child))
+              (trace-node-children trace-node)))
+  
   ;
   ; Total nr of traces
   ;
   
   (define (calculate-total-number-of-traces)
-    (define sum 0)
-    (define (tree-rec lst)
-      (for-each (lambda (child)
-                  (set! sum (+ sum 1))
-                  (tree-rec (trace-node-children child)))
-                lst))
-    (for-each (lambda (global-trace-nodes)
-                (set! sum (+ sum 1))
-                (tree-rec (trace-node-children global-trace-nodes)))
-              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))
-    sum)
+    (let ((sum 0))
+      (define (inc-sum!)
+        (set! sum (+ sum 1)))
+      (for-each (lambda (label-trace)
+                  (inc-sum!)
+                  (trace-tree-rec (lambda (ignored) (inc-sum!)) label-trace))
+                (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))
+      sum))
   
   ;
   ; Total trace length
   ;
   
   (define (calculate-total-traces-length)
-    (define sum 0)
-    (define (get-instruction-list s-expression)
-      (cddadr (caadr s-expression)))
-    (define (tree-rec lst)
-      (for-each (lambda (child)
-                  (set! sum (+ sum (length (get-instruction-list (trace-node-trace child)))))
-                  (tree-rec (trace-node-children child)))
-                lst))
-    (for-each (lambda (global-trace-nodes)
-                (set! sum (+ sum (length (get-instruction-list (trace-node-trace global-trace-nodes)))))
-                (tree-rec (trace-node-children global-trace-nodes)))
-              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))
-    (table-for-each (lambda (key mp-tail)
-                      (set! sum (+ sum (length (get-instruction-list (trace-node-trace mp-tail)))))
-                      (tree-rec (trace-node-children mp-tail)))
-                    (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-    sum)
+    (let ((sum 0))
+      (define (add-trace-length! trace-node)
+        (set! sum (+ sum (length (get-instruction-list (trace-node-trace trace-node))))))
+      (define (get-instruction-list s-expression)
+        (cddadr (caadr s-expression)))
+      (for-each (lambda (label-trace)
+                  (add-trace-length! label-trace)
+                  (trace-tree-rec add-trace-length! label-trace))
+                (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))
+      (table-for-each (lambda (key mp-tail)
+                        (add-trace-length! mp-tail)
+                        (trace-tree-rec add-trace-length! mp-tail))
+                      (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
+      sum))
   
   ;
   ; Average trace length
@@ -632,6 +632,10 @@
       (if (= total-number-of-traces 0)
           "No traces were formed"
           (/ (calculate-total-traces-length) total-number-of-traces))))
+  
+  ;
+  ; Trace executions
+  ;
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
