@@ -220,21 +220,25 @@
   ;
   
   (struct trace-node (label
-                      (trace #:mutable)
-                      (children #:mutable)))
+                      trace
+                      (children #:mutable)
+                      (executions #:mutable)))
+  
+  (define (make-generic-trace-node constructor label trace)
+    (constructor label trace '() '()))
   
   (struct label-trace trace-node ())
   (struct guard-trace trace-node ())
   (struct mp-tail-trace trace-node ())
   
   (define (make-label-trace label trace)
-    (label-trace label trace '()))
+    (make-generic-trace-node label-trace label trace))
   
   (define (make-guard-trace label trace)
-    (guard-trace label trace '()))
+    (make-generic-trace-node guard-trace label trace))
   
   (define (make-mp-tail-trace label trace)
-    (mp-tail-trace label trace '()))
+    (make-generic-trace-node mp-tail-trace label trace))
   
   ;
   ; Tracer context
