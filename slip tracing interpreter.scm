@@ -56,7 +56,8 @@
            ;; Metrics
            calculate-average-trace-length
            calculate-total-number-of-traces
-           calculate-total-traces-length)
+           calculate-total-traces-length
+           get-trace-executions)
   
   (require racket/date)
   
@@ -640,6 +641,18 @@
   ;
   ; Trace executions
   ;
+  
+  (define (get-trace-executions)
+    (let ((trace-nodes-info '()))
+      (define (add-trace-node-execution-info trace-node)
+        (set! trace-nodes-info (cons (cons (trace-node-label trace-node) (trace-node-executions trace-node))
+                                     trace-nodes-info)))
+      (map-over-trace-tree add-trace-node-execution-info)
+      (table-for-each (lambda (key mp-tail)
+                        (add-trace-node-execution-info mp-tail)
+                        (trace-tree-rec add-trace-node-execution-info mp-tail))
+                      (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
+      trace-nodes-info))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
