@@ -1,6 +1,7 @@
 
-;;; Traced recursive Slip interpreter WITHOUT annotations for merging traces.
+;;; Traced recursive Slip interpreter with annotations for measuring trace duplication but WITHOUT annotations for merging traces.
 ;;; This interpreter should be executed by the tracing interpreter.
+;;; 
 
 (begin
   
@@ -27,6 +28,77 @@
     (void))
   
   (define meta-circularity-level 0)
+  
+  ;; Forward referencing
+  (define transform-input '())
+  
+  (define (transform-exp exp)
+    (vector exp 0))
+  
+  (define (unwrap-transformed-exp transformed-ex)
+    (vector-ref transformed-ex 0))
+  
+  (define regular-special-forms '(and
+                                  apply
+                                  begin
+                                  cond
+                                  eval
+                                  if
+                                  load
+                                  or))
+  
+  (define (regular-special-form? operator)
+    (member operator regular-special-forms))
+  
+  (define (transform-regular-special-form input)
+    (let* ((operator (car input))
+           (operands (cdr input)))
+      (transform-exp (cons (transform-exp operator) (map transform-input operands)))))
+  
+  (define (let-form? operator)
+    (or (eq? operator 'let)
+        (eq? operator 'let*)
+        (eq? operator 'letrec)))
+  
+  (define (transform-let-form input)
+    (let* ((operator (car input))
+           (operands (cdr input)))
+      (transform-exp (cons (transform-exp operator)
+                           (let* ((bindings (car operands))
+                                  (var-names (map car bindings))
+                                  (values (map cadr bindings)))
+                             (cons (map (lambda (var value)
+                                          (list var (transform-input value)))
+                                        var-names
+                                        values)
+                                   (map transform-input (cdr operands))))))))
+  
+  (define (quote-form? operator)
+    (or (eq? operator 'quote)
+        (eq? operator 'quasiquote)
+        (eq? operator 'unquote)))
+  
+  (define (transform-quote-form input)
+    (let* ((operator (car input))
+           (operands (cdr input)))
+      (transform-exp (list (transform-exp operator) (car operands)))))
+  
+  (define (transform-input-act input)
+    (define (tree-rec input)
+      (cond ((pair? input)
+             (let* ((operator (car input))
+                    (operands (cdr input)))
+               (cond ((let-form? operator) (transform-let-form input))
+                     ((quote-form? operator) (transform-quote-form input))
+                     ((regular-special-form? operator) (transform-regular-special-form input))
+                     ((eq? operator 'define) (transform-exp (cons (transform-exp 'define) (cons (car operands) (map tree-rec (cdr operands))))))
+                     ((eq? operator 'lambda) (transform-exp (cons (transform-exp 'lambda) (cons (car operands) (map tree-rec (cdr operands))))))
+                     ((eq? operator 'set!) (transform-exp (cons (transform-exp 'set!) (cons (car operands) (map tree-rec (cdr operands))))))
+                     (else (transform-exp (map tree-rec input))))))
+            (else (transform-exp input))))
+    (tree-rec input))
+  
+  (set! transform-input transform-input-act)
   
   ;; Binds the symbol 'random to the pseudo-random function that was placed by the
   ;; tracing interpreter in the environment in which this recursive Slip evaluator is running.
@@ -111,12 +183,12 @@
     (define (evaluate-cond . expressions)
       (define (cond-loop expressions)
         (cond ((null? expressions) '())
-              ((eq? (car (car expressions)) 'else)
+              ((eq? (unwrap-transformed-exp (car (unwrap-transformed-exp (car expressions)))) 'else)
                (if (not (null? (cdr expressions)))
                    (error "Syntax error: 'else' should be at the end of a cond-expression")
-                   (evaluate-sequence (cdr (car expressions)))))
-              ((not (eq? (evaluate (car (car expressions))) #f))
-               (evaluate-sequence (cdr (car expressions))))
+                   (evaluate-sequence (cdr (unwrap-transformed-exp (car expressions))))))
+              ((not (eq? (evaluate (car (unwrap-transformed-exp (car expressions)))) #f))
+               (evaluate-sequence (cdr (unwrap-transformed-exp (car expressions)))))
               (else (cond-loop (cdr expressions)))))
       (cond-loop expressions))
     
@@ -194,9 +266,10 @@
     
     (define (evaluate-load string)
       (let* ((port (open-input-file string))
-             (exp (read port)))
+             (exp (read port))
+             (transformed-exp (transform-input exp)))
         (close-input-port port)
-        (evaluate exp)))
+        (evaluate transformed-exp)))
     
     (define (evaluate-or . expressions)
       (define (or-loop expressions)
@@ -224,49 +297,51 @@
           (vector-ref binding 1)
           ((begin debug eval) variable (make-base-namespace))))
     
-    (define (actual-evaluate expression)
-      
-      (cond
-        ((symbol? expression)
-         (evaluate-variable expression))
-        ((pair? expression)
-         (let* ((operator (car expression))
-                (operands (cdr expression)))
-           (apply
-            (cond ((eq? operator 'and)
-                   evaluate-and)
-                  ((eq? operator 'apply)
-                   evaluate-apply)
-                  ((eq? operator 'begin)
-                   evaluate-begin)
-                  ((eq? operator 'cond)
-                   evaluate-cond)
-                  ((eq? operator 'define) 
-                   evaluate-define)
-                  ((eq? operator 'eval)
-                   evaluate-eval)
-                  ((eq? operator 'if) 
-                   evaluate-if)
-                  ((eq? operator 'lambda) 
-                   evaluate-lambda)
-                  ((eq? operator 'let)
-                   evaluate-let)
-                  ((eq? operator 'let*)
-                   evaluate-let*)
-                  ((eq? operator 'letrec)
-                   evaluate-letrec)
-                  ((eq? operator 'load) 
-                   evaluate-load)
-                  ((eq? operator 'or)
-                   evaluate-or)
-                  ((eq? operator 'quote) 
-                   evaluate-quote)
-                  ((eq? operator 'set!) 
-                   evaluate-set!)
-                  (else
-                   (evaluate-application operator))) operands)))
-        (else
-         expression)))
+    (define (actual-evaluate transformed-expression)
+      (is-evaluating transformed-expression)
+      (let ((expression (unwrap-transformed-exp transformed-expression)))
+        (cond
+          ((symbol? expression)
+           (evaluate-variable expression))
+          ((pair? expression)
+           (let* ((transformed-operator (car expression))
+                  (operator (unwrap-transformed-exp transformed-operator))
+                  (operands (cdr expression)))
+             (apply
+              (cond ((eq? operator 'and)
+                     evaluate-and)
+                    ((eq? operator 'apply)
+                     evaluate-apply)
+                    ((eq? operator 'begin)
+                     evaluate-begin)
+                    ((eq? operator 'cond)
+                     evaluate-cond)
+                    ((eq? operator 'define) 
+                     evaluate-define)
+                    ((eq? operator 'eval)
+                     evaluate-eval)
+                    ((eq? operator 'if) 
+                     evaluate-if)
+                    ((eq? operator 'lambda) 
+                     evaluate-lambda)
+                    ((eq? operator 'let)
+                     evaluate-let)
+                    ((eq? operator 'let*)
+                     evaluate-let*)
+                    ((eq? operator 'letrec)
+                     evaluate-letrec)
+                    ((eq? operator 'load) 
+                     evaluate-load)
+                    ((eq? operator 'or)
+                     evaluate-or)
+                    ((eq? operator 'quote) 
+                     evaluate-quote)
+                    ((eq? operator 'set!) 
+                     evaluate-set!)
+                    (else
+                     (evaluate-application transformed-operator))) operands)))
+          (else
+           expression))))
     
     (set! evaluate actual-evaluate)
     
