@@ -57,6 +57,7 @@
            calculate-average-trace-length
            calculate-total-number-of-traces
            calculate-total-traces-length
+           calculate-trace-duplication
            get-trace-executions)
   
   (require racket/date)
@@ -645,7 +646,7 @@
           (/ (calculate-total-traces-length) total-number-of-traces))))
   
   ;
-  ; Trace executions
+  ; Trace duplication
   ;
   
   (define root-expression #f)
@@ -665,6 +666,24 @@
   (define (inc-duplication-counter! exp)
     (let ((old-counter-value (vector-ref exp 1)))
       (vector-set! exp 1 (+ old-counter-value 1))))
+  
+  (define (calculate-trace-duplication)
+    (define number-of-nodes 0)
+    (define total-times-traced 0)
+    (define (rec node)
+      (cond ((vector? node) (and (> (vector-ref node 1) 0)
+                                 (set! number-of-nodes (+ number-of-nodes 1))
+                                 (set! total-times-traced (+ total-times-traced (vector-ref node 1))))
+                            (rec (vector-ref node 0)))
+            ((list? node) (map rec node))))
+    (rec root-expression)
+    (if (= number-of-nodes 0)
+        "No traces were formed"
+        (/ total-times-traced number-of-nodes)))
+  
+  ;
+  ; Trace executions
+  ;
   
   (define (get-trace-executions)
     (let ((trace-nodes-info '()))
@@ -1304,7 +1323,8 @@
        (execute `(remove-continuation))
        (set-root-expression-if-uninitialised! v)
        (if (is-tracing?)
-           (inc-duplication-counter! v)))
+           (inc-duplication-counter! v)
+           (void)))
       ((ev `(splits-control-flow) (cons φ κ))
        (execute `(remove-continuation)
                 `(push-splits-cf-id! ,(inc-splits-cf-id!)))
