@@ -13,6 +13,9 @@
   (define (transform-exp exp)
     (vector exp 0))
   
+  (define (unwrap-transformed-exp transformed-ex)
+    (vector-ref transformed-ex 0))
+  
   (define regular-special-forms '(and
                                   apply
                                   begin
@@ -183,12 +186,12 @@
     (define (evaluate-cond . expressions)
       (define (cond-loop expressions)
         (cond ((null? expressions) '())
-              ((eq? (vector-ref (car (vector-ref (car expressions) 0)) 0) 'else)
+              ((eq? (unwrap-transformed-exp (car (unwrap-transformed-exp (car expressions)))) 'else)
                (if (not (null? (cdr expressions)))
                    (error "Syntax error: 'else' should be at the end of a cond-expression")
-                   (evaluate-sequence (cdr (vector-ref (car expressions) 0)))))
-              ((not (eq? (evaluate (car (vector-ref (car expressions) 0))) #f))
-               (evaluate-sequence (cdr (vector-ref (car expressions) 0))))
+                   (evaluate-sequence (cdr (unwrap-transformed-exp (car expressions))))))
+              ((not (eq? (evaluate (car (unwrap-transformed-exp (car expressions)))) #f))
+               (evaluate-sequence (cdr (unwrap-transformed-exp (car expressions)))))
               (else (cond-loop (cdr expressions)))))
       (cond-loop expressions))
     
@@ -299,13 +302,13 @@
           ((begin debug eval) variable (make-base-namespace))))
     
     (define (actual-evaluate transformed-expression)
-      (let ((expression (vector-ref transformed-expression 0)))
+      (let ((expression (unwrap-transformed-exp transformed-expression)))
         (cond
           ((symbol? expression)
            (evaluate-variable expression))
           ((pair? expression)
            (let* ((transformed-operator (car expression))
-                  (operator (vector-ref transformed-operator 0))
+                  (operator (unwrap-transformed-exp transformed-operator))
                   (operands (cdr expression)))
              (apply
               (cond ((eq? operator 'and)
