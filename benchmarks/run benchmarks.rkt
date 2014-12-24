@@ -8,9 +8,11 @@
 ;
 (define rec-slip-interpreter-normal-path "slip interpreters/base rec interpreter.scm")
 (define rec-slip-interpreter-traced-path "slip interpreters/traced rec interpreter merging.scm")
+(define rec-slip-interpreter-traced-merging-duplication-path "slip interpreters/traced rec interpreter merging duplication.scm")
 
 (define rec-slip-interpreter-normal-exp (file->value rec-slip-interpreter-normal-path))
 (define rec-slip-interpreter-traced-exp (file->value rec-slip-interpreter-traced-path))
+(define rec-slip-interpreter-traced-merging-duplication-exp (file->value rec-slip-interpreter-traced-merging-duplication-path))
 
 ;
 ; Benchmarks
@@ -103,7 +105,7 @@
     (define (run-rec-slip-interpreter-normal)
       (run-interpreter (lambda () (eval rec-slip-interpreter-normal-exp)) rec-slip-interpreter-normal-name))
     (define (run-rec-slip-interpreter-traced)
-      (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-exp))) rec-slip-interpreter-traced-name))
+      (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-merging-duplication-exp))) rec-slip-interpreter-traced-name))
     
     (define (run-metrics)
       (let ((total-number-of-traces-metric-name "total-number-of-traces")
@@ -116,12 +118,12 @@
           (output-metric average-trace-length-metric-name (calculate-average-trace-length)))
         (define (run-trace-executions-metric)
           (output-metric trace-executions-metric-name (get-trace-executions)))
-        ;(define (run-trace-duplication-metric)
-         ; (output-metric trace-duplication-metric-name (calculate-duplicity)))
+        (define (run-trace-duplication-metric)
+          (output-metric trace-duplication-metric-name (calculate-trace-duplication)))
         (run-total-number-of-traces-metric)
         (run-average-trace-length-metric)
-        (run-trace-executions-metric)))
-        ;(run-trace-duplication-metric)))
+        (run-trace-executions-metric)
+        (run-trace-duplication-metric)))
     
     (output-benchmark-start)
     (overwrite-input-file benchmark-path)
