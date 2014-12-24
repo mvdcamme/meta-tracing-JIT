@@ -70,7 +70,7 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define ENABLE_OUTPUT #t)
+  (define ENABLE_OUTPUT #f)
   (define IS_DEBUGGING #f)
   (define TRACING_THRESHOLD 5)
   
@@ -173,6 +173,50 @@
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
+  ;                                        Transforming input                                            ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  (struct t (head tail counter) #:transparent #:mutable)
+  (struct u (head counter) #:transparent #:mutable)
+  
+  (define (transform-input input)
+    (define (tree-rec el)
+      (cond ((pair? el)
+             (cond ((eq? (car el) 'define)
+                    (t 'define (cons (cadr el) (map tree-rec (cddr el))) '()))
+                   ((eq? (car el) 'lambda)
+                    (t 'lambda (cons (cadr el) (map tree-rec (cddr el))) '()))
+                   ((eq? (car el) 'let*)
+                    (t 'let* 
+                       (let* ((bindings (cadr el))
+                              (var-names (map car bindings))
+                              (values (map cadr bindings)))
+                         (cons (map (lambda (var value)
+                                      (list var (tree-rec value)))
+                                    var-names
+                                    values)
+                               (map tree-rec (cddr el))))
+                       '()))
+                   ((eq? (car el) 'quote)
+                    (t 'quote (cadr el) '()))
+                   ((or (eq? (car el) 'and)
+                        (eq? (car el) 'apply)
+                        (eq? (car el) 'begin)
+                        (eq? (car el) 'can-close-loop)
+                        (eq? (car el) 'can-start-loop)
+                        (eq? (car el) 'cond)
+                        (eq? (car el) 'if)
+                        (eq? (car el) 'letrec)
+                        (eq? (car el) 'or)
+                        (eq? (car el) 'set!))
+                    (t (car el) (map tree-rec (cdr el)) '()))
+                   (else (t (tree-rec (car el)) (map tree-rec (cdr el)) '()))))
+            (else (u el '()))))
+    (tree-rec input))
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
   ;                                       Predefined functions                                           ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -188,10 +232,10 @@
   (define pseudo-random-generator-address 'u-pseudo-rand-gen)
   
   (define pseudo-random (clo (lam '(max)
-                                  `((random max ,PSEUDO_RANDOM_GENERATOR)))
+                                  (map transform-input `((random max ,PSEUDO_RANDOM_GENERATOR))))
                              (env `((pseudo-random-generator . ,pseudo-random-generator-address)))))
   (define regular-random (clo (lam '(max)
-                                   '((random max)))
+                                   (map transform-input '((random max))))
                               (env '())))
   
   (define meta-random (if IS_DEBUGGING
@@ -1419,48 +1463,6 @@
   ;                                         Starting evaluator                                           ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  ;
-  ; Transforming input
-  ;
-  
-  (struct t (head tail counter) #:transparent #:mutable)
-  (struct u (head counter) #:transparent #:mutable)
-  
-  (define (transform-input input)
-    (define (tree-rec el)
-      (cond ((pair? el)
-             (cond ((eq? (car el) 'define)
-                    (t 'define (cons (cadr el) (map tree-rec (cddr el))) '()))
-                   ((eq? (car el) 'lambda)
-                    (t 'lambda (cons (cadr el) (map tree-rec (cddr el))) '()))
-                   ((eq? (car el) 'let*)
-                    (t 'let* 
-                       (let* ((bindings (cadr el))
-                              (var-names (map car bindings))
-                              (values (map cadr bindings)))
-                         (cons (map (lambda (var value)
-                                      (list var (tree-rec value)))
-                                    var-names
-                                    values)
-                               (map tree-rec (cddr el))))
-                       '()))
-                   ((eq? (car el) 'quote)
-                    (t 'quote (cadr el) '()))
-                   ((or (eq? (car el) 'and)
-                        (eq? (car el) 'apply)
-                        (eq? (car el) 'begin)
-                        (eq? (car el) 'can-close-loop)
-                        (eq? (car el) 'can-start-loop)
-                        (eq? (car el) 'cond)
-                        (eq? (car el) 'if)
-                        (eq? (car el) 'letrec)
-                        (eq? (car el) 'or)
-                        (eq? (car el) 'set!))
-                    (t (car el) (map tree-rec (cdr el)) '()))
-                   (else (t (tree-rec (car el)) (map tree-rec (cdr el)) '()))))
-            (else (u el '()))))
-    (tree-rec input))
   
   ;
   ; Resetting evaluator
