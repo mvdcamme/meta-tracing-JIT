@@ -1,3 +1,9 @@
+
+;;; Basic recursive Slip interpreter.
+;;; This is a stand-alone interpreter and should not be executed by another interpreter.
+;;; It contains no annotations for tracing.
+;;; It can be used to verify that the semantics of the other recursive Slip interpreter (which are based on this interpreter) are correct.
+
 (begin
   
   (define (assocv el lst)
@@ -18,14 +24,16 @@
     (define (loop list)
       (if (not (null? list))
           (begin (f (car list))
-                 (loop (cdr list)))))
+                 (loop (cdr list)))
+          '()))
     (loop lst)
     (void))
   
   (define meta-circularity-level 0)
   
-  ;;Binds the symbol 'random to the pseudo-random function that was placed by the
-  ;;tracing interpreter in the environment in which this recursive SLIP evaluator is running.
+  ;; Binds the symbol 'random to the native random function.
+  ;; In contrast with the other rec Slip interpreters, this random-function refers to the native Racket random function
+  ;; instead of the random-function introduced by the tracing interpreter.
   (define random-binding (vector 'random random))
   
   (define environment (list random-binding))
@@ -53,7 +61,8 @@
                 (bind-variable variable value)
                 (bind-parameters (cdr parameters) (cdr arguments)))
               (if (not (and (null? parameters) (null? arguments)))
-                  (error "Incorrect number of arguments, parameters: " parameters ", arguments: " arguments)))))
+                  (error "Incorrect number of arguments, parameters: " parameters ", arguments: " arguments)
+                  '()))))
     
     (define (thunkify expression)
       (define frozen-environment environment)
@@ -75,12 +84,10 @@
       (define lexical-environment environment)
       (define (closure . arguments)
         (define dynamic-environment environment)
-        (can-start-loop expressions "some function")
         (set! environment lexical-environment)
         (bind-parameters parameters arguments)
         (let* ((value (evaluate-sequence expressions)))
           (set! environment dynamic-environment)
-          (can-close-loop expressions "some function")
           value))
       closure)
     
@@ -131,18 +138,12 @@
     (define (evaluate-eval expression)
       (evaluate (evaluate expression)))
     
-    (define (return-from-control-flow-split value)
-      (merges-control-flow)
-      value)
-    
     (define (evaluate-if predicate consequent . alternate)
-      (let* ((cond (evaluate predicate)))
-        (splits-control-flow)
-        (if cond
-            (return-from-control-flow-split (thunkify consequent))
-            (if (null? alternate)
-                '()
-                (return-from-control-flow-split (thunkify (car alternate)))))))
+      (if (evaluate predicate)
+          (thunkify consequent)
+          (if (null? alternate)
+              '()
+              (thunkify (car alternate)))))
     
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))
@@ -172,7 +173,8 @@
                    (value (evaluate (cadr let*-binding)))
                    (binding (vector variable value)))
               (set! environment (cons binding environment))
-              (evaluate-bindings (cdr bindings)))))
+              (evaluate-bindings (cdr bindings)))
+            '()))
       (evaluate-bindings bindings)
       (let* ((value (evaluate-sequence expressions)))
         (set! environment frozen-environment)
@@ -187,7 +189,8 @@
                    (binding (vector variable '())))
               (set! environment (cons binding environment))
               (vector-set! binding 1 (evaluate (cadr letrec-binding)))
-              (evaluate-bindings (cdr bindings)))))
+              (evaluate-bindings (cdr bindings)))
+            '()))
       (evaluate-bindings (car expressions))
       (let* ((value (evaluate-sequence (cdr expressions))))
         (set! environment frozen-environment)

@@ -6,8 +6,8 @@
 ;
 ; Interpreters
 ;
-(define rec-slip-interpreter-normal-path "rec slip meta-interpreter normal.scm")
-(define rec-slip-interpreter-traced-path "rec slip meta-interpreter traced.scm")
+(define rec-slip-interpreter-normal-path "slip interpreters/base rec interpreter.scm")
+(define rec-slip-interpreter-traced-path "slip interpreters/traced rec interpreter merges.scm")
 
 (define rec-slip-interpreter-normal-exp (file->value rec-slip-interpreter-normal-path))
 (define rec-slip-interpreter-traced-exp (file->value rec-slip-interpreter-traced-path))
