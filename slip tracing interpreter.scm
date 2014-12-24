@@ -120,8 +120,6 @@
   (struct apply-failedk (rator i))
   (struct applicationk (debug))
   (struct applyk (rator))
-  (struct can-close-loopk (debug-info) #:transparent)
-  (struct can-start-loopk (debug-info) #:transparent)
   (struct closure-guard-failedk (i))
   (struct condk (pes es))
   (struct definevk (x)) ;define variable
@@ -135,6 +133,14 @@
   (struct ratork (i debug))
   (struct seqk (es) #:transparent)
   (struct setk (x))
+  
+  ;
+  ; Tracing annotations continuations
+  ;
+  
+  (struct can-close-loopk (debug-info) #:transparent)
+  (struct can-start-loopk (debug-info) #:transparent)
+  (struct is-evaluatingk () #:transparent)
   
   ;
   ; Closures
@@ -642,6 +648,24 @@
   ; Trace executions
   ;
   
+  (define root-expression #f)
+  
+  (struct not-initialised ())
+  
+  (define (root-expression-set?)
+    (not (not-initialised? root-expression)))
+  
+  (define (set-root-expression! exp)
+    (set! root-expression exp))
+  
+  (define (set-root-expression-if-uninitialised! exp)
+    (and (not (root-expression-set?))
+         (set-root-expression! exp)))
+  
+  (define (inc-duplication-counter! exp)
+    (let ((old-counter-value (vector-ref exp 1)))
+      (vector-set! exp 1 (+ old-counter-value 1))))
+  
   (define (get-trace-executions)
     (let ((trace-nodes-info '()))
       (define (add-trace-node-execution-info trace-node)
@@ -1083,6 +1107,9 @@
        (execute `(save-env)
                 `(add-continuation ,(ifk e1 e2)))
        (ev e (cons (ifk e1 e2) κ)))
+      ((ev `(is-evaluating ,e) κ)
+       (execute `(add-continuation ,(is-evaluatingk)))
+       (ev e (cons (is-evaluatingk) κ)))
       ((ev `(lambda ,x ,es ...) (cons φ κ))
        (execute `(create-closure ',x ',es)
                 `(remove-continuation))
@@ -1273,6 +1300,11 @@
     (match s
       ((ko (haltk) _)
        v)
+      ((ko (is-evaluatingk) (cons φ κ))
+       (execute `(remove-continuation))
+       (set-root-expression-if-uninitialised! v)
+       (if (is-tracing?)
+           (inc-duplication-counter! v)))
       ((ev `(splits-control-flow) (cons φ κ))
        (execute `(remove-continuation)
                 `(push-splits-cf-id! ,(inc-splits-cf-id!)))
