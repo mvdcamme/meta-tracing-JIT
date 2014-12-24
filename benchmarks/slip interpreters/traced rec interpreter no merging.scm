@@ -1,5 +1,5 @@
 
-;;; Traced recursive Slip interpreter with annotations for merging
+;;; Traced recursive Slip interpreter WITHOUT annotations for merging
 ;;; This interpreter should be executed by the tracing interpreter.
 
 (begin
@@ -135,18 +135,13 @@
     (define (evaluate-eval expression)
       (evaluate (evaluate expression)))
     
-    (define (return-from-control-flow-split value)
-      (merges-control-flow)
-      value)
-    
     (define (evaluate-if predicate consequent . alternate)
       (let* ((cond (evaluate predicate)))
-        (splits-control-flow)
         (if cond
-            (return-from-control-flow-split (thunkify consequent))
+            (thunkify consequent)
             (if (null? alternate)
                 '()
-                (return-from-control-flow-split (thunkify (car alternate)))))))
+                (thunkify (car alternate))))))
     
     (define (evaluate-lambda parameters . expressions)
       (close parameters expressions))
