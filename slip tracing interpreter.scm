@@ -187,8 +187,30 @@
                     (t 'define (cons (cadr el) (map tree-rec (cddr el))) '()))
                    ((eq? (car el) 'lambda)
                     (t 'lambda (cons (cadr el) (map tree-rec (cddr el))) '()))
+                   ((eq? (car el) 'let)
+                    (t 'let
+                       (let* ((bindings (cadr el))
+                              (var-names (map car bindings))
+                              (values (map cadr bindings)))
+                         (cons (map (lambda (var value)
+                                      (list var (tree-rec value)))
+                                    var-names
+                                    values)
+                               (map tree-rec (cddr el))))
+                       '()))
                    ((eq? (car el) 'let*)
-                    (t 'let* 
+                    (t 'let*
+                       (let* ((bindings (cadr el))
+                              (var-names (map car bindings))
+                              (values (map cadr bindings)))
+                         (cons (map (lambda (var value)
+                                      (list var (tree-rec value)))
+                                    var-names
+                                    values)
+                               (map tree-rec (cddr el))))
+                       '()))
+                   ((eq? (car el) 'letrec)
+                    (t 'letrec
                        (let* ((bindings (cadr el))
                               (var-names (map car bindings))
                               (values (map cadr bindings)))
