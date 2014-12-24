@@ -649,9 +649,9 @@
   ; Trace duplication
   ;
   
-  (define root-expression #f)
-  
   (struct not-initialised ())
+  
+  (define root-expression (not-initialised))
   
   (define (root-expression-set?)
     (not (not-initialised? root-expression)))
