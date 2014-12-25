@@ -85,7 +85,8 @@
   (let* ((s-exp (file->value benchmark-path))
          (tracing-interpreter-name "Tracing interpreter")
          (rec-slip-interpreter-normal-name "Recursive Slip interpreter (normal)")
-         (rec-slip-interpreter-traced-name "Recursive Slip interpreter (traced)"))
+         (rec-slip-interpreter-traced-name "Recursive Slip interpreter (traced)")
+         (rec-slip-interpreter-traced-no-merging-name "Recursive Slip interpreter (traced no merging)"))
     (define (run-interpreter interpreter-start-function interpreter-name)
       (output-interpreter-start interpreter-name)
       (let ((value (interpreter-start-function)))
@@ -108,6 +109,8 @@
       (run-interpreter (lambda () (eval rec-slip-interpreter-normal-exp)) rec-slip-interpreter-normal-name))
     (define (run-rec-slip-interpreter-traced)
       (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-merging-duplication-exp))) rec-slip-interpreter-traced-name))
+    (define (run-rec-slip-interpreter-traced-no-merging)
+      (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-no-merging-duplication-exp))) rec-slip-interpreter-traced-no-merging-name))
     
     (define (run-metrics)
       (let ((total-number-of-traces-metric-name "total-number-of-traces")
@@ -125,7 +128,9 @@
         (run-total-number-of-traces-metric)
         (run-average-trace-length-metric)
         (run-trace-executions-metric)
-        (run-trace-duplication-metric)))
+        (run-trace-duplication-metric)
+        (newline)
+        (newline)))
     
     (output-benchmark-start)
     (overwrite-input-file benchmark-path)
@@ -133,6 +138,10 @@
     (run-tracing-interpreter)
     (run-rec-slip-interpreter-normal)
     (run-rec-slip-interpreter-traced)
+    
+    (run-metrics)
+    
+    (run-rec-slip-interpreter-traced-no-merging)
     
     (run-metrics)
     
