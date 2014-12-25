@@ -670,6 +670,9 @@
     (and (not (root-expression-set?))
          (set-root-expression! exp)))
   
+  (define (reset-trace-duplication-metric!)
+    (set-root-expression! (not-initialised)))
+  
   (define (inc-duplication-counter! exp)
     (let ((old-counter-value (vector-ref exp 1)))
       (vector-set! exp 1 (+ old-counter-value 1))))
@@ -703,6 +706,13 @@
                         (trace-tree-rec add-trace-node-execution-info mp-tail))
                       (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
       trace-nodes-info))
+  
+  ;
+  ; Resetting metrics
+  ;
+  
+  (define (reset-metrics!)
+    (reset-trace-duplication-metric!))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1452,6 +1462,7 @@
     (set! τ '())
     (set! τ-κ `(,(haltk)))
     (set! GLOBAL_TRACER_CONTEXT (new-tracer-context))
+    (reset-metrics!)
     (reset-random-generator!))
   
   (define (clear-trace!)
