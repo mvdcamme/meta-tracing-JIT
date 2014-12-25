@@ -186,7 +186,11 @@
   ;
   
   (define PSEUDO_RANDOM_GENERATOR_STATE '#(2816165110 2738388292 45348490 3966956132 40780214 47365848))
-  (define PSEUDO_RANDOM_GENERATOR (vector->pseudo-random-generator PSEUDO_RANDOM_GENERATOR_STATE))
+  
+  (define (create-random-generator)
+    (vector->pseudo-random-generator PSEUDO_RANDOM_GENERATOR_STATE))
+  
+  (define PSEUDO_RANDOM_GENERATOR (create-random-generator))
   
   (define meta-random-address 'u-meta-rand)
   (define pseudo-random-generator-address 'u-pseudo-rand-gen)
@@ -201,6 +205,9 @@
   (define meta-random (if IS_DEBUGGING
                           pseudo-random
                           regular-random))
+  
+  (define (reset-random-generator!)
+    (set! PSEUDO_RANDOM_GENERATOR (create-random-generator)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1444,7 +1451,8 @@
     (set! θ '())
     (set! τ '())
     (set! τ-κ `(,(haltk)))
-    (set! GLOBAL_TRACER_CONTEXT (new-tracer-context)))
+    (set! GLOBAL_TRACER_CONTEXT (new-tracer-context))
+    (reset-random-generator!))
   
   (define (clear-trace!)
     (set! τ '()))
