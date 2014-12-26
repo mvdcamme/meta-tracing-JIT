@@ -18,6 +18,13 @@
           (loop (cdr list) (cons (begin debug (f (car list))) acc))))
     (loop lst '()))
   
+  (define (2-map f list-1 list-2)
+    (define (loop list-1 list-2 acc)
+      (if (and (null? list-1) (null? list-2))
+          (reverse acc)
+          (loop (cdr list-1) (cdr list-2) (cons (f (car list-1) (car list-2)) acc))))
+    (loop list-1 list-2 '()))
+  
   (define (for-each f lst)
     (define (loop list)
       (if (not (null? list))
@@ -66,10 +73,10 @@
                            (let* ((bindings (car operands))
                                   (var-names (map car bindings))
                                   (values (map cadr bindings)))
-                             (cons (map (lambda (var value)
-                                          (list var (transform-input value)))
-                                        var-names
-                                        values)
+                             (cons (2-map (lambda (var value)
+                                            (list var (transform-input value)))
+                                          var-names
+                                          values)
                                    (map transform-input (cdr operands))))))))
   
   (define (quote-form? operator)
