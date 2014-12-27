@@ -1,7 +1,36 @@
 #lang racket
+
+(require racket/date)
+
 (require (file "../slip tracing interpreter.scm"))
 
 (define BENCHMARK_INPUT_PATH "input_file.scm")
+
+;
+; Output file
+;
+
+(define BASE_OUTPUT_FILE_NAME "output")
+(define BASE_OUTPUT_EXTENSION "txt")
+
+(define (make-full-output-file-name)
+  (let ((name-datetime-separator " "))
+    (define (make-datetime-file-name-part)
+      (let* ((seconds (current-seconds))
+             (date (seconds->date seconds #t))
+             (colon-replace-string ""))
+        (date-display-format 'iso-8601)
+        (let ((basic-string (date->string date #t)))
+          (string-replace basic-string ":" colon-replace-string))))
+    (string-append BASE_OUTPUT_FILE_NAME name-datetime-separator (make-datetime-file-name-part) "." BASE_OUTPUT_EXTENSION)))
+
+(define OUTPUT_FILE_NAME (make-full-output-file-name))
+
+(define (write-to-output-file text)
+  (let* ((output-file (open-output-file OUTPUT_FILE_NAME #:exists 'append)))
+    (display text output-file)
+    (close-output-port output-file)))
+        
 
 ;
 ; Interpreters
@@ -60,7 +89,10 @@
 ; Benchmarking
 ;
 
-(define output display)
+(define (output text)
+  (display text)
+  (write-to-output-file text))
+
 (define (output-newline)
   (output #\newline))
 

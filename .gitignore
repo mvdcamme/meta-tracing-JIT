@@ -7,3 +7,4 @@ benchmarks/input_file.scm
 input_file.scm
 *.1
 *.2
+benchmarks/output *.txt
