@@ -107,12 +107,14 @@
       (run-interpreter (lambda () (run (inject s-exp))) tracing-interpreter-name))
     (define (run-rec-slip-interpreter-normal)
       (run-interpreter (lambda () (eval rec-slip-interpreter-normal-exp)) rec-slip-interpreter-normal-name))
-    (define (run-rec-slip-interpreter-traced)
+    (define (run-rec-slip-interpreter-normal-meta-interpreted)
+      (run-interpreter (lambda () (eval rec-slip-interpreter-normal-exp)) rec-slip-interpreter-normal-name))
+    (define (run-rec-slip-interpreter-traced-meta-interpreted)
       (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-merging-duplication-exp))) rec-slip-interpreter-traced-name))
-    (define (run-rec-slip-interpreter-traced-no-merging)
+    (define (run-rec-slip-interpreter-traced-no-merging-meta-interpreted)
       (run-interpreter (lambda () (run (inject rec-slip-interpreter-traced-no-merging-duplication-exp))) rec-slip-interpreter-traced-no-merging-name))
     
-    (define (run-metrics)
+    (define (run-trace-metrics)
       (let ((total-number-of-traces-metric-name "total-number-of-traces")
             (average-trace-length-metric-name "average-trace-length")
             (trace-duplication-metric-name "trace-duplicity")
@@ -137,13 +139,13 @@
     
     (run-tracing-interpreter)
     (run-rec-slip-interpreter-normal)
-    (run-rec-slip-interpreter-traced)
+    (run-rec-slip-interpreter-traced-meta-interpreted)
     
-    (run-metrics)
+    (run-trace-metrics)
     
-    (run-rec-slip-interpreter-traced-no-merging)
+    (run-rec-slip-interpreter-traced-no-merging-meta-interpreted)
     
-    (run-metrics)
+    (run-trace-metrics)
     
     (output-benchmark-end)))
 
