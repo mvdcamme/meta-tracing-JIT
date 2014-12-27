@@ -705,16 +705,21 @@
   ;
   
   (define (get-trace-executions)
-    (let ((trace-nodes-info '()))
+    (let ((label-traces '())
+          (guard-traces '())
+          (mp-tail-traces '()))
       (define (add-trace-node-execution-info trace-node)
-        (set! trace-nodes-info (cons (cons (trace-node-label trace-node) (trace-node-executions trace-node))
-                                     trace-nodes-info)))
+        (let ((binding (cons (trace-node-label trace-node) (trace-node-executions trace-node))))
+          (cond ((label-trace? trace-node) (set! label-traces (cons binding label-traces)))
+                ((guard-trace? trace-node) (set! guard-traces (cons binding guard-traces)))
+                ((mp-tail-trace? trace-node) (set! mp-tail-traces (cons binding mp-tail-traces)))
+                (else (error "Unrecognized trace-node encountered: " trace-node)))))
       (map-over-trace-tree add-trace-node-execution-info)
       (table-for-each (lambda (key mp-tail)
                         (add-trace-node-execution-info mp-tail)
                         (trace-tree-rec add-trace-node-execution-info mp-tail))
                       (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-      trace-nodes-info))
+      (list label-traces guard-traces mp-tail-traces)))
   
   ;
   ; Resetting metrics
