@@ -58,7 +58,12 @@
            calculate-total-number-of-traces
            calculate-total-traces-length
            calculate-trace-duplication
-           get-trace-executions)
+           get-trace-executions
+           
+           
+           ;; Purely for benchmarking the implementation
+           root-expression
+           set-pseudo-random-generator!)
   
   (require racket/date)
   
@@ -208,6 +213,10 @@
   
   (define (reset-random-generator!)
     (set! PSEUDO_RANDOM_GENERATOR (create-random-generator)))
+  
+  (define (set-pseudo-random-generator! new-pseudo-random-generator)
+    (set! PSEUDO_RANDOM_GENERATOR new-pseudo-random-generator)
+    (set! PSEUDO_RANDOM_GENERATOR_STATE (pseudo-random-generator->vector new-pseudo-random-generator)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
