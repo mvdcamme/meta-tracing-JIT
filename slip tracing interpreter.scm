@@ -76,7 +76,7 @@
   
   (define ENABLE_OPTIMIZATIONS #f)
   (define ENABLE_OUTPUT #f)
-  (define IS_DEBUGGING #f)
+  (define IS_DEBUGGING #t)
   (define TRACING_THRESHOLD 5)
   
   (define ns (make-base-namespace))
@@ -201,7 +201,7 @@
   (define pseudo-random-generator-address 'u-pseudo-rand-gen)
   
   (define pseudo-random (clo (lam '(max)
-                                  `((random max ,PSEUDO_RANDOM_GENERATOR)))
+                                  `((random max pseudo-random-generator)))
                              (env `((pseudo-random-generator . ,pseudo-random-generator-address)))))
   (define regular-random (clo (lam '(max)
                                    '((random max)))
