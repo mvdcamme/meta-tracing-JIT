@@ -518,7 +518,7 @@
   (define (get-path-to-new-guard-trace)
     (let* ((list (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (define (loop list path)
-        (display "list = ") (display list) (display "; path = ") (display path) (newline)
+        ;(display "list = ") (display list) (display "; path = ") (display path) (newline)
         (cond ((null? list) '())
               ((label-trace? (car list)) (make-guard-trace-key (trace-node-label (car list))
                                                                path))
@@ -811,7 +811,7 @@
     (define (transform-guard-trace-looping trace)
       `(letrec ((non-loop ,(append '(lambda ()) trace)))
          (non-loop)
-         (output "----------- EXECUTING TRACE ") (output ',label) (output " -----------") (output-newline)
+         ;(output "----------- EXECUTING TRACE ") (output ',label) (output " -----------") (output-newline)
          (call-label-trace! ',label)))
     transform-guard-trace-looping)
   
