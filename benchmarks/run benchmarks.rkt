@@ -202,3 +202,10 @@
     
     (output-benchmark-end)))
 
+(define (run-benchmarks n benchmarks)
+  (for ((i (range n)))
+    (set-pseudo-random-generator! (current-pseudo-random-generator))
+    (for ((benchmark benchmarks))
+      (run-benchmark benchmark)))
+  "Finished!")
+    
