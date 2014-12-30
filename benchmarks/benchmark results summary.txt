@@ -1,0 +1,76 @@
+fac merging:                                t-d: 1
+                                            1825.2
+fac non-merging:                            t-d: 1
+                                            1993.8
+fib merging:                                t-d: 1
+                                            38428.2
+fib non-merging:                            t-d: 1
+                                            38803.4
+regex merging:                              t-d: 1
+                                            18473.6
+regex non-merging:                          t-d: 1
+                                            18607.8
+rotate merging:                             t-d: 1
+                                            5825.0
+rotate non-merging:                         t-d: 1
+                                            5569.2
+rotate 2 merging:                           t-d: 1.3
+                                            249858.6
+rotate 2 non-merging:                       t-d: 1.6
+                                            338894.2
+rsa merging:                                t-d: 1
+                                            20529.4
+rsa non-merging:                            t-d: 1
+                                            20092.6
+scheme2c merging:                           t-d: 1
+                                            52931.0
+scheme2c non-merging:                       t-d: 1
+                                            52846.6
+collatz merging:                            t-d: 1
+                                            29543.4
+collatz non-merging:                        t-d: 1
+                                            28947.2
+loop2 merging:                              t-d: 1
+                                            45280.6
+loop2 non-merging:                          t-d: 1
+                                            44288.4
+cpstak merging:                             t-d: 1
+                                            210344.6
+cpstak non-merging:                         t-d: 1
+                                            208575.6
+trace-explosion merging:                    t-d: 1
+                                            76734.0
+trace-explosion non-merging:                t-d: 2.5
+                                            183560.8
+simplified trace-explosion merging:         t-d: 1
+                                            33963.0
+simplified trace-explosion non-merging:     t-d: 3.3
+                                            84473.0
+simple guard-trace merging:                 t-d: 1
+                                            12426.2
+simple guard-trace non-merging:             t-d: 1.4
+                                            12681.4
+trace-explosion not random merging:         t-d: 1
+                                            17490.8
+trace-explosion not random non-merging:     t-d: 1
+                                            22991.4
+bubble-sort merging:                        t-d: 1
+                                            653159.8
+bubble-sort non-merging:                    t-d: 1
+                                            413210.2
+nqueens merging:                            t-d: 1.1
+                                            265209.6
+nqueens non-merging:                        t-d: 1.1
+                                            305221.0
+nqueens 2 merging:                          t-d: 1
+                                            94807.4
+nqueens 2 non-merging:                      t-d: 1.1
+                                            108485.8
+pnpoly merging:                             t-d: 1.9
+                                            2349594.8
+pnpoly non-merging:                         t-d: 1.9
+                                            2352269.0
+towers of hanoi merging:                    t-d: 1
+                                            1104700.4
+towers of hanoi non-merging:                t-d: 1
+                                            1335022.2
