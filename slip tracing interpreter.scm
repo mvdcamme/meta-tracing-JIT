@@ -62,7 +62,6 @@
            
            
            ;; Purely for benchmarking the implementation
-           root-expression
            set-pseudo-random-generator!)
   
   (require racket/date)
@@ -687,18 +686,22 @@
       (vector-set! exp 1 (+ old-counter-value 1))))
   
   (define (calculate-trace-duplication)
-    (define number-of-nodes 0)
-    (define total-times-traced 0)
-    (define (rec node)
-      (cond ((vector? node) (when (> (vector-ref node 1) 0)
-                              (set! number-of-nodes (+ number-of-nodes 1))
-                              (set! total-times-traced (+ total-times-traced (vector-ref node 1))))
-                            (rec (vector-ref node 0)))
-            ((list? node) (map rec node))))
-    (rec root-expression)
-    (if (= number-of-nodes 0)
-        "No traces were formed"
-        (/ total-times-traced number-of-nodes)))
+    (let ((number-of-nodes 0)
+          (total-times-traced 0)
+          (all-ast-nodes '()))
+      (define (rec node)
+        (cond ((vector? node) (set! all-ast-nodes (cons node all-ast-nodes))
+                              (when (> (vector-ref node 1) 0)
+                                (set! number-of-nodes (+ number-of-nodes 1))
+                                (set! total-times-traced (+ total-times-traced (vector-ref node 1))))
+                              (rec (vector-ref node 0)))
+              ((list? node) (map rec node))))
+      (rec root-expression)
+      (if (= number-of-nodes 0)
+          "No traces were formed"
+          (list root-expression
+                all-ast-nodes
+                (/ total-times-traced number-of-nodes)))))
   
   ;
   ; Trace executions
