@@ -59,7 +59,7 @@
   (define (transform-regular-special-form input)
     (let* ((operator (car input))
            (operands (cdr input)))
-      (transform-exp (cons (transform-exp operator) (map transform-input operands)))))
+      (transform-exp (cons operator (map transform-input operands)))))
   
   (define (let-form? operator)
     (or (eq? operator 'let)
@@ -69,7 +69,7 @@
   (define (transform-let-form input)
     (let* ((operator (car input))
            (operands (cdr input)))
-      (transform-exp (cons (transform-exp operator)
+      (transform-exp (cons operator
                            (let* ((bindings (car operands))
                                   (var-names (map car bindings))
                                   (values (map cadr bindings)))
@@ -87,7 +87,7 @@
   (define (transform-quote-form input)
     (let* ((operator (car input))
            (operands (cdr input)))
-      (transform-exp (list (transform-exp operator) (car operands)))))
+      (transform-exp (list operator (car operands)))))
   
   (define (transform-input-act input)
     (define (tree-rec input)
@@ -97,9 +97,9 @@
                (cond ((let-form? operator) (transform-let-form input))
                      ((quote-form? operator) (transform-quote-form input))
                      ((regular-special-form? operator) (transform-regular-special-form input))
-                     ((eq? operator 'define) (transform-exp (cons (transform-exp 'define) (cons (car operands) (map tree-rec (cdr operands))))))
-                     ((eq? operator 'lambda) (transform-exp (cons (transform-exp 'lambda) (cons (car operands) (map tree-rec (cdr operands))))))
-                     ((eq? operator 'set!) (transform-exp (cons (transform-exp 'set!) (cons (car operands) (map tree-rec (cdr operands))))))
+                     ((eq? operator 'define) (transform-exp (cons 'define (cons (car operands) (map tree-rec (cdr operands))))))
+                     ((eq? operator 'lambda) (transform-exp (cons 'lambda (cons (car operands) (map tree-rec (cdr operands))))))
+                     ((eq? operator 'set!) (transform-exp (cons 'set! (cons (car operands) (map tree-rec (cdr operands))))))
                      (else (transform-exp (map tree-rec input))))))
             (else (transform-exp input))))
     (tree-rec input))
@@ -316,8 +316,7 @@
           ((symbol? expression)
            (evaluate-variable expression))
           ((pair? expression)
-           (let* ((transformed-operator (car expression))
-                  (operator (unwrap-transformed-exp transformed-operator))
+           (let* ((operator (car expression))
                   (operands (cdr expression)))
              (apply
               (cond ((eq? operator 'and)
@@ -351,7 +350,7 @@
                     ((eq? operator 'set!) 
                      evaluate-set!)
                     (else
-                     (evaluate-application transformed-operator))) operands)))
+                     (evaluate-application operator))) operands)))
           (else
            expression))))
     
