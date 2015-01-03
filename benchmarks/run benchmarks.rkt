@@ -10,7 +10,7 @@
 ; Output file
 ;
 
-(define BASE_OUTPUT_FILE_NAME "output")
+(define BASE_OUTPUT_FILE_NAME "./Benchmarking output/output")
 (define BASE_OUTPUT_EXTENSION "txt")
 
 (define (make-full-output-file-name)
