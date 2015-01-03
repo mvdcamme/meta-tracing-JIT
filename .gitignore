@@ -8,3 +8,4 @@ input_file.scm
 *.1
 *.2
 benchmarks/output *.txt
+benchmarks/Benchmarking output/output *.txt
