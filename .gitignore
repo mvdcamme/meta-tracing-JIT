@@ -9,3 +9,5 @@ input_file.scm
 *.2
 benchmarks/output *.txt
 benchmarks/Benchmarking output/output *.txt
+benchmarks/input_file_nested.scm
+input_file_nested.scm
