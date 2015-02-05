@@ -1,0 +1,19 @@
+language: racket
+
+env:
+ - RACKET_VERSION=6.0
+ - RACKET_VERSION=HEAD
+
+before_install:
+- git clone https://github.com/greghendershott/travis-racket.git
+- cat travis-racket/install-racket.sh | bash # pipe to bash not sh!
+
+install:
+
+before_script:
+
+script:
+ - /usr/racket/bin/raco make main.rkt
+ - /usr/racket/bin/raco test ./benchmarks/run_benchmarks.rkt -x .
+
+after_script:
