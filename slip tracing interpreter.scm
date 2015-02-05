@@ -140,6 +140,19 @@
   (struct seqk (es) #:transparent)
   (struct setk (x))
   
+  
+  (define gencounter 2)
+  (define (new-gencounter!)
+    (let ((temp gencounter))
+      (set! gencounter (+ gencounter 1))
+      temp))
+  
+  (define (new-store)
+    (let ((dict (new-dictionary = 100 (lambda (splits-cf-id) splits-cf-id))))
+      (insert! dict meta-random-address meta-random)
+      (insert! dict pseudo-random-generator-address PSEUDO_RANDOM_GENERATOR)
+      dict))
+  
   ;
   ; Tracing annotations continuations
   ;
@@ -197,8 +210,8 @@
   
   (define PSEUDO_RANDOM_GENERATOR (create-random-generator))
   
-  (define meta-random-address 'u-meta-rand)
-  (define pseudo-random-generator-address 'u-pseudo-rand-gen)
+  (define meta-random-address 0)
+  (define pseudo-random-generator-address 1)
   
   (define pseudo-random (clo (lam '(max)
                                   `((random max pseudo-random-generator)))
@@ -1018,13 +1031,13 @@
     (set! θ (drop θ i)))
   
   (define (alloc-var x)
-    (let ((a (gensym)))
+    (let ((a (new-gencounter!)))
       (set! ρ (add-var-to-env ρ x a))
-      (set! σ (cons (cons a v) σ))))
+      (insert! σ a v)))
   
   (define (set-var x)
     (let ((a (cdr (assoc x (env-lst ρ)))))
-      (set! σ (cons (cons a v) σ))))
+      (insert! σ a v)))
   
   (define (debug)
     (= 1 1))
@@ -1033,7 +1046,7 @@
     (when (eq? x 'debug) (debug))
     (let ((binding (assoc x (env-lst ρ))))
       (match binding
-        ((cons _ a) (set! v (cdr (assoc a σ))))
+        ((cons _ a) (set! v (find σ a)))
         (_ (set! v (eval x))))))
   
   (define (create-closure x es)
@@ -1487,8 +1500,7 @@
   
   (define (reset!)
     (set! ρ (make-new-env))
-    (set! σ `((,meta-random-address . ,meta-random)
-              (,pseudo-random-generator-address . ,PSEUDO_RANDOM_GENERATOR)))
+    (set! σ (new-store))
     (set! θ '())
     (set! τ '())
     (set! τ-κ `(,(haltk)))
