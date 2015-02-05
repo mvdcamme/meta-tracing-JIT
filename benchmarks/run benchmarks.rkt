@@ -5,6 +5,7 @@
 (require (file "../slip tracing interpreter.scm"))
 
 (define BENCHMARK_INPUT_PATH "input_file.scm")
+(define NESTED_BENCHMARK_INPUT_PATH "input_file_nested.scm")
 
 ;
 ; Output file
@@ -84,6 +85,9 @@
 (define towers-of-hanoi-benchmark-path "towers-of-hanoi.scm")
 
 
+(define nested-fac-benchmark-path "nested interpretation/fac.scm")
+(define nested-fib-benchmark-path "nested interpretation/fib.scm")
+(define nested-interpreter-path "nested interpretation/recursive slip meta-interpreter no annotations.scm")
 
 ;
 ; Benchmarking
@@ -105,9 +109,9 @@
   (output-newline)
   (output-newline))
 
-(define (overwrite-input-file new-benchmark-path)
+(define (overwrite-input-file benchmark-input-path new-benchmark-path)
   (let* ((input-port (open-input-file new-benchmark-path))
-         (output-port (open-output-file BENCHMARK_INPUT_PATH #:exists 'replace))
+         (output-port (open-output-file benchmark-input-path #:exists 'replace))
          (benchmark-file-contents (read input-port)))
     (write benchmark-file-contents output-port)
     (close-input-port input-port)
@@ -177,7 +181,7 @@
     (output-newline)
     (output-newline)))
 
-(define (run-benchmark benchmark-path)
+(define (start-benchmark benchmark-path)
   (let* ((s-exp (file->value benchmark-path))
          (tracing-interpreter-name "Tracing interpreter")
          (rec-slip-interpreter-normal-name "Recursive Slip interpreter (normal)")
@@ -220,7 +224,6 @@
       (run-interpreter-timed (lambda () (run (inject rec-slip-interpreter-traced-no-merging-duplication-exp))) rec-slip-interpreter-traced-no-merging-name))
     
     (output-benchmark-start)
-    (overwrite-input-file benchmark-path)
     
     (run-tracing-interpreter)
     (run-rec-slip-interpreter-normal)
@@ -232,6 +235,15 @@
     (run-trace-metrics)
     
     (output-benchmark-end)))
+
+(define (run-benchmark benchmark-path)
+  (overwrite-input-file BENCHMARK_INPUT_PATH benchmark-path)
+  (start-benchmark benchmark-path))
+
+(define (run-nested-benchmark benchmark-path)
+  (overwrite-input-file BENCHMARK_INPUT_PATH nested-interpreter-path)
+  (overwrite-input-file NESTED_BENCHMARK_INPUT_PATH benchmark-path)
+  (start-benchmark benchmark-path))
 
 (define (run-benchmarks n benchmarks)
   (for ((i (range n)))
