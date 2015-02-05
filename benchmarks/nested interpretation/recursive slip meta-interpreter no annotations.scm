@@ -134,9 +134,9 @@
     
     (define (evaluate-load string)
       (let* ((port (open-input-file string))
-             (exp (read-port)))
+             (exp (read port)))
         (close-input-port port)
-        (evaluate (read port))))
+        (evaluate exp)))
     
     (define (evaluate-quote expression)
       expression)
@@ -192,9 +192,6 @@
     
     (set! evaluate actual-evaluate)
     
-    (display output)
-    (newline)
-    (display ">>>")
-    (loop (evaluate (read))))
+    (evaluate-load "input_file_nested.scm"))
   
   (loop "Slip"))
