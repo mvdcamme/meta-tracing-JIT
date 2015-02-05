@@ -77,6 +77,7 @@
   (define ENABLE_OUTPUT #f)
   (define IS_DEBUGGING #t)
   (define TRACING_THRESHOLD 5)
+  (define MAX_TRACE_LENGTH 20000)
   
   (define ns (make-base-namespace))
   
@@ -275,6 +276,7 @@
   
   (struct tracer-context (is-tracing?
                           trace-key
+                          current-trace-length
                           trace-nodes
                           labels-encountered
                           trace-nodes-executing
@@ -289,6 +291,7 @@
   (define (new-tracer-context)
     (tracer-context #f
                     #f
+                    0
                     '()
                     '()
                     '()
@@ -308,6 +311,10 @@
   (define (is-tracing-guard?)
     (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
       (not (eq? (trace-key-guard-ids trace-key) '()))))
+  
+  (define (add-trace-length! n)
+    (let ((current-length (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT)))
+      (set-tracer-context-current-trace-length! GLOBAL_TRACER_CONTEXT (+ current-length n))))
   
   ;
   ; Loop hotness
@@ -477,15 +484,16 @@
         (add-mp-tail-trace! mp-id label transformed-mp-tail)))
     stop-tracing-mp-tail!)
   
-  (define (stop-tracer-context-tracing!)
+  (define (abort-tracing!)
     (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT #f)
-    (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT #f))
+    (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT #f)
+    (clear-trace!))
   
   (define (stop-tracing! looping?)
     (let ((stop-tracing-function (tracer-context-closing-function GLOBAL_TRACER_CONTEXT)))
       (stop-tracing-function (reverse τ) looping?)
-      (stop-tracer-context-tracing!)))
+      (abort-tracing!)))
   
   ;
   ; Finding traces
@@ -1062,7 +1070,13 @@
       (eval instruction)))
   
   (define (append-trace ms)
-    (when τ (set! τ (append (reverse ms) τ))))
+    (when τ
+      (let ((new-instructions-length (length ms)))
+        (set! τ (append (reverse ms) τ))
+        (add-trace-length! new-instructions-length)
+        (when (> (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT) MAX_TRACE_LENGTH)
+          (display "##### MAX TRACE LENGTH REACHED #####") (newline)
+          (abort-tracing!)))))
   
   (define (execute . ms)
     (when (is-tracing?)
@@ -1377,7 +1391,7 @@
                                (execute-mp-tail-trace ,mp-id)))
                ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
                (if (mp-tail-trace-exists? mp-id)
-                   (begin (stop-tracer-context-tracing!)
+                   (begin (abort-tracing!)
                           (let ((new-state (eval `(execute-mp-tail-trace ,mp-id))))
                             (step* new-state)))
                    (begin (clear-trace!)
@@ -1483,6 +1497,7 @@
     (reset-random-generator!))
   
   (define (clear-trace!)
+    (set-tracer-context-current-trace-length! GLOBAL_TRACER_CONTEXT 0)
     (set! τ '()))
   
   ;
