@@ -1,5 +1,9 @@
 (module tracing-interpreter racket
-  (provide 
+  (provide #%app
+           #%datum
+           #%top
+   
+   
            ;; Starting evaluator   
            inject
            run
@@ -62,6 +66,29 @@
            
            
            ;; Purely for benchmarking the implementation
+           car
+           cdr
+           close-input-port
+           cons
+           eq?
+           equal?
+           eval
+           list
+           make-base-namespace
+           member
+           not
+           null?
+           open-input-file
+           pair?
+           quote
+           read
+           reverse
+           symbol?
+           vector
+           vector?
+           vector-ref
+           vector-set!
+           
            set-pseudo-random-generator!)
   
   (require racket/date)
