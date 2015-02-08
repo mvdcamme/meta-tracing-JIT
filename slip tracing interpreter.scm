@@ -2,8 +2,8 @@
   (provide #%app
            #%datum
            #%top
-   
-   
+           
+           
            ;; Starting evaluator   
            inject
            run
@@ -511,8 +511,8 @@
   (define (make-stop-tracing-label-function)
     (define (stop-tracing-label! trace looping?)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
-            (label (trace-key-label trace-key))
-            (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
+             (label (trace-key-label trace-key))
+             (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
         (add-label-trace! label transformed-trace)))
     stop-tracing-label!)
   
@@ -524,16 +524,24 @@
         (add-mp-tail-trace! mp-id label transformed-mp-tail)))
     stop-tracing-mp-tail!)
   
-  (define (abort-tracing!)
+  (define (stop-tracing-bookkeeping!)
     (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT #f)
     (clear-trace!))
   
+  (define (stop-tracing-abnormal!)
+    (stop-tracing-bookkeeping!)
+    (flush-ast-nodes-traced!))
+  
+  (define (stop-tracing-normal!)
+    (do-ast-nodes-traced!)
+    (stop-tracing-bookkeeping!))
+  
   (define (stop-tracing! looping?)
     (let ((stop-tracing-function (tracer-context-closing-function GLOBAL_TRACER_CONTEXT)))
       (stop-tracing-function (reverse τ) looping?)
-      (abort-tracing!)))
+      (stop-tracing-normal!)))
   
   ;
   ; Finding traces
@@ -711,6 +719,20 @@
   ;
   ; Trace duplication
   ;
+  
+  (define ast-nodes-traced '())
+  
+  (define (flush-ast-nodes-traced!)
+    (set! ast-nodes-traced '()))
+  
+  (define (add-ast-node-traced! ast-node)
+    (set! ast-nodes-traced (cons ast-node ast-nodes-traced)))
+  
+  (define (do-ast-nodes-traced!)
+    (for-each (lambda (ast-node)
+                (inc-duplication-counter! ast-node))
+              ast-nodes-traced)
+    (flush-ast-nodes-traced!))
   
   (struct not-initialised ())
   
@@ -924,7 +946,7 @@
             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-label-trace-function #f))))
         (add-label-trace! trace-label transformed-trace)))
     label-merges-cf!)
-    
+  
   (define (make-mp-tail-merges-cf-function mp-id)
     (define (mp-tail-merges-cf! trace)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
@@ -981,8 +1003,8 @@
       (add-execution! mp-tail-trace)
       (if trace
           (let ((mp-value (call/cc (lambda (k)
-                                  (push-trace-frame! mp-tail-trace k)
-                                  (eval trace)))))
+                                     (push-trace-frame! mp-tail-trace k)
+                                     (eval trace)))))
             (pop-trace-frame!)
             (let ((kk (top-continuation)))
               (kk mp-value)))
@@ -1116,7 +1138,7 @@
         (add-trace-length! new-instructions-length)
         (when (> (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT) MAX_TRACE_LENGTH)
           (display "##### MAX TRACE LENGTH REACHED #####") (newline)
-          (abort-tracing!)))))
+          (stop-tracing-abnormal!)))))
   
   (define (execute . ms)
     (when (is-tracing?)
@@ -1411,7 +1433,7 @@
        (execute `(remove-continuation))
        (set-root-expression-if-uninitialised! v)
        (if (is-tracing?)
-           (inc-duplication-counter! v)
+           (add-ast-node-traced! v)
            (void))
        (step* (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
@@ -1431,7 +1453,7 @@
                                (execute-mp-tail-trace ,mp-id)))
                ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
                (if (mp-tail-trace-exists? mp-id)
-                   (begin (abort-tracing!)
+                   (begin (stop-tracing-normal!)
                           (let ((new-state (eval `(execute-mp-tail-trace ,mp-id))))
                             (step* new-state)))
                    (begin (clear-trace!)
