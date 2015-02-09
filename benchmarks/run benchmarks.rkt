@@ -6,7 +6,7 @@
 (require (file "../slip tracing interpreter.scm"))
 
 (namespace-require 'racket/base)
-(namespace-require (build-path "../slip tracing interpreter.scm"))
+(namespace-require (build-path "./slip tracing interpreter.scm"))
 
 (define BENCHMARK_INPUT_PATH "input_file.scm")
 (define NESTED_BENCHMARK_INPUT_PATH "input_file_nested.scm")
@@ -15,7 +15,7 @@
 ; Output file
 ;
 
-(define BASE_OUTPUT_FILE_NAME "./Benchmarking output/output")
+(define BASE_OUTPUT_FILE_NAME "./benchmarks/Benchmarking output/output")
 (define BASE_OUTPUT_EXTENSION "txt")
 
 (define (make-full-output-file-name)
@@ -61,7 +61,7 @@
 (define collatz-benchmark-path "collatz.scm")
 (define cpstak-benchmark-path "cpstak.scm")
 (define eta-benchmark-path "eta.scm")
-(define fac-benchmark-path "fac.scm")
+(define fac-benchmark-path "./benchmarks/fac.scm")
 (define fib-benchmark-path "fib.scm")
 (define kcfa-2-benchmark-path "kcfa2.scm")
 (define kcfa-3-benchmark-path "kcfa3.scm")

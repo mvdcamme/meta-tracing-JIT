@@ -13,7 +13,6 @@ install:
 before_script:
 
 script:
- - /usr/racket/bin/raco make ./benchmarks/run_benchmarks.rkt
- - /usr/racket/bin/raco test ./benchmarks/run_benchmarks.rkt -x .
+ - /usr/racket/bin/raco test "./benchmarks/run benchmarks.rkt"
 
 after_script:
