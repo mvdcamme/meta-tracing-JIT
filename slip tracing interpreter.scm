@@ -65,30 +65,7 @@
            get-trace-executions
            
            
-           ;; Purely for benchmarking the implementation
-           car
-           cdr
-           close-input-port
-           cons
-           eq?
-           equal?
-           eval
-           list
-           make-base-namespace
-           member
-           not
-           null?
-           open-input-file
-           pair?
-           quote
-           read
-           reverse
-           symbol?
-           vector
-           vector?
-           vector-ref
-           vector-set!
-           
+           ;; Purely for benchmarking the implementation           
            set-pseudo-random-generator!)
   
   (require racket/date)
