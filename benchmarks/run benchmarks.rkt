@@ -88,10 +88,14 @@
 (define tree-sort-benchmark-path "tree-sort.scm")
 (define towers-of-hanoi-benchmark-path "towers-of-hanoi.scm")
 
+;
+; Nested interpretation benchmarks
+;
+(define nested-interpreter-path "nested interpretation/recursive slip meta-interpreter no annotations.scm")
 
 (define nested-fac-benchmark-path "nested interpretation/fac.scm")
 (define nested-fib-benchmark-path "nested interpretation/fib.scm")
-(define nested-interpreter-path "nested interpretation/recursive slip meta-interpreter no annotations.scm")
+(define nested-simplified-trace-explosion-benchmark-path "nested interpretation/simplified trace-explosion.scm")
 
 ;
 ; Benchmarking
@@ -256,4 +260,4 @@
       (run-benchmark benchmark)))
   "Finished!")
 
-(run-benchmark fac-benchmark-path)
+;(run-benchmark fac-benchmark-path)
