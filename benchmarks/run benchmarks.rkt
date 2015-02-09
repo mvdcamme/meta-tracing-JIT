@@ -3,7 +3,7 @@
 (require racket/date)
 (require racket/include)
 
-(require (file "../slip tracing interpreter.scm"))
+(require (file "./slip tracing interpreter.scm"))
 
 (namespace-require 'racket/base)
 (namespace-require (build-path "./slip tracing interpreter.scm"))
