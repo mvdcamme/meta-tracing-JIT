@@ -5,7 +5,8 @@
 
 (require (file "../slip tracing interpreter.scm"))
 
-;(namespace-require (build-path "../slip tracing interpreter.scm"))
+(namespace-require 'racket/base)
+(namespace-require (build-path "../slip tracing interpreter.scm"))
 
 (define BENCHMARK_INPUT_PATH "input_file.scm")
 (define NESTED_BENCHMARK_INPUT_PATH "input_file_nested.scm")
@@ -229,7 +230,7 @@
     (output-benchmark-start)
     
     (run-tracing-interpreter)
-    (run-rec-slip-interpreter-normal)
+    ;(run-rec-slip-interpreter-normal)
     
     (run-rec-slip-interpreter-traced-meta-interpreted)
     (run-trace-metrics)
@@ -255,4 +256,4 @@
       (run-benchmark benchmark)))
   "Finished!")
 
-;(run-benchmark fac-benchmark-path)
+(run-benchmark fac-benchmark-path)
