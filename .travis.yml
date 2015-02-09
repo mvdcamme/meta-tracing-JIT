@@ -1,7 +1,6 @@
 language: racket
 
 env:
- - RACKET_VERSION=6.1.1
  - RACKET_VERSION=HEAD
 
 before_install:
@@ -13,6 +12,7 @@ install:
 before_script:
 
 script:
- - /usr/racket/bin/raco test "./benchmarks/run benchmarks.rkt"
+ - cd ./benchmarks
+ - /usr/racket/bin/raco test "./run benchmarks.rkt"
 
 after_script:
