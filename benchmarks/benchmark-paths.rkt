@@ -1,16 +1,6 @@
 (module benchmark-paths racket
   
-  (provide rec-slip-interpreter-normal-path
-           rec-slip-interpreter-traced-path
-           rec-slip-interpreter-traced-merging-duplication-path
-           rec-slip-interpreter-traced-no-merging-duplication-path
-           
-           rec-slip-interpreter-normal-exp
-           rec-slip-interpreter-traced-exp
-           rec-slip-interpreter-traced-merging-duplication-exp
-           rec-slip-interpreter-traced-no-merging-duplication-exp
-           
-           bubble-sort-benchmark-path
+  (provide  bubble-sort-benchmark-path
            blur-benchmark-path
            boyer-benchmark-path
            browse-benchmark-path
@@ -45,24 +35,9 @@
            tree-sort-benchmark-path
            towers-of-hanoi-benchmark-path
            
-           nested-interpreter-path
-           
            nested-fac-benchmark-path
            nested-fib-benchmark-path
            nested-simplified-trace-explosion-benchmark-path)
-           
-;
-; Interpreters
-;
-(define rec-slip-interpreter-normal-path "slip interpreters/base rec interpreter.scm")
-(define rec-slip-interpreter-traced-path "slip interpreters/traced rec interpreter merging.scm")
-(define rec-slip-interpreter-traced-merging-duplication-path "slip interpreters/traced rec interpreter merging duplication.scm")
-(define rec-slip-interpreter-traced-no-merging-duplication-path "slip interpreters/traced rec interpreter duplication no merging.scm")
-
-(define rec-slip-interpreter-normal-exp (file->value rec-slip-interpreter-normal-path))
-(define rec-slip-interpreter-traced-exp (file->value rec-slip-interpreter-traced-path))
-(define rec-slip-interpreter-traced-merging-duplication-exp (file->value rec-slip-interpreter-traced-merging-duplication-path))
-(define rec-slip-interpreter-traced-no-merging-duplication-exp (file->value rec-slip-interpreter-traced-no-merging-duplication-path))
 
 ;
 ; Benchmarks
@@ -105,7 +80,6 @@
 ;
 ; Nested interpretation benchmarks
 ;
-(define nested-interpreter-path "nested interpretation/recursive slip meta-interpreter no annotations.scm")
 
 (define nested-fac-benchmark-path "nested interpretation/fac.scm")
 (define nested-fib-benchmark-path "nested interpretation/fib.scm")

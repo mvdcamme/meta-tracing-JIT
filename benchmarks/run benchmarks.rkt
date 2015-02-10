@@ -16,6 +16,21 @@
   
   (define BENCHMARK_INPUT_PATH "input_file.scm")
   (define NESTED_BENCHMARK_INPUT_PATH "input_file_nested.scm")
+           
+  ;
+  ; Interpreters
+  ;
+  (define rec-slip-interpreter-normal-path "slip interpreters/base rec interpreter.scm")
+  (define rec-slip-interpreter-traced-path "slip interpreters/traced rec interpreter merging.scm")
+  (define rec-slip-interpreter-traced-merging-duplication-path "slip interpreters/traced rec interpreter merging duplication.scm")
+  (define rec-slip-interpreter-traced-no-merging-duplication-path "slip interpreters/traced rec interpreter duplication no merging.scm")
+  
+  (define rec-slip-interpreter-normal-exp (file->value rec-slip-interpreter-normal-path))
+  (define rec-slip-interpreter-traced-exp (file->value rec-slip-interpreter-traced-path))
+  (define rec-slip-interpreter-traced-merging-duplication-exp (file->value rec-slip-interpreter-traced-merging-duplication-path))
+  (define rec-slip-interpreter-traced-no-merging-duplication-exp (file->value rec-slip-interpreter-traced-no-merging-duplication-path))
+  
+  (define nested-interpreter-path "nested interpretation/recursive slip meta-interpreter no annotations.scm")
   
   ;
   ; Output file
