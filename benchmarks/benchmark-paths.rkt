@@ -20,6 +20,7 @@
            nqueens-2-benchmark-path
            pnpoly-benchmark-path
            primtest-benchmark-path
+           pypy-trace-explosion-benchmark-path
            regex-benchmark-path
            rotate-benchmark-path
            rotate-2-benchmark-path
@@ -62,6 +63,7 @@
 (define nqueens-2-benchmark-path "nqueens 2.scm")
 (define pnpoly-benchmark-path "pnpoly.scm")
 (define primtest-benchmark-path "primtest.scm")
+(define pypy-trace-explosion-benchmark-path "pypy trace-explosion.scm")
 (define regex-benchmark-path "regex.scm")
 (define rotate-benchmark-path "rotate.scm")
 (define rotate-2-benchmark-path "rotate 2.scm")
