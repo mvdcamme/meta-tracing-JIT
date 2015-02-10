@@ -40,7 +40,7 @@
   (define transform-input '())
   
   (define (transform-exp exp)
-    (vector exp 0))
+    (vector exp '()))
   
   (define (unwrap-transformed-exp transformed-ex)
     (vector-ref transformed-ex 0))

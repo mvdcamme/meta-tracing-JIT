@@ -73,6 +73,11 @@
   (require "dictionary.scm")
   (require "stack.scm")
   
+  (define (member-equal el lst)
+    (cond ((null? lst) #f)
+          ((equal? el (car lst)) lst)
+          (else (member-equal el (cdr lst)))))
+  
   ;
   ; Constants
   ;
@@ -81,7 +86,7 @@
   (define ENABLE_OUTPUT #f)
   (define IS_DEBUGGING #t)
   (define TRACING_THRESHOLD 5)
-  (define MAX_TRACE_LENGTH 20000)
+  (define MAX_TRACE_LENGTH +inf.0)
   
   (define ns (make-base-namespace))
   
@@ -90,9 +95,8 @@
   ;
   
   (define (output s)
-    (if ENABLE_OUTPUT
-        (display s)
-        (void)))
+    (when ENABLE_OUTPUT
+      (display s)))
   
   (define (output-newline)
     (output #\newline))
@@ -444,10 +448,9 @@
   (define (pop-trace-node-frame-from-stack! label)
     ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
     ;;Then pop one more time to get it off the stack.
-    (if (not (null? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
-        (begin (pop-trace-frame-until-label! label)
-               (pop-trace-frame!))
-        (void)))
+    (when (not (null? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+      (pop-trace-frame-until-label! label)
+      (pop-trace-frame!)))
   
   (define (push-trace-frame! trace-node-executing continuation)
     (push-trace-node-executing! trace-node-executing)
@@ -512,8 +515,9 @@
     (flush-ast-nodes-traced!))
   
   (define (stop-tracing-normal!)
-    (do-ast-nodes-traced!)
-    (stop-tracing-bookkeeping!))
+    (let ((current-trace-key-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))))
+      (do-ast-nodes-traced! current-trace-key-label)
+      (stop-tracing-bookkeeping!)))
   
   (define (stop-tracing! looping?)
     (let ((stop-tracing-function (tracer-context-closing-function GLOBAL_TRACER_CONTEXT)))
@@ -705,9 +709,9 @@
   (define (add-ast-node-traced! ast-node)
     (set! ast-nodes-traced (cons ast-node ast-nodes-traced)))
   
-  (define (do-ast-nodes-traced!)
+  (define (do-ast-nodes-traced! trace-key-label)
     (for-each (lambda (ast-node)
-                (inc-duplication-counter! ast-node))
+                (inc-duplication-counter! ast-node trace-key-label))
               ast-nodes-traced)
     (flush-ast-nodes-traced!))
   
@@ -728,9 +732,12 @@
   (define (reset-trace-duplication-metric!)
     (set-root-expression! (not-initialised)))
   
-  (define (inc-duplication-counter! exp)
-    (let ((old-counter-value (vector-ref exp 1)))
-      (vector-set! exp 1 (+ old-counter-value 1))))
+  (define (inc-duplication-counter! exp trace-key-label)
+    (display "inc-duplication-counter!-voor ")
+    (let ((existing-labels (vector-ref exp 1)))
+      (display "inc-duplication-counter!-na") (newline)
+      (when (not (member-equal trace-key-label existing-labels))
+        (vector-set! exp 1 (cons existing-labels trace-key-label)))))
   
   (define (calculate-trace-duplication)
     (let ((number-of-nodes 0)
@@ -738,9 +745,12 @@
           (all-ast-nodes '()))
       (define (rec node)
         (cond ((vector? node) (set! all-ast-nodes (cons node all-ast-nodes))
-                              (when (> (vector-ref node 1) 0)
-                                (set! number-of-nodes (+ number-of-nodes 1))
-                                (set! total-times-traced (+ total-times-traced (vector-ref node 1))))
+                              (display "calculate-trace-duplication-voor ")
+                              (let ((list-length (length (vector-ref node 1))))
+                                (display "calculate-trace-duplication-na") (newline)
+                                (when (> list-length 0)
+                                  (set! number-of-nodes (+ number-of-nodes 1))
+                                  (set! total-times-traced (+ total-times-traced list-length))))
                               (rec (vector-ref node 0)))
               ((list? node) (map rec node))))
       (rec root-expression)
@@ -1409,9 +1419,8 @@
       ((ko (is-evaluatingk) (cons φ κ))
        (execute `(remove-continuation))
        (set-root-expression-if-uninitialised! v)
-       (if (is-tracing?)
-           (add-ast-node-traced! v)
-           (void))
+       (when (is-tracing?)
+           (add-ast-node-traced! v))
        (step* (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
        (execute `(remove-continuation)
@@ -1423,9 +1432,8 @@
                   `(pop-splits-cf-id!))
          (if (is-tracing?)
              (begin 
-               (if (is-tracing-guard?)
-                   (append-trace `((pop-trace-frame!)))
-                   (void))
+               (when (is-tracing-guard?)
+                 (append-trace `((pop-trace-frame!))))
                (append-trace `((pop-trace-frame!)
                                (execute-mp-tail-trace ,mp-id)))
                ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
