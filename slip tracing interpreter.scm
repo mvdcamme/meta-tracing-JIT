@@ -249,17 +249,25 @@
   ; Trace keys
   ;
   
+  (define trace-id 0)
+  
+  (define (new-trace-id!)
+    (let ((temp trace-id))
+      (set! trace-id (+ trace-id 1))
+      temp))
+  
   (struct trace-key (label
+                     trace-id
                      guard-ids) #:transparent)
   
   (define (make-guard-trace-key label guard-ids)
-    (trace-key label guard-ids))
+    (trace-key label (new-trace-id!) guard-ids))
   
   (define (make-label-trace-key label)
-    (trace-key label '()))
+    (trace-key label (new-trace-id!) '()))
   
   (define (make-mp-tail-trace-key label)
-    (trace-key label '()))
+    (trace-key label (new-trace-id!) '()))
   
   ;
   ; Trace nodes
@@ -515,8 +523,8 @@
     (flush-ast-nodes-traced!))
   
   (define (stop-tracing-normal!)
-    (let ((current-trace-key-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))))
-      (do-ast-nodes-traced! current-trace-key-label)
+    (let ((current-trace-key-id (trace-key-trace-id (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))))
+      (do-ast-nodes-traced! current-trace-key-id)
       (stop-tracing-bookkeeping!)))
   
   (define (stop-tracing! looping?)
@@ -709,9 +717,9 @@
   (define (add-ast-node-traced! ast-node)
     (set! ast-nodes-traced (cons ast-node ast-nodes-traced)))
   
-  (define (do-ast-nodes-traced! trace-key-label)
+  (define (do-ast-nodes-traced! trace-key-id)
     (for-each (lambda (ast-node)
-                (inc-duplication-counter! ast-node trace-key-label))
+                (inc-duplication-counter! ast-node trace-key-id))
               ast-nodes-traced)
     (flush-ast-nodes-traced!))
   
@@ -732,10 +740,10 @@
   (define (reset-trace-duplication-metric!)
     (set-root-expression! (not-initialised)))
   
-  (define (inc-duplication-counter! exp trace-key-label)
-    (let ((existing-labels (vector-ref exp 1)))
-      (when (not (member-equal trace-key-label existing-labels))
-        (vector-set! exp 1 (cons trace-key-label existing-labels)))))
+  (define (inc-duplication-counter! exp trace-key-id)
+    (let ((existing-ids (vector-ref exp 1)))
+      (when (not (member trace-key-id existing-ids))
+        (vector-set! exp 1 (cons trace-key-id existing-ids)))))
   
   (define (calculate-trace-duplication)
     (let ((number-of-nodes 0)
