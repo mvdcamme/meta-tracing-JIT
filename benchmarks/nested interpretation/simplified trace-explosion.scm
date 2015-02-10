@@ -10,4 +10,4 @@
              (begin (display "h 1") (newline)))
          (if (> n 0)
              (begin (loop (- n 1)))))
-       (loop 10))
+       (loop 3))
