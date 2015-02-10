@@ -733,11 +733,9 @@
     (set-root-expression! (not-initialised)))
   
   (define (inc-duplication-counter! exp trace-key-label)
-    (display "inc-duplication-counter!-voor ")
     (let ((existing-labels (vector-ref exp 1)))
-      (display "inc-duplication-counter!-na") (newline)
       (when (not (member-equal trace-key-label existing-labels))
-        (vector-set! exp 1 (cons existing-labels trace-key-label)))))
+        (vector-set! exp 1 (cons trace-key-label existing-labels)))))
   
   (define (calculate-trace-duplication)
     (let ((number-of-nodes 0)
@@ -745,9 +743,7 @@
           (all-ast-nodes '()))
       (define (rec node)
         (cond ((vector? node) (set! all-ast-nodes (cons node all-ast-nodes))
-                              (display "calculate-trace-duplication-voor ")
                               (let ((list-length (length (vector-ref node 1))))
-                                (display "calculate-trace-duplication-na") (newline)
                                 (when (> list-length 0)
                                   (set! number-of-nodes (+ number-of-nodes 1))
                                   (set! total-times-traced (+ total-times-traced list-length))))
