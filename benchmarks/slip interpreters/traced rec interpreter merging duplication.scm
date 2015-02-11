@@ -48,7 +48,6 @@
                                   apply
                                   begin
                                   cond
-                                  eval
                                   if
                                   load
                                   or))
@@ -89,6 +88,11 @@
            (operands (cdr input)))
       (transform-exp (list operator (car operands)))))
   
+  (define (transform-eval-quote-form input)
+    (let* ((operator (car input))
+           (operands (cdr input)))
+      (transform-exp (list operator (transform-input (car operands))))))
+  
   (define (transform-input-act input)
     (define (tree-rec input)
       (cond ((pair? input)
@@ -98,6 +102,9 @@
                      ((quote-form? operator) (transform-quote-form input))
                      ((regular-special-form? operator) (transform-regular-special-form input))
                      ((eq? operator 'define) (transform-exp (cons 'define (cons (car operands) (map tree-rec (cdr operands))))))
+                     ((eq? operator 'eval) (if (eq? (caar operands) 'quote)
+                                               (transform-exp (cons 'eval (list (transform-eval-quote-form (car operands)))))
+                                               (transform-exp (cons 'eval (list (transform-input (car operands)))))))
                      ((eq? operator 'lambda) (transform-exp (cons 'lambda (cons (car operands) (map tree-rec (cdr operands))))))
                      ((eq? operator 'set!) (transform-exp (cons 'set! (cons (car operands) (map tree-rec (cdr operands))))))
                      (else (transform-exp (map tree-rec input))))))

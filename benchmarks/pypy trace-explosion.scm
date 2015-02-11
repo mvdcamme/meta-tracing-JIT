@@ -16,7 +16,7 @@
     (define fun #f)
     (set! fun (eval '(begin (define (f)
                               (define (loop i)
-                                (if (< i 300000000)
+                                (if (< i 3000)
                                     (loop (+ i 1))
                                     '()))
                               (loop 0))
