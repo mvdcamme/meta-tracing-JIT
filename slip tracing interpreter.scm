@@ -1,10 +1,5 @@
 (module tracing-interpreter racket
-  (provide #%app
-           #%datum
-           #%top
-           
-           
-           ;; Starting evaluator   
+  (provide ;; Starting evaluator   
            inject
            run
            
