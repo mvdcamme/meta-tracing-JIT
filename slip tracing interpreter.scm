@@ -60,13 +60,14 @@
            get-trace-executions
            
            
-           ;; Purely for benchmarking the implementation           
+           ;; Purely for benchmarking the implementation
            set-pseudo-random-generator!)
   
   (require racket/date)
   
   (require "dictionary.scm")
   (require "stack.scm")
+  (require "trace-outputting.scm")
   
   (define (member-equal el lst)
     (cond ((null? lst) #f)
@@ -252,7 +253,7 @@
       temp))
   
   (struct trace-key (label
-                     trace-id
+                     id
                      guard-ids) #:transparent)
   
   (define (make-guard-trace-key label guard-ids)
@@ -494,9 +495,8 @@
   (define (make-stop-tracing-label-function)
     (define (stop-tracing-label! trace looping?)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
-             (label (trace-key-label trace-key))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
-        (add-label-trace! label transformed-trace)))
+        (add-label-trace! trace-key transformed-trace)))
     stop-tracing-label!)
   
   (define (make-stop-tracing-mp-tail-function mp-id)
@@ -518,7 +518,7 @@
     (flush-ast-nodes-traced!))
   
   (define (stop-tracing-normal!)
-    (let ((current-trace-key-id (trace-key-trace-id (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))))
+    (let ((current-trace-key-id (trace-key-id (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))))
       (do-ast-nodes-traced! current-trace-key-id)
       (stop-tracing-bookkeeping!)))
   
@@ -609,10 +609,13 @@
                                     (cons (make-guard-trace new-guard-id trace)
                                           (trace-node-children parent-trace-node))))))
   
-  (define (add-label-trace! label transformed-trace)
-    (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
-                                     (cons (make-label-trace label transformed-trace)
-                                           (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT))))
+  (define (add-label-trace! trace-key transformed-trace)
+    (let ((label (trace-key-label trace-key))
+          (trace-id (trace-key-id trace-key)))
+      (write-label-trace trace-id transformed-trace)
+      (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
+                                       (cons (make-label-trace label transformed-trace)
+                                             (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT)))))
   
   (define (add-mp-tail-trace! mp-id label transformed-trace)
     (let ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
@@ -928,9 +931,9 @@
   
   (define (make-label-merges-cf-function)
     (define (label-merges-cf! trace)
-      (let ((trace-label (trace-key-label (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
+      (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-label-trace-function #f))))
-        (add-label-trace! trace-label transformed-trace)))
+        (add-label-trace! trace-key transformed-trace)))
     label-merges-cf!)
   
   (define (make-mp-tail-merges-cf-function mp-id)
