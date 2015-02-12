@@ -603,6 +603,7 @@
   (define (add-guard-trace! label guard-ids trace)
     (let ((parent-trace-node (search-guard-trace label (take-all-but-last guard-ids)))
           (new-guard-id (last guard-ids)))
+      (write-guard-trace new-guard-id trace)
       (if (not parent-trace-node)
           (error "Trace-key was not found: " (make-guard-trace-key label guard-ids))
           (set-trace-node-children! parent-trace-node
@@ -618,6 +619,7 @@
                                              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT)))))
   
   (define (add-mp-tail-trace! mp-id label transformed-trace)
+    (write-mp-tail-trace mp-id transformed-trace)
     (let ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
           (mp-tail-trace (make-mp-tail-trace label transformed-trace)))
       (insert! mp-tails-dictionary mp-id mp-tail-trace)))
