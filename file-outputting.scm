@@ -17,9 +17,14 @@
             (string-replace basic-string ":" colon-replace-string))))
       (string-append base-file-name name-datetime-separator (make-datetime-file-name-part) "." base-extension)))
   
+  (define (output-element element port)
+    (if (eq? element #\newline)
+        (display element port)
+        (pretty-print element port)))
+  
   (define (output-to-file path text mode)
     (let* ((output-file (open-output-file path #:exists mode)))
-      (display text output-file)
+      (output-element text output-file)
       (close-output-port output-file)))
   
   (define (append-to-file path text)
