@@ -8,6 +8,7 @@
   (require racket/date)
   (require racket/include)
   
+  (require (file "../file-outputting.scm"))
   (require (file "../slip tracing interpreter.scm"))
   (require (file "benchmark-paths.rkt"))
   
@@ -39,34 +40,27 @@
   (define BASE_OUTPUT_FILE_NAME "./Benchmarking output/output")
   (define BASE_OUTPUT_EXTENSION "txt")
   
-  (define (make-full-output-file-name)
-    (let ((name-datetime-separator " "))
-      (define (make-datetime-file-name-part)
-        (let* ((seconds (current-seconds))
-               (date (seconds->date seconds #t))
-               (colon-replace-string ""))
-          (date-display-format 'iso-8601)
-          (let ((basic-string (date->string date #t)))
-            (string-replace basic-string ":" colon-replace-string))))
-      (string-append BASE_OUTPUT_FILE_NAME name-datetime-separator (make-datetime-file-name-part) "." BASE_OUTPUT_EXTENSION)))
+  (define OUTPUT_FILE_NAME (make-full-output-file-name BASE_OUTPUT_FILE_NAME BASE_OUTPUT_EXTENSION))
   
-  (define OUTPUT_FILE_NAME (make-full-output-file-name))
-  
-  (define (write-to-output-file text)
-    (let* ((output-file (open-output-file OUTPUT_FILE_NAME #:exists 'append)))
-      (display text output-file)
-      (close-output-port output-file)))
+  (define (append-to-output-file text)
+    (append-to-file OUTPUT_FILE_NAME text))
   
   ;
   ; Benchmarking
   ;
   
+  (define (output-aux text console-output-function)
+    (console-output-function text)
+    (append-to-output-file text))
+  
   (define (output text)
-    (display text)
-    (write-to-output-file text))
+    (output-aux text display))
   
   (define (output-newline)
     (output #\newline))
+  
+  (define (output-pretty text)
+    (output-aux text pretty-print))
   
   (define (output-metric metric-name result)
     (output "Metric ") (output metric-name) (output " got result ") (output result)
@@ -136,7 +130,7 @@
                     (set! standard-deviation (sqrt variation))))
                 (process-ast-nodes-list all-ast-nodes)
                 ;(display all-ast-nodes) (newline)
-                (display root-expression) (newline)
+                (output-pretty root-expression) (newline)
                 (output-metric trace-duplication-metric-name (list (cons 'average average)
                                                                    (cons 'variation variation)
                                                                    (cons 'standard-deviation standard-deviation)
@@ -225,4 +219,6 @@
     (run-benchmarks-aux run-benchmark n benchmarks))
   
   (define (run-nested-benchmarks n benchmarks)
-    (run-benchmarks-aux run-nested-benchmark n benchmarks)))
+    (run-benchmarks-aux run-nested-benchmark n benchmarks))
+  
+  (run-benchmark fac-benchmark-path))
