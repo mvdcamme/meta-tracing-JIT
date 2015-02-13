@@ -616,7 +616,7 @@
     (let ((label (trace-key-label trace-key))
           (debug-info (label-trace-key-debug-info trace-key))
           (trace-id (trace-key-id trace-key)))
-      (write-label-trace trace-id transformed-trace)
+      (write-label-trace trace-id transformed-trace debug-info)
       (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
                                        (cons (make-label-trace label transformed-trace)
                                              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT)))))
