@@ -1544,7 +1544,8 @@
     (set! τ-κ `(,(haltk)))
     (set! GLOBAL_TRACER_CONTEXT (new-tracer-context))
     (reset-metrics!)
-    (reset-random-generator!))
+    (reset-random-generator!)
+    (reset-trace-outputting!))
   
   (define (clear-trace!)
     (set-tracer-context-current-trace-length! GLOBAL_TRACER_CONTEXT 0)
