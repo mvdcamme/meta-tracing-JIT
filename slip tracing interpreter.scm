@@ -161,8 +161,8 @@
   ; Tracing annotations continuations
   ;
   
-  (struct can-close-loopk (debug-info) #:transparent)
-  (struct can-start-loopk (debug-info) #:transparent)
+  (struct can-close-loopk () #:transparent)
+  (struct can-start-loopk (label debug-info) #:transparent)
   (struct is-evaluatingk () #:transparent)
   
   ;
@@ -256,11 +256,13 @@
                      id
                      guard-ids) #:transparent)
   
+  (struct label-trace-key trace-key (debug-info) #:transparent)
+  
   (define (make-guard-trace-key label guard-ids)
     (trace-key label (new-trace-id!) guard-ids))
   
-  (define (make-label-trace-key label)
-    (trace-key label (new-trace-id!) '()))
+  (define (make-label-trace-key label debug-info)
+    (label-trace-key label (new-trace-id!) '() debug-info))
   
   (define (make-mp-tail-trace-key label)
     (trace-key label (new-trace-id!) '()))
@@ -472,12 +474,12 @@
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-guard-trace-key (trace-key-label old-trace-key)
                                                                                (append (trace-key-guard-ids old-trace-key) (list guard-id)))))
   
-  (define (start-tracing-label! label)
+  (define (start-tracing-label! label debug-info)
     (clear-trace!)
     (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-label-function))
     (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-label-merges-cf-function))
     (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #t)
-    (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-label-trace-key label)))
+    (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-label-trace-key label debug-info)))
   
   ;
   ; Stop tracing
@@ -612,6 +614,7 @@
   
   (define (add-label-trace! trace-key transformed-trace)
     (let ((label (trace-key-label trace-key))
+          (debug-info (label-trace-key-debug-info trace-key))
           (trace-id (trace-key-id trace-key)))
       (write-label-trace trace-id transformed-trace)
       (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
@@ -1196,12 +1199,12 @@
        (ko φ κ))
       ((ev `(begin ,es ...) κ)
        (eval-seq es κ))
-      ((ev `(can-close-loop ,e . ,debug-info) κ)
-       (execute `(add-continuation ,(can-close-loopk debug-info)))
-       (ev e (cons (can-close-loopk debug-info) κ)))
-      ((ev `(can-start-loop ,e . ,debug-info) κ)
-       (execute `(add-continuation ,(can-start-loopk debug-info)))
-       (ev e (cons (can-start-loopk debug-info) κ)))
+      ((ev `(can-close-loop ,e) κ)
+       (execute `(add-continuation ,(can-close-loopk)))
+       (ev e (cons (can-close-loopk) κ)))
+      ((ev `(can-start-loop ,e ,debug-info) κ)
+       (execute `(add-continuation ,(can-start-loopk e '())))
+       (ev debug-info (cons (can-start-loopk e '()) κ)))
       ((ev `(cond) (cons φ κ))
        (execute `(literal-value ())
                 `(remove-continuation))
@@ -1450,17 +1453,17 @@
                           (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id))
                           (step* (ko φ κ)))))
              (step* (ko φ κ)))))
-      ((ko (can-close-loopk debug-info) (cons φ κ))
-       (unless (null? debug-info)
-         (output "closing annotation: tracing loop ") (output v) (output-newline))
+      ((ko (can-close-loopk) (cons φ κ))
+       (output "closing annotation: tracing loop ") (output v) (output-newline)
        (when (is-tracing-label? v)
          (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
          (stop-tracing! #f))
        (execute `(remove-continuation))
        (step* (ko φ κ)))
-      ((ko (can-start-loopk debug-info) (cons φ κ))
-       (unless (null? debug-info)
-         (output "opening annotation: tracing loop ") (output v) (output-newline))
+      ((ko (can-start-loopk label '()) κ)
+       (execute `(add-continuation ,(can-start-loopk '() v)))
+       (step* (ev label (cons (can-start-loopk '() v) κ))))
+      ((ko (can-start-loopk '() debug-info) (cons φ κ))
        (cond ((is-tracing-label? v)
               (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
               (stop-tracing! #t)
@@ -1472,7 +1475,7 @@
                 (step* new-state)))
              ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
               (output "----------- STARTED TRACING -----------") (output-newline)
-              (start-tracing-label! v)
+              (start-tracing-label! v debug-info)
               (execute `(remove-continuation))
               (let ((new-state (ko φ κ)))
                 (step* new-state)))
