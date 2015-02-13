@@ -29,7 +29,8 @@
            (output-file-name (make-full-output-file-name base-file-name BASE_TRACE_OUTPUT_FILE_EXTENSION)))
       (unless current-trace-output-directory-created
         (create-trace-output-directory))
-      (write-to-file output-file-name trace)))
+      (thread (lambda ()
+                (write-to-file output-file-name trace)))))
     
   (define (write-guard-trace guard-id trace)
     (write-trace "guard" guard-id trace))
