@@ -13,6 +13,7 @@
   (define (make-output-directory-path)
     (make-full-output-directory-name BASE_TRACE_OUTPUT_DIRECTORY_PATH))
   
+  (define current-trace-output-directory-created #f)
   (define current-trace-output-directory-path #f)
   
   (define (add-output-directory-path-to-file-name file-name)
@@ -20,11 +21,14 @@
   
   (define (create-trace-output-directory)
     (unless (directory-exists? current-trace-output-directory-path)
+      (set! current-trace-output-directory-created #t)
       (make-directory current-trace-output-directory-path)))
   
   (define (write-trace prefix id trace)
     (let* ((base-file-name (add-output-directory-path-to-file-name (string-append prefix " " (number->string id))))
            (output-file-name (make-full-output-file-name base-file-name BASE_TRACE_OUTPUT_FILE_EXTENSION)))
+      (unless current-trace-output-directory-created
+        (create-trace-output-directory))
       (write-to-file output-file-name trace)))
     
   (define (write-guard-trace guard-id trace)
@@ -37,7 +41,7 @@
     (write-trace "mp" mp-id trace))
   
   (define (reset-trace-outputting!)
-    (set! current-trace-output-directory-path (make-output-directory-path))
-    (create-trace-output-directory))
+    (set! current-trace-output-directory-created #f)
+    (set! current-trace-output-directory-path (make-output-directory-path)))
   
   (reset-trace-outputting!))
