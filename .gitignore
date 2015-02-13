@@ -4,8 +4,8 @@ cpSlip.bak
 *.zo
 compiled/
 benchmarks/input_file.scm
-Trace/
-benchmarks/Trace/
+Traces/
+benchmarks/Traces/
 input_file.scm
 *.1
 *.2
