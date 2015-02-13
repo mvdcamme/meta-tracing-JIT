@@ -79,16 +79,16 @@
                 value
                 (evaluate-sequence tail)))))
     
-    (define (close parameters expressions)
+    (define (close parameters expressions closure-name)
       (define lexical-environment environment)
       (define (closure . arguments)
         (define dynamic-environment environment)
-        (can-start-loop expressions "some function")
+        (can-start-loop expressions closure-name)
         (set! environment lexical-environment)
         (bind-parameters parameters arguments)
         (let* ((value (evaluate-sequence expressions)))
           (set! environment dynamic-environment)
-          (can-close-loop expressions "some function")
+          (can-close-loop expressions)
           value))
       closure)
     
@@ -133,7 +133,7 @@
             value)
           (let* ((binding (vector (car pattern) '())))
             (set! environment (cons binding environment))
-            (let* ((closure (close (cdr pattern) expressions)))
+            (let* ((closure (close (cdr pattern) expressions (car pattern))))
               (vector-set! binding 1 closure)
               closure))))
     
@@ -150,7 +150,7 @@
                 (return-from-control-flow-split (thunkify (car alternate)))))))
     
     (define (evaluate-lambda parameters . expressions)
-      (close parameters expressions))
+      (close parameters expressions "lambda"))
     
     (define (evaluate-let . expressions)
       (define frozen-environment environment)
