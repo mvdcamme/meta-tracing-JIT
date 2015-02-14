@@ -126,23 +126,23 @@
   ; Continuations
   ;
   
-  (struct andk (es))
-  (struct apply-failedk (rator i))
-  (struct applicationk (debug))
-  (struct applyk (rator))
-  (struct closure-guard-failedk (i))
-  (struct condk (pes es))
-  (struct definevk (x)) ;define variable
-  (struct haltk ())
-  (struct ifk (e1 e2))
-  (struct letk (x es))
-  (struct let*k (x bds es))
-  (struct letreck (x bds es))
-  (struct ork (es))
+  (struct andk (es) #:transparent)
+  (struct apply-failedk (rator i) #:transparent)
+  (struct applicationk (debug) #:transparent)
+  (struct applyk (rator) #:transparent)
+  (struct closure-guard-failedk (i) #:transparent)
+  (struct condk (pes es) #:transparent)
+  (struct definevk (x) #:transparent) ;define variable
+  (struct haltk () #:transparent)
+  (struct ifk (e1 e2) #:transparent)
+  (struct letk (x es) #:transparent)
+  (struct let*k (x bds es) #:transparent)
+  (struct letreck (x bds es) #:transparent)
+  (struct ork (es) #:transparent)
   (struct randk (e es i) #:transparent)
-  (struct ratork (i debug))
+  (struct ratork (i debug) #:transparent)
   (struct seqk (es) #:transparent)
-  (struct setk (x))
+  (struct setk (x) #:transparent)
   
   
   (define gencounter 2)
@@ -169,8 +169,8 @@
   ; Closures
   ;
   
-  (struct clo (λ ρ))
-  (struct lam (x es))
+  (struct clo (λ ρ) #:transparent)
+  (struct lam (x es) #:transparent)
   
   (define (clo-equal? clo1 clo2)
     (or (eq? clo1 clo2)
@@ -616,7 +616,7 @@
     (let ((label (trace-key-label trace-key))
           (debug-info (label-trace-key-debug-info trace-key))
           (trace-id (trace-key-id trace-key)))
-      (write-label-trace trace-id transformed-trace debug-info)
+      (write-label-trace label trace-id transformed-trace debug-info)
       (set-tracer-context-trace-nodes! GLOBAL_TRACER_CONTEXT
                                        (cons (make-label-trace label transformed-trace)
                                              (tracer-context-trace-nodes GLOBAL_TRACER_CONTEXT)))))

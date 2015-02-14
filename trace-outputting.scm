@@ -34,7 +34,7 @@
       (unless current-trace-output-directory-created
         (create-trace-output-directory))
       (thread (lambda ()
-                (write-to-file output-file-name trace)))))
+                (write-to-file output-file-name (transform-trace trace))))))
     
   (define (write-guard-trace guard-id trace)
     (write-trace "guard" guard-id trace))
@@ -50,5 +50,13 @@
   (define (reset-trace-outputting!)
     (set! current-trace-output-directory-created #f)
     (set! current-trace-output-directory-path (make-output-directory-path)))
+  
+  (define (transform-trace trace)
+    (define (tree-rec element)
+      (cond ((procedure? element) 'element)
+            ((pair? element) (cons (tree-rec (car element)) (tree-rec (cdr element))))
+            ((vector? element) (vector-map tree-rec element))
+            (else element)))
+    (tree-rec trace))
   
   (reset-trace-outputting!))
