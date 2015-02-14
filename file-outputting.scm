@@ -31,7 +31,8 @@
       (string-append base-file-name name-datetime-separator (get-datetime-string) "." base-extension)))
   
   (define (output-element element port)
-    (if (eq? element #\newline)
+    (if (or (eq? element #\newline)
+            (string? element))
         (display element port)
         (pretty-print element port)))
   
