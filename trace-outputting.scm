@@ -16,6 +16,10 @@
   (define current-trace-output-directory-created #f)
   (define current-trace-output-directory-path #f)
   
+  (define (add-label-trace-info trace-label trace-id)
+    (write-to-file (string-append current-trace-output-directory-path (number->string trace-id) "." BASE_TRACE_OUTPUT_FILE_EXTENSION)
+                   trace-label))
+  
   (define (add-output-directory-path-to-file-name file-name)
     (string-append current-trace-output-directory-path file-name))
   
@@ -35,8 +39,10 @@
   (define (write-guard-trace guard-id trace)
     (write-trace "guard" guard-id trace))
     
-  (define (write-label-trace trace-id trace debug-info)
-    (write-trace (string-append "label " (if (symbol? debug-info) (symbol->string debug-info) debug-info)) trace-id trace))
+  (define (write-label-trace trace-label trace-id trace debug-info)
+    (write-trace (string-append "label " (if (symbol? debug-info) (symbol->string debug-info) debug-info)) trace-id trace)
+    (thread (lambda ()
+              (add-label-trace-info trace-label trace-id))))
     
   (define (write-mp-tail-trace mp-id trace)
     (write-trace "mp" mp-id trace))
