@@ -219,6 +219,4 @@
     (run-benchmarks-aux run-benchmark n benchmarks))
   
   (define (run-nested-benchmarks n benchmarks)
-    (run-benchmarks-aux run-nested-benchmark n benchmarks))
-  
-  (run-benchmark fac-benchmark-path))
+    (run-benchmarks-aux run-nested-benchmark n benchmarks)))
