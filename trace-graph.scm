@@ -1,0 +1,108 @@
+(module trace-graph racket
+  
+  (provide )
+  
+  (require srfi/13)
+  
+  (require "file-outputting.scm")
+  
+  (define BASE_GRAPH_FILE "graph.gv")
+  
+  (struct trace-files (guard-trace-files label-trace-files mp-tail-trace-files) #:transparent)
+  
+  (define (get-file-path-strings-in-directory directory-path)
+    (let ((file-paths (directory-list directory-path)))
+      (map path->string file-paths)))
+  
+  (define (get-trace-info-files-in-directory directory-path)
+    (let* ((file-path-strings (get-file-path-strings-in-directory directory-path)))
+      (filter (lambda (file-path-string)
+                (regexp-match "^[0-9]*\\.scm$" file-path-string))
+              file-path-strings)))
+  
+  (define (get-trace-files-in-directory directory-path)
+    (let* ((file-path-strings (get-file-path-strings-in-directory directory-path))
+           (guard-trace-files '())
+           (label-trace-files '())
+           (mp-tail-trace-files '()))
+      (define (is-guard-trace-file-path? file-path)
+        (regexp-match "^guard *" file-path))
+      (define (is-label-trace-file-path? file-path)
+        (regexp-match "^label *" file-path))
+      (define (is-mp-tail-trace-file-path? file-path)
+        (regexp-match "^mp *" file-path))
+      (for ((file-path-string file-path-strings))
+        (cond ((is-guard-trace-file-path? file-path-string) (set! guard-trace-files (cons file-path-string guard-trace-files)))
+              ((is-label-trace-file-path? file-path-string) (set! label-trace-files (cons file-path-string label-trace-files)))
+              ((is-mp-tail-trace-file-path? file-path-string) (set! mp-tail-trace-files (cons file-path-string mp-tail-trace-files)))))
+      (trace-files guard-trace-files label-trace-files mp-tail-trace-files)))
+  
+  (define (get-guard-inclusions trace-file-path list-of-guard-ids)
+    (let ((full-trace (file->string trace-file-path)))
+      (define (contains-guard? guard-id)
+        (or (string-contains full-trace (string-append "(guard-false " guard-id " "))
+            (string-contains full-trace (string-append "(guard-true " guard-id " "))
+            (string-contains full-trace (string-append guard-id ")"))))
+      (filter contains-guard?
+              list-of-guard-ids)))
+  
+  (define (get-mp-tail-inclusions trace-file-path list-of-mp-tail-ids)
+    (let ((full-trace (file->string trace-file-path)))
+      (define (contains-mp-tail? mp-tail-id)
+        (string-contains full-trace (string-append "(execute-mp-tail-trace " mp-tail-id ")")))
+      (filter contains-mp-tail?
+              list-of-mp-tail-ids)))
+  
+  (define (add-edge-to-graph-file directory-path start end)
+    (append-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
+                    (string-append (string #\tab #\tab) start " -> " end ";" (string #\newline))))
+  
+  (define (create-graph-file directory-path)
+    (write-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
+                   " digraph G {")
+    (append-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
+                    #\newline))
+  
+  (define (close-graph-file directory-path)
+    (append-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
+                    "}"))
+  
+  (define (make-graph-file directory-path)
+    (let* ((trace-files (get-trace-files-in-directory directory-path))
+           (guard-trace-files (trace-files-guard-trace-files trace-files))
+           (label-trace-files (trace-files-label-trace-files trace-files))
+           (mp-tail-trace-files (trace-files-mp-tail-trace-files trace-files))
+           (guard-ids (map (lambda (guard-trace-file-path)
+                             (let ((regexp-result (car (regexp-match #px"^guard [[:digit:]]* " guard-trace-file-path))))
+                               (substring regexp-result 6 (- (string-length regexp-result) 1))))
+                           guard-trace-files))
+           (mp-tail-ids (map (lambda (mp-tail-trace-file-path)
+                               (let ((regexp-result (car (regexp-match #px"^mp [[:digit:]]* " mp-tail-trace-file-path))))
+                                 (substring regexp-result 3 (- (string-length regexp-result) 1))))
+                           mp-tail-trace-files)))
+      (define (handle-trace-file trace-file-path trace-name)
+        (let ((guard-inclusions (get-guard-inclusions (string-append directory-path "\\" trace-file-path) guard-ids))
+              (mp-tail-inclusions (get-mp-tail-inclusions (string-append directory-path "\\" trace-file-path) mp-tail-ids)))
+          (for-each (lambda (included-guard)
+                      (add-edge-to-graph-file directory-path trace-name (string-append "G" included-guard)))
+                    guard-inclusions)
+          (for-each (lambda (included-mp-tail)
+                      (add-edge-to-graph-file directory-path trace-name (string-append "M" included-mp-tail)))
+                    mp-tail-inclusions)))
+      (define (handle-label-trace-file trace-file-path)
+        (let ((label-function-name (substring (car (regexp-match #px"label [[:alpha:]]*" trace-file-path)) 6)))
+          (handle-trace-file trace-file-path label-function-name)))
+      (define (handle-guard-trace-file trace-file-path)
+        (let ((guard-id-string (substring (car (regexp-match #px"guard [[:digit:]]*" trace-file-path)) 6)))
+          (handle-trace-file trace-file-path (string-append "G" guard-id-string))))
+      (define (handle-mp-tail-trace-file trace-file-path)
+        (let ((mp-tail-id-string (substring (car (regexp-match #px"mp [[:digit:]]*" trace-file-path)) 3)))
+          (handle-trace-file trace-file-path (string-append "M" mp-tail-id-string))))
+      (create-graph-file directory-path)
+      (for-each handle-guard-trace-file
+                guard-trace-files)
+      (for-each handle-label-trace-file
+                label-trace-files)
+      (for-each handle-mp-tail-trace-file
+                mp-tail-trace-files)
+      (close-graph-file directory-path))))
