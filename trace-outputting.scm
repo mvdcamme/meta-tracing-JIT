@@ -30,7 +30,7 @@
   
   (define (write-trace prefix id trace)
     (let* ((base-file-name (add-output-directory-path-to-file-name (string-append prefix " " (number->string id))))
-           (output-file-name (make-full-output-file-name base-file-name BASE_TRACE_OUTPUT_FILE_EXTENSION)))
+           (output-file-name (string-append base-file-name "." BASE_TRACE_OUTPUT_FILE_EXTENSION)))
       (unless current-trace-output-directory-created
         (create-trace-output-directory))
       (thread (lambda ()
