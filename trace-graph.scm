@@ -2,7 +2,8 @@
   
   (provide )
   
-  (require srfi/13)
+  (require racket/string)
+  ;(require srfi/13)
   
   (require "file-outputting.scm")
   
@@ -74,6 +75,10 @@
       (for-each handle-expression actual-trace)
       included-mp-tail-ids))
   
+  (define (add-node-to-graph-file directory-path node-name)
+    (append-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
+                    (string-append (string #\tab #\tab) node-name ";" (string #\newline))))
+  
   (define (add-edge-to-graph-file directory-path start end)
     (append-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
                     (string-append (string #\tab #\tab) start " -> " end ";" (string #\newline))))
@@ -111,15 +116,18 @@
                       (add-edge-to-graph-file directory-path trace-name (string-append "M" included-mp-tail)))
                     mp-tail-inclusions)))
       (define (handle-label-trace-file trace-file-path)
-        (let ((label-function-name (substring (car (regexp-match #px"label [[:alpha:]]*" trace-file-path)) 6)))
+        (let ((label-function-name (string-replace (substring (car (regexp-match #px"label [[:alpha:]|-]*" trace-file-path)) 6) "-" "_")))
+          (add-node-to-graph-file directory-path label-function-name)
           (when (label-trace-loops? (string-append directory-path "\\" trace-file-path))
             (add-edge-to-graph-file directory-path label-function-name label-function-name))
           (handle-trace-file trace-file-path label-function-name)))
       (define (handle-guard-trace-file trace-file-path)
         (let ((guard-id-string (substring (car (regexp-match #px"guard [[:digit:]]*" trace-file-path)) 6)))
+          (add-node-to-graph-file directory-path (string-append "G" guard-id-string))
           (handle-trace-file trace-file-path (string-append "G" guard-id-string))))
       (define (handle-mp-tail-trace-file trace-file-path)
         (let ((mp-tail-id-string (substring (car (regexp-match #px"mp [[:digit:]]*" trace-file-path)) 3)))
+          (add-node-to-graph-file directory-path (string-append "M" mp-tail-id-string))
           (handle-trace-file trace-file-path (string-append "M" mp-tail-id-string))))
       (create-graph-file directory-path)
       (for-each handle-guard-trace-file
