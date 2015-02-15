@@ -61,6 +61,7 @@
            
            
            ;; Purely for benchmarking the implementation
+           GLOBAL_TRACER_CONTEXT
            set-pseudo-random-generator!)
   
   (require racket/date)
@@ -1469,7 +1470,7 @@
               (stop-tracing! #t)
               (let ((new-state (execute-label-trace v)))
                 (step* new-state)))
-             ((label-trace-exists? v)
+             ((and (label-trace-exists? v) (not (is-tracing?)))
               (output "----------- EXECUTING TRACE -----------") (output-newline)
               (let ((new-state (execute-label-trace v)))
                 (step* new-state)))
