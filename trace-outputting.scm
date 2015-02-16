@@ -7,8 +7,10 @@
            write-mp-tail-trace
            reset-trace-outputting!)
   
+  (define TRACES_ROOT_FOLDER "./Traces/")
+  
   (define BASE_TRACE_OUTPUT_FILE_EXTENSION "scm")
-  (define BASE_TRACE_OUTPUT_DIRECTORY_PATH "./Traces/Trace")
+  (define BASE_TRACE_OUTPUT_DIRECTORY_PATH (string-append TRACES_ROOT_FOLDER "Trace"))
   
   (define (make-output-directory-path)
     (make-full-output-directory-name BASE_TRACE_OUTPUT_DIRECTORY_PATH))
@@ -48,6 +50,7 @@
     (write-trace "mp" mp-id trace))
   
   (define (reset-trace-outputting!)
+    (create-root-traces-folder-if-needed)
     (set! current-trace-output-directory-created #f)
     (set! current-trace-output-directory-path (make-output-directory-path)))
   
@@ -58,5 +61,9 @@
             ((vector? element) (vector-map tree-rec element))
             (else element)))
     (tree-rec trace))
+  
+  (define (create-root-traces-folder-if-needed)
+    (unless (directory-exists? TRACES_ROOT_FOLDER)
+      (make-directory TRACES_ROOT_FOLDER)))
   
   (reset-trace-outputting!))
