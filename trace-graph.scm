@@ -9,7 +9,7 @@
   (define BASE_GRAPH_FILE "graph.gv")
   
   (struct trace-files (guard-trace-files label-trace-files mp-tail-trace-files) #:transparent)
-  (struct label-trace-info (label id node-name) #:transparent)
+  (struct label-trace-info (id node-name) #:transparent)
   
   (define (get-file-path-strings-in-directory directory-path)
     (let ((file-paths (directory-list directory-path)))
@@ -142,10 +142,8 @@
   
   (define (make-label-trace-info directory-path file-name)
     (let* ((label-id (get-label-id-from-file-name file-name))
-           (label-trace-file-path (string-append directory-path "\\" label-id ".scm"))
-           (content (file->value label-trace-file-path))
            (label-node-name (create-label-node-name (get-label-function-name-from-file-name file-name))))
-      (label-trace-info content (string->number label-id) label-node-name)))
+      (label-trace-info (string->number label-id) label-node-name)))
   
   (define (make-graph-file directory-path)
     (let* ((trace-files (get-trace-files-in-directory directory-path))
