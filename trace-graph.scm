@@ -73,7 +73,8 @@
       included-guard-ids))
   
   (define (get-label-inclusions trace-file-path list-of-label-trace-infos)
-    (let ((actual-trace (get-let-body-from-file trace-file-path))
+    (let ((let-body (get-let-body-from-file trace-file-path))
+          (actual-trace (get-trace-from-file trace-file-path))
           (included-label-trace-infos '()))
       (define (handle-expression expression)
         (cond ((eq? (get-operator expression) 'call-label-trace!)
@@ -83,6 +84,7 @@
                                                     list-of-label-trace-infos)))
                  (when label-trace-info-found
                    (set! included-label-trace-infos (cons (car label-trace-info-found) included-label-trace-infos)))))))
+      (for-each handle-expression let-body)
       (for-each handle-expression actual-trace)
       included-label-trace-infos))
                
