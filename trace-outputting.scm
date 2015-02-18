@@ -27,7 +27,7 @@
       (make-directory current-trace-output-directory-path)))
   
   (define (write-trace prefix id trace)
-    (let* ((base-file-name (add-output-directory-path-to-file-name (string-append prefix " " (number->string id))))
+    (let* ((base-file-name (add-output-directory-path-to-file-name (string-append prefix " " id)))
            (output-file-name (string-append base-file-name "." BASE_TRACE_OUTPUT_FILE_EXTENSION)))
       (unless current-trace-output-directory-created
         (create-trace-output-directory))
@@ -35,13 +35,16 @@
                 (write-to-file output-file-name (transform-trace trace))))))
     
   (define (write-guard-trace guard-id trace)
-    (write-trace "guard" guard-id trace))
+    (define (transform-guard-id guard-id)
+      (cond ((number? guard-id) (number->string guard-id))
+            ((pair? guard-id) (string-append (transform-guard-id (car guard-id)) "." (transform-guard-id (cdr guard-id))))))
+    (write-trace "guard" (transform-guard-id guard-id) trace))
     
   (define (write-label-trace trace-label trace-id trace debug-info)
-    (write-trace (string-append "label " (if (symbol? debug-info) (symbol->string debug-info) debug-info)) trace-id trace))
+    (write-trace (string-append "label " (if (symbol? debug-info) (symbol->string debug-info) debug-info)) (number->string trace-id) trace))
     
   (define (write-mp-tail-trace mp-id trace)
-    (write-trace "mp" mp-id trace))
+    (write-trace "mp" (number->string mp-id) trace))
   
   (define (reset-trace-outputting!)
     (create-root-traces-folder-if-needed)
