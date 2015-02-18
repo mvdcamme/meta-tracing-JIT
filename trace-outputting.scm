@@ -53,7 +53,10 @@
   
   (define (transform-trace trace)
     (define (tree-rec element)
-      (cond ((procedure? element) 'element)
+      (cond ((procedure? element) (let ((proc-name (object-name element)))
+                                    (if proc-name
+                                        (string-append "<procedure:" (symbol->string proc-name) ">")
+                                        "<procedure>")))
             ((pair? element) (cons (tree-rec (car element)) (tree-rec (cdr element))))
             ((vector? element) (vector-map tree-rec element))
             (else element)))
