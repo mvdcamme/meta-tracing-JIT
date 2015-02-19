@@ -132,7 +132,7 @@
   (struct applyk (rator) #:transparent)
   (struct closure-guard-failedk (i) #:transparent)
   (struct condk (pes es) #:transparent)
-  (struct definevk (x) #:transparent) ;define variable
+  (struct definevk (x) #:transparent)
   (struct haltk () #:transparent)
   (struct ifk (e1 e2) #:transparent)
   (struct letk (x es) #:transparent)
@@ -429,10 +429,6 @@
       (if (null? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
           (car trace-nodes-executing))))
-  
-  ;
-  ; Continuation (call/cc stack)
-  ;
   
   ;
   ; Trace frames stack
@@ -945,7 +941,7 @@
   (define (make-label-merges-cf-function)
     (define (label-merges-cf! trace)
       (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
-            (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-label-trace-function #f))))
+            (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
         (add-label-trace! trace-key transformed-trace)))
     label-merges-cf!)
   
@@ -953,7 +949,7 @@
     (define (mp-tail-merges-cf! trace)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain))) ;(make-transform-mp-tail-trace-function label #f))))
+             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
         (add-mp-tail-trace! mp-id trace-key transformed-trace)))
     mp-tail-merges-cf!)
   
