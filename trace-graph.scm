@@ -118,19 +118,29 @@
     (append-to-file (string-append directory-path "\\" BASE_GRAPH_FILE)
                     "}"))
   
-  (define (create-guard-node-name guard-id)
-    (string-append "G" guard-id))
+  (define (normalize-node-name name)
+    (let ((characters-to-remove '(#\( #\))))
+      (define (normalize-character char)
+        (cond ((member char characters-to-remove) "")
+              ((eq? char #\.) "_")
+              ((eq? char #\-) "_")
+              (else (string char))))
+      (apply string-append (map normalize-character (string->list name)))))
+  
+  (define (create-guard-node-name guard-id-string)
+    (let ((normalized-function-name (normalize-node-name guard-id-string)))
+      (string-append "G" normalized-function-name)))
   
   (define (create-label-node-name function-name label-id-string)
-    (let ((normalized-function-name (string-replace function-name "-" "_"))
-          (function-name-label-id-separator "_"))
-      (string-append normalized-function-name function-name-label-id-separator label-id-string)))
+    (let* ((function-name-label-id-separator "_")
+           (appended-function-name-id-string (string-append function-name function-name-label-id-separator label-id-string)))
+      (normalize-node-name appended-function-name-id-string)))
   
   (define (create-mp-tail-node-name mp-tail-id)
     (string-append "M" mp-tail-id))
   
   (define (get-guard-id-from-file-name file-name)
-    (substring (car (regexp-match #px"guard [[:digit:]]*" file-name)) 6))
+    (substring (car (regexp-match #px"guard [[:digit:]|\\.|(|)]*\\.scm$" file-name)) 6 (- (string-length file-name) 4)))
   
   (define (get-label-function-name-from-file-name file-name)
     (substring (car (regexp-match #px"label [[:alpha:]|-]*" file-name)) 6))
