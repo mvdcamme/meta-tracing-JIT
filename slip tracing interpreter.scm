@@ -310,15 +310,14 @@
   (struct tracer-context (is-tracing?
                           trace-key
                           current-trace-length
+                          labels-encountered
                           trace-nodes
                           trace-nodes-dictionary
-                          labels-encountered
                           trace-nodes-executing
                           splits-cf-id-stack
-                          continuation-calls-stack
                           closing-function
-                          mp-tails-dictionary
-                          merges-cf-function) #:transparent #:mutable)
+                          merges-cf-function
+                          mp-tails-dictionary) #:transparent #:mutable)
   
   (define GLOBAL_TRACER_CONTEXT #f)
   
@@ -327,14 +326,13 @@
                     #f
                     0
                     '()
+                    '()
                     (new-dictionary = 100 (lambda (label-trace-id) label-trace-id))
-                    '()
-                    '()
                     (new-stack)
                     (new-stack)
                     #f
-                    (new-dictionary = 100 (lambda (splits-cf-id) splits-cf-id))
-                    #f))
+                    #f
+                    (new-dictionary = 100 (lambda (splits-cf-id) splits-cf-id))))
   
   (define (is-tracing?)
     (tracer-context-is-tracing? GLOBAL_TRACER_CONTEXT))
@@ -367,11 +365,14 @@
           0)))
   
   (define (inc-times-label-encountered! label)
-    (let ((pair (massoc label (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))))
+    (let* ((labels-encountered (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))
+           (pair (massoc label (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))))
+      (define (add-new-label-encountered)
+        (set-tracer-context-labels-encountered! GLOBAL_TRACER_CONTEXT 
+                                                (cons (mcons label 1) labels-encountered)))
       (if pair
           (set-mcdr! pair (+ (mcdr pair) 1))
-          (set-tracer-context-labels-encountered! GLOBAL_TRACER_CONTEXT 
-                                                  (cons (mcons label 1) (tracer-context-labels-encountered GLOBAL_TRACER_CONTEXT))))))
+          (add-new-label-encountered))))
   
   ;
   ; Guard counter
@@ -414,21 +415,19 @@
   
   (define (pop-trace-node-executing!)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
-      (if (null? trace-nodes-executing)
+      (if (is-empty? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
-          (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT
-                                                     (cdr trace-nodes-executing)))))
+          (pop! trace-nodes-executing))))
   
   (define (push-trace-node-executing! trace-node)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
-      (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT
-                                                 (cons trace-node trace-nodes-executing))))
+      (push! trace-nodes-executing trace-node)))
   
   (define (top-trace-node-executing)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
-      (if (null? trace-nodes-executing)
+      (if (is-empty? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
-          (car trace-nodes-executing))))
+          (top trace-nodes-executing))))
   
   ;
   ; Trace frames stack
@@ -448,7 +447,7 @@
   (define (pop-trace-node-frame-from-stack! label)
     ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
     ;;Then pop one more time to get it off the stack.
-    (when (not (null? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (when (not (is-empty? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (pop-trace-frame-until-label! label)
       (pop-trace-frame!)))
   
@@ -553,7 +552,8 @@
   ;; that is the ancestor of any new guard-trace that would be created, as well as the path from
   ;; this label to the new guard-trace through the trace tree.
   (define (get-path-to-new-guard-trace)
-    (let* ((list (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (let* ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT))
+           (list (stack->list trace-nodes-executing)))
       (define (loop list path)
         ;(display "list = ") (display list) (display "; path = ") (display path) (newline)
         (cond ((null? list) '())
@@ -964,13 +964,15 @@
       (execute-label-trace label)))
   
   (define (trace-node-frame-on-stack? label)
-    (define (loop list)
-      (cond ((null? list) #f)
-            ((or (label-trace? (car list))
-                 (mp-tail-trace? (car list)))
-             (equal? label (trace-key-label (trace-node-trace-key (car list)))))
-            (else (loop (cdr list)))))
-    (loop (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (let* ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT))
+           (list (stack->list trace-nodes-executing)))
+      (define (loop list)
+        (cond ((null? list) #f)
+              ((or (label-trace? (car list))
+                   (mp-tail-trace? (car list)))
+               (equal? label (trace-key-label (trace-node-trace-key (car list)))))
+              (else (loop (cdr list)))))
+      (loop list)))
   
   (define (execute-guard-trace guard-id)
     (let* ((guard-trace (get-guard-trace guard-id))

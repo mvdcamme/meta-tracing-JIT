@@ -1,5 +1,5 @@
 (module stack racket
-  (provide new-stack push! pop! top is-empty?)
+  (provide new-stack push! pop! top is-empty? stack->list)
   
   (struct stack (lst) #:mutable)
   
@@ -25,5 +25,8 @@
   (define (is-empty? stack)
     (let ((lst (stack-lst stack)))
       (null? lst)))
+  
+  (define (stack->list stack)
+    (stack-lst stack))
   
   )
