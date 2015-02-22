@@ -19,6 +19,7 @@
            inc-splits-cf-id!
            inc-guard-id!
            inc-times-label-encountered!
+           inc-times-label-encountered-while-tracing!
            is-tracing?
            is-tracing-guard?
            is-tracing-label?
@@ -42,6 +43,7 @@
            start-tracing-label!
            stop-tracing!
            stop-tracing-normal!
+           times-label-encountered-greater-than-threshold?
            top-splits-cf-id
            top-trace-node-executing
            trace-node-frame-on-stack?
@@ -66,7 +68,9 @@
   ;
   ; Constants
   ;
+  
   (define ENABLE_OPTIMIZATIONS #f)
+  (define MAX_TIMES_LABEL_ENCOUNTERED 5)
   (define MAX_TRACE_LENGTH +inf.0)
   
   ;
@@ -166,6 +170,7 @@
   
   (struct tracer-context (is-tracing?
                           trace-key
+                          times-label-encountered-while-tracing
                           current-trace-length
                           labels-encountered
                           trace-nodes
@@ -181,6 +186,7 @@
   (define (new-tracer-context)
     (tracer-context #f
                     #f
+                    0
                     0
                     '()
                     '()
@@ -204,6 +210,14 @@
   (define (is-tracing-guard?)
     (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)))
       (not (eq? (trace-key-guard-ids trace-key) '()))))
+  
+  (define (inc-times-label-encountered-while-tracing!)
+    (let ((counter (tracer-context-times-label-encountered-while-tracing GLOBAL_TRACER_CONTEXT)))
+      (set-tracer-context-times-label-encountered-while-tracing! GLOBAL_TRACER_CONTEXT (+ counter 1))))
+  
+  (define (times-label-encountered-greater-than-threshold?)
+    (let ((counter (tracer-context-times-label-encountered-while-tracing GLOBAL_TRACER_CONTEXT)))
+      (> counter MAX_TIMES_LABEL_ENCOUNTERED)))
   
   (define (add-trace-length! n)
     (let ((current-length (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT)))
@@ -379,11 +393,12 @@
     (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT #f)
+    (set-tracer-context-times-label-encountered-while-tracing! GLOBAL_TRACER_CONTEXT 0)
     (clear-trace!))
   
   (define (stop-tracing-abnormal!)
-    (stop-tracing-bookkeeping!)
-    (flush-ast-nodes-traced!))
+    (flush-ast-nodes-traced!)
+    (stop-tracing-bookkeeping!))
   
   (define (stop-tracing-normal!)
     (let ((current-trace-key-id (trace-key-id (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))))
