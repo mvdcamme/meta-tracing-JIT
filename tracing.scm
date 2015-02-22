@@ -289,6 +289,17 @@
           (error "Trace-nodes-executing stack is empty!")
           (top trace-nodes-executing))))
   
+  (define (trace-node-frame-on-stack? label)
+    (let* ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT))
+           (list (stack->list trace-nodes-executing)))
+      (define (loop list)
+        (cond ((null? list) #f)
+              ((or (label-trace? (car list))
+                   (mp-tail-trace? (car list)))
+               (equal? label (trace-key-label (trace-node-trace-key (car list)))))
+              (else (loop (cdr list)))))
+      (loop list)))
+  
   ;
   ; Trace frames stack
   ;
@@ -809,25 +820,4 @@
              (label (trace-key-label trace-key))
              (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
         (add-mp-tail-trace! mp-id trace-key transformed-trace)))
-    mp-tail-merges-cf!)
-  
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;                                                                                                      ;
-  ;                                     Trace execution                                                  ;
-  ;                                                                                                      ;
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  ;
-  ; Executing traces
-  ;
-  
-  (define (trace-node-frame-on-stack? label)
-    (let* ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT))
-           (list (stack->list trace-nodes-executing)))
-      (define (loop list)
-        (cond ((null? list) #f)
-              ((or (label-trace? (car list))
-                   (mp-tail-trace? (car list)))
-               (equal? label (trace-key-label (trace-node-trace-key (car list)))))
-              (else (loop (cdr list)))))
-      (loop list))))
+    mp-tail-merges-cf!))

@@ -84,8 +84,6 @@
   (define IS_DEBUGGING #t)
   (define TRACING_THRESHOLD 5)
   
-  (define ns (make-base-namespace))
-  
   ;
   ; Outputting
   ;
@@ -236,13 +234,9 @@
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
-  ;                                        Tracing bookkeeping                                           ;
+  ;                                          Executing traces                                            ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  ;
-  ; Executing traces
-  ;
   
   (define (call-label-trace! label-trace-id)
     (let* ((label-trace (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id))
@@ -286,17 +280,11 @@
               (GLOBAL_CONTINUATION value)))
           (error "Trace for merge point was not found; mp id: " mp-id))))
   
-  
-  
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
-  ;                                         Running evaluator                                            ;
+  ;                                    Evaluator/trace instructions                                      ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  ;
-  ; Evaluator/trace instructions
-  ;
   
   (define (guard-false guard-id e)
     (if v
@@ -414,9 +402,98 @@
       (append-trace! ms))
     (run-trace ms))
   
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                     Handling tracing annotation                                      ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
   ;
-  ; Evaluation
+  ; Is-evaluating
   ;
+  
+  (define (handle-is-evaluating-annotation continuation)
+    (execute `(remove-continuation))
+    (set-root-expression-if-uninitialised! v)
+    (when (is-tracing?)
+      (add-ast-node-traced! v))
+    (step* continuation))
+  
+  ;
+  ; Starting/ending trace recording
+  ;
+  
+  (define (handle-can-close-loop-annotation label continuation)
+    (output "closing annotation: tracing loop ") (output label) (output-newline)
+    (when (is-tracing-label? label)
+      (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
+      (stop-tracing! #f))
+    (execute `(remove-continuation))
+    (step* continuation))
+  
+  (define (handle-can-start-loop-annotation label debug-info continuation)
+    (cond ((is-tracing-label? label)
+           (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
+           (stop-tracing! #t)
+           (let ((new-state (execute-label-trace label)))
+             (step* new-state)))
+          ((and (label-trace-exists? label) (not (is-tracing?)))
+           (output "----------- EXECUTING TRACE -----------") (output-newline)
+           (let ((new-state (execute-label-trace label)))
+             (step* new-state)))
+          ((and (not (is-tracing?)) (>= (get-times-label-encountered label) TRACING_THRESHOLD))
+           (output "----------- STARTED TRACING -----------") (output-newline)
+           (start-tracing-label! label debug-info)
+           (execute `(remove-continuation))
+           (let ((new-state continuation))
+             (step* new-state)))
+          (else
+           (execute `(remove-continuation))
+           (inc-times-label-encountered! label)
+           (when (is-tracing?)
+             (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline))
+           (let ((new-state continuation))
+             (step* new-state)))))
+  
+  ;
+  ; Trace merging
+  ;
+  
+  (define (handle-merges-cf-annotation continuation)
+    (output "MERGES CONTROL FLOW") (output-newline)
+    (let ((mp-id (top-splits-cf-id)))
+      (execute `(remove-continuation)
+               `(pop-splits-cf-id!))
+      (if (is-tracing?)
+          (begin
+            (when (is-tracing-guard?)
+              (append-trace! `((pop-trace-node-frame!))))
+            (append-trace! `((pop-trace-node-frame!)
+                             (execute-mp-tail-trace ,mp-id)))
+            ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
+            (if (mp-tail-trace-exists? mp-id)
+                (begin (output "MP TAIL TRACE EXISTS") (output-newline)
+                       (stop-tracing-normal!)
+                       (let ((new-state (eval `(execute-mp-tail-trace ,mp-id))))
+                         (step* new-state)))
+                (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
+                       (clear-trace!)
+                       (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function mp-id))
+                       (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id))
+                       (step* continuation))))
+          (step* continuation))))
+  
+  (define (handle-splits-cf-annotation continuation)
+    (execute `(remove-continuation)
+             `(push-splits-cf-id! ,(inc-splits-cf-id!)))
+    (step* continuation))
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                         Running evaluator                                            ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   (define (eval-seq es κ)
     (match es
@@ -681,7 +758,7 @@
        (execute `(restore-env)
                 `(guard-same-closure ,v ,i  ,(inc-guard-id!)))
        (do-function-call i κ))
-      ((ko (seqk '()) (cons φ κ)) ;TODO No tailcall optimization!
+      ((ko (seqk '()) (cons φ κ)) ;No tailcall optimization!
        (execute `(restore-env)
                 `(remove-continuation))
        (ko φ κ))
@@ -699,71 +776,18 @@
       ((ko (haltk) _)
        v)
       ((ko (is-evaluatingk) (cons φ κ))
-       (execute `(remove-continuation))
-       (set-root-expression-if-uninitialised! v)
-       (when (is-tracing?)
-           (add-ast-node-traced! v))
-       (step* (ko φ κ)))
+       (handle-is-evaluating-annotation (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
-       (execute `(remove-continuation)
-                `(push-splits-cf-id! ,(inc-splits-cf-id!)))
-       (step* (ko φ κ)))
+       (handle-splits-cf-annotation (ko φ κ)))
       ((ev `(merges-control-flow) (cons φ κ))
-       (output "MERGES CONTROL FLOW") (output-newline)
-       (let ((mp-id (top-splits-cf-id)))
-         (execute `(remove-continuation)
-                  `(pop-splits-cf-id!))
-         (if (is-tracing?)
-             (begin
-               (when (is-tracing-guard?)
-                 (append-trace! `((pop-trace-node-frame!))))
-               (append-trace! `((pop-trace-node-frame!)
-                                (execute-mp-tail-trace ,mp-id)))
-               ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
-               (if (mp-tail-trace-exists? mp-id)
-                   (begin (output "MP TAIL TRACE EXISTS") (output-newline)
-                          (stop-tracing-normal!)
-                          (let ((new-state (eval `(execute-mp-tail-trace ,mp-id))))
-                            (step* new-state)))
-                   (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                          (clear-trace!)
-                          (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function mp-id))
-                          (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id))
-                          (step* (ko φ κ)))))
-             (step* (ko φ κ)))))
+       (handle-merges-cf-annotation (ko φ κ)))
       ((ko (can-close-loopk) (cons φ κ))
-       (output "closing annotation: tracing loop ") (output v) (output-newline)
-       (when (is-tracing-label? v)
-         (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-         (stop-tracing! #f))
-       (execute `(remove-continuation))
-       (step* (ko φ κ)))
+       (handle-can-close-loop-annotation v (ko φ κ)))
       ((ko (can-start-loopk label '()) κ)
        (execute `(add-continuation ,(can-start-loopk '() v)))
        (step* (ev label (cons (can-start-loopk '() v) κ))))
       ((ko (can-start-loopk '() debug-info) (cons φ κ))
-       (cond ((is-tracing-label? v)
-              (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-              (stop-tracing! #t)
-              (let ((new-state (execute-label-trace v)))
-                (step* new-state)))
-             ((and (label-trace-exists? v) (not (is-tracing?)))
-              (output "----------- EXECUTING TRACE -----------") (output-newline)
-              (let ((new-state (execute-label-trace v)))
-                (step* new-state)))
-             ((and (not (is-tracing?)) (>= (get-times-label-encountered v) TRACING_THRESHOLD))
-              (output "----------- STARTED TRACING -----------") (output-newline)
-              (start-tracing-label! v debug-info)
-              (execute `(remove-continuation))
-              (let ((new-state (ko φ κ)))
-                (step* new-state)))
-             (else
-              (execute `(remove-continuation))
-              (inc-times-label-encountered! v)
-              (when (is-tracing?)
-                (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline))
-              (let ((new-state (ko φ κ)))
-                (step* new-state)))))
+       (handle-can-start-loop-annotation v debug-info (ko φ κ)))
       (_
        (let ((new-state (step s)))
          (step* new-state)))))
