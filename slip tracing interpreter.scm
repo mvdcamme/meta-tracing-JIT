@@ -63,7 +63,6 @@
            GLOBAL_CONTINUATION
            set-pseudo-random-generator!)
   
-  (require (planet dyoo/simply-scheme))
   (require racket/date)
   
   (require "dictionary.scm")
