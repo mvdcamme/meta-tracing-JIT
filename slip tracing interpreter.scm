@@ -63,8 +63,6 @@
            GLOBAL_CONTINUATION
            set-pseudo-random-generator!)
   
-  (require racket/date)
-  
   (require "dictionary.scm")
   (require "stack.scm")
   (require "tracing.scm")
