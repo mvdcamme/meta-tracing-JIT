@@ -439,6 +439,7 @@
         (step* new-state)))
     (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
+      (execute `(remove-continuation))
       (step* continuation))
     (inc-times-label-encountered-while-tracing!)
     (if (times-label-encountered-greater-than-threshold?)
