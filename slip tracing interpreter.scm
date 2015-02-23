@@ -28,11 +28,13 @@
            literal-value
            lookup-var
            quote-value
+           pop-continuation!
            pop-splits-cf-id!
            pop-trace-node-frame!
            pop-trace-node-frame-until-label!
            pop-trace-node-executing!
            pop-trace-node-frame-from-stack!
+           push-continuation!
            push-splits-cf-id!
            push-trace-node-frame!
            push-trace-node-executing!
@@ -47,6 +49,7 @@
            set-env
            set-var
            switch-to-clo-env
+           top-continuation
            top-splits-cf-id
            top-trace-node-executing
            trace-node-frame-on-stack?
@@ -61,7 +64,6 @@
            
            ;; Purely for benchmarking the implementation
            GLOBAL_TRACER_CONTEXT
-           GLOBAL_CONTINUATION
            set-pseudo-random-generator!)
   
   (require "dictionary.scm")
@@ -271,33 +273,37 @@
            (old-trace-key (get-path-to-new-guard-trace))
            (corresponding-label (trace-key-label old-trace-key)))
       (add-execution! guard-trace)
-      (execute `(let ()
-                  (push-trace-node-frame! ,guard-trace)
-                  (let ((value (execute-trace ',trace)))
-                    (when (trace-node-frame-on-stack? ',corresponding-label)
-                      (pop-trace-node-frame-from-stack! ',corresponding-label))
-                    (GLOBAL_CONTINUATION value))))))
+      (execute `(let* ((value (call/cc (lambda (k)
+                                         (push-trace-node-frame! ,guard-trace k)
+                                         (execute-trace ',trace)))))
+                  (when (trace-node-frame-on-stack? ',corresponding-label)
+                    (pop-trace-node-frame-from-stack! ',corresponding-label))
+                  (let ((kk (top-continuation)))
+                    (kk value))))))
   
   (define (execute-label-trace label)
     (let* ((label-trace (get-label-trace label))
            (trace (trace-node-trace label-trace)))
       (add-execution! label-trace)
-      (execute `(let ()
-                  (push-trace-node-frame! ,label-trace)
-                  (let ((value (execute-trace ',trace)))
-                    (pop-trace-node-frame!)
-                    (GLOBAL_CONTINUATION value))))))
+      (execute `(let ((label-value (call/cc (lambda (k)
+                                              (push-trace-node-frame! ,label-trace k)
+                                              (execute-trace ',trace)))))
+                  (pop-trace-node-frame!)
+                  label-value))))
   
-  (define (execute-mp-tail-trace mp-id continuation)
+  (define (execute-mp-tail-trace mp-id new-state)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
            (mp-tail-trace (get-mp-tail-trace mp-id)))
       (if mp-tail-trace
           (begin (add-execution! mp-tail-trace)
-                 (push-trace-node-frame! mp-tail-trace)
-                 (let ((value (execute-trace (trace-node-trace mp-tail-trace))))
+                 (let ((mp-value (call/cc (lambda (k)
+                                            (push-trace-node-frame! mp-tail-trace k)
+                                            (execute-trace (trace-node-trace mp-tail-trace))))))
                    (pop-trace-node-frame!)
-                   (GLOBAL_CONTINUATION value)))
-          (GLOBAL_CONTINUATION continuation))))
+                   (let ((kk (top-continuation)))
+                     (kk mp-value))))
+          (let ((kk (top-continuation)))
+            (kk new-state)))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -469,7 +475,7 @@
   (define (handle-can-start-loop-annotation label debug-info continuation)
     (cond ((is-tracing-label? label)
            (check-stop-tracing-label label continuation))
-          ((and (label-trace-exists? label) (not (is-tracing?)))
+          ((label-trace-exists? label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
            (let ((new-state (execute-label-trace label)))
              (step* new-state)))
@@ -835,7 +841,7 @@
   
   (define (bootstrap guard-id state)
     (output "------ BOOTSTRAP: FULL GUARD PATH: ") (output (get-path-to-new-guard-trace)) (output " ------") (output-newline)
-    (cond ((and (guard-trace-exists? guard-id) (not (is-tracing?)))
+    (cond ((guard-trace-exists? guard-id)
            (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
            (execute-guard-trace guard-id))
           ((not (is-tracing?))
@@ -843,16 +849,18 @@
            (let* ((old-trace-key (get-path-to-new-guard-trace))
                   (corresponding-label (trace-key-label old-trace-key)))
              (pop-trace-node-frame-from-stack! corresponding-label)
-             (start-tracing-guard! guard-id old-trace-key)
-             (GLOBAL_CONTINUATION state)))
+             (let ((kk (top-continuation)))
+               (start-tracing-guard! guard-id old-trace-key)
+               (kk state))))
           (else
            (output "----------- CANNOT TRACE GUARD ") (output guard-id)
            (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
            (let* ((old-trace-key (get-path-to-new-guard-trace))
                   (corresponding-label (trace-key-label old-trace-key)))
              (pop-trace-node-frame-from-stack! corresponding-label)
-             (switch-to-trace-guard! guard-id old-trace-key)
-             (GLOBAL_CONTINUATION state)))))
+             (let ((kk (top-continuation)))
+               (switch-to-trace-guard! guard-id old-trace-key)
+               (kk state))))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
@@ -891,7 +899,7 @@
   (define (run s)
     (reset!)
     (apply step* (list (let ((v (call/cc (lambda (k)
-                                           (set-global-continuation! k)
+                                           (push-continuation! k)
                                            s))))
                          v))))
   

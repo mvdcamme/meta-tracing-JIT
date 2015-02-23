@@ -27,23 +27,25 @@
            make-mp-tail-merges-cf-function
            make-stop-tracing-mp-tail-function
            mp-tail-trace-exists?
+           pop-continuation!
            pop-splits-cf-id!
            pop-trace-node-frame!
            pop-trace-node-frame-until-label!
            pop-trace-node-executing!
            pop-trace-node-frame-from-stack!
+           push-continuation!
            push-splits-cf-id!
            push-trace-node-frame!
            push-trace-node-executing!
            reset-global-tracer-context!
            reset-metrics!
-           set-global-continuation!
            set-root-expression-if-uninitialised!
            start-tracing-guard!
            start-tracing-label!
            stop-tracing!
            stop-tracing-normal!
            times-label-encountered-greater-than-threshold?
+           top-continuation
            top-splits-cf-id
            top-trace-node-executing
            trace-node-frame-on-stack?
@@ -57,7 +59,6 @@
            
            ;; Global variables
            τ
-           GLOBAL_CONTINUATION
            GLOBAL_TRACER_CONTEXT)
   
   (require "dictionary.scm")
@@ -163,11 +164,6 @@
   ; Tracer context
   ;
   
-  (define GLOBAL_CONTINUATION #f)
-  
-  (define (set-global-continuation! k)
-    (set! GLOBAL_CONTINUATION k))
-  
   (struct tracer-context (is-tracing?
                           trace-key
                           times-label-encountered-while-tracing
@@ -177,6 +173,7 @@
                           trace-nodes-dictionary
                           trace-nodes-executing
                           splits-cf-id-stack
+                          continuation-calls-stack
                           closing-function
                           merges-cf-function
                           mp-tails-dictionary) #:transparent #:mutable)
@@ -191,6 +188,7 @@
                     '()
                     '()
                     (new-dictionary = 100 (lambda (label-trace-id) label-trace-id))
+                    (new-stack)
                     (new-stack)
                     (new-stack)
                     #f
@@ -315,11 +313,25 @@
       (loop list)))
   
   ;
+  ; Continuation (call/cc stack)
+  ;
+  
+  (define (pop-continuation!)
+    (pop! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
+  
+  (define (push-continuation! k)
+    (push! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT) k))
+  
+  (define (top-continuation)
+    (top (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
+  
+  ;
   ; Trace frames stack
   ;
   
   (define (pop-trace-node-frame!)
-    (pop-trace-node-executing!))
+    (pop-trace-node-executing!)
+    (pop-continuation!))
   
   (define (pop-trace-node-frame-until-label! label)
     (let ((current-trace-node-executing (top-trace-node-executing)))
@@ -336,8 +348,9 @@
       (pop-trace-node-frame-until-label! label)
       (pop-trace-node-frame!)))
   
-  (define (push-trace-node-frame! trace-node-executing)
-    (push-trace-node-executing! trace-node-executing))
+  (define (push-trace-node-frame! trace-node-executing continuation)
+    (push-trace-node-executing! trace-node-executing)
+    (push-continuation! continuation))
   
   ;
   ; Start tracing
