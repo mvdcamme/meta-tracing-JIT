@@ -17,6 +17,7 @@
            call-label-trace!
            create-closure
            debug
+           execute-trace
            execute-guard-trace
            execute-label-trace
            execute-mp-tail-trace
@@ -235,6 +236,29 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define (get-actual-trace letrec-expression)
+    (cddr (cadr (car (cadr letrec-expression)))))
+  
+  (define (get-letrec-body letrec-expression)
+    (cddr letrec-expression))
+  
+  (define get-operator car)
+  
+  (define (execute-trace s-expression)
+    (let ((actual-trace (get-actual-trace s-expression))
+          (letrec-body (get-letrec-body s-expression)))
+      (define (execute-instruction instruction)
+        (cond ((eq? (get-operator instruction) 'loop) (void))
+              ((eq? (get-operator instruction) 'non-loop) (void))
+              (else (eval instruction))))
+      (define (execute-letrec-body instructions last-result)
+        (cond ((null? instructions) last-result)
+              ((eq? (get-operator (car instructions)) 'loop) (execute-trace s-expression))
+              ((eq? (get-operator (car instructions)) 'non-loop) (execute-letrec-body (cdr instructions) last-result))
+              (else (execute-letrec-body (cdr instructions) (eval (car instructions))))))
+      (for-each execute-instruction actual-trace)
+      (execute-letrec-body letrec-body '())))
+  
   (define (call-label-trace! label-trace-id)
     (let* ((label-trace (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id))
            (label (trace-key-label (trace-node-trace-key label-trace))))
@@ -249,7 +273,7 @@
       (add-execution! guard-trace)
       (execute `(let ()
                   (push-trace-node-frame! ,guard-trace)
-                  (let ((value (eval ,trace)))
+                  (let ((value (execute-trace ',trace)))
                     (when (trace-node-frame-on-stack? ',corresponding-label)
                       (pop-trace-node-frame-from-stack! ',corresponding-label))
                     (GLOBAL_CONTINUATION value))))))
@@ -260,7 +284,7 @@
       (add-execution! label-trace)
       (execute `(let ()
                   (push-trace-node-frame! ,label-trace)
-                  (let ((value (eval ,trace)))
+                  (let ((value (execute-trace ',trace)))
                     (pop-trace-node-frame!)
                     (GLOBAL_CONTINUATION value))))))
   
@@ -272,7 +296,7 @@
       (if trace
           (let ()
             (push-trace-node-frame! mp-tail-trace)
-            (let ((value (eval trace)))
+            (let ((value (execute-trace trace)))
               (pop-trace-node-frame!)
               (GLOBAL_CONTINUATION value)))
           (error "Trace for merge point was not found; mp id: " mp-id))))
