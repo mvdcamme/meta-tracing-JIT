@@ -71,7 +71,7 @@
   
   (define ENABLE_OPTIMIZATIONS #f)
   (define MAX_TIMES_LABEL_ENCOUNTERED 5)
-  (define MAX_TRACE_LENGTH +inf.0)
+  (define MAX_TRACE_LENGTH 100000)
   
   ;
   ; Trace register
@@ -476,7 +476,7 @@
   
   (define (get-mp-tail-trace mp-id)
     (let ((trace-node-found (search-mp-tail-trace mp-id)))
-      (return-if-existing trace-node-found "Mp-tail-trace not found!" mp-id)))
+      trace-node-found))
   
   ;
   ; Adding traces

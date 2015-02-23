@@ -288,18 +288,16 @@
                     (pop-trace-node-frame!)
                     (GLOBAL_CONTINUATION value))))))
   
-  (define (execute-mp-tail-trace mp-id)
+  (define (execute-mp-tail-trace mp-id continuation)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-           (mp-tail-trace (get-mp-tail-trace mp-id))
-           (trace (trace-node-trace mp-tail-trace)))
-      (add-execution! mp-tail-trace)
-      (if trace
-          (let ()
-            (push-trace-node-frame! mp-tail-trace)
-            (let ((value (execute-trace trace)))
-              (pop-trace-node-frame!)
-              (GLOBAL_CONTINUATION value)))
-          (error "Trace for merge point was not found; mp id: " mp-id))))
+           (mp-tail-trace (get-mp-tail-trace mp-id)))
+      (if mp-tail-trace
+          (begin (add-execution! mp-tail-trace)
+                 (push-trace-node-frame! mp-tail-trace)
+                 (let ((value (execute-trace (trace-node-trace mp-tail-trace))))
+                   (pop-trace-node-frame!)
+                   (GLOBAL_CONTINUATION value)))
+          (GLOBAL_CONTINUATION continuation))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -503,12 +501,12 @@
             (when (is-tracing-guard?)
               (append-trace! `((pop-trace-node-frame!))))
             (append-trace! `((pop-trace-node-frame!)
-                             (execute-mp-tail-trace ,mp-id)))
+                             (execute-mp-tail-trace ,mp-id ,continuation)))
             ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
             (if (mp-tail-trace-exists? mp-id)
                 (begin (output "MP TAIL TRACE EXISTS") (output-newline)
                        (stop-tracing-normal!)
-                       (let ((new-state (eval `(execute-mp-tail-trace ,mp-id))))
+                       (let ((new-state (eval `(execute-mp-tail-trace ,mp-id ,continuation))))
                          (step* new-state)))
                 (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
                        (clear-trace!)
