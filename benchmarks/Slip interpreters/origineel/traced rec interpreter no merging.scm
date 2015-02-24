@@ -1,3 +1,7 @@
+
+;;; Traced recursive Slip interpreter WITHOUT annotations for merging traces.
+;;; This interpreter should be executed by the tracing interpreter.
+
 (begin
   
   (define (assocv el lst)
@@ -7,11 +11,11 @@
   
   (define debug '())
   
-  (define (map expressions-tail f lst)
+  (define (map f lst)
     (define (loop list acc)
       (if (null? list)
           (reverse acc)
-          (loop (cdr list) (cons (begin debug (f expressions-tail (car list))) acc))))
+          (loop (cdr list) (cons (begin debug (f (car list))) acc))))
     (loop lst '()))
   
   (define (for-each f lst)
@@ -24,13 +28,11 @@
   
   (define meta-circularity-level 0)
   
-  ;;Binds the symbol 'random to the pseudo-random function that was placed by the
-  ;;tracing interpreter in the environment in which this recursive SLIP evaluator is running.
-  ;(define random-binding (vector 'random random))
+  ;; Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;; tracing interpreter in the environment in which this recursive Slip evaluator is running.
+  (define random-binding (vector 'random random))
   
-  ;(define environment (list random-binding))
-  
-  (define environment '())
+  (define environment (list random-binding))
   
   (define (loop output)
     
@@ -40,7 +42,7 @@
     
     (define (abort message qualifier)
       (display message)
-      (loop qualifier))
+      message)
     
     (define (bind-variable variable value)
       (define binding (vector variable value))
@@ -57,14 +59,10 @@
               (if (not (and (null? parameters) (null? arguments)))
                   (error "Incorrect number of arguments, parameters: " parameters ", arguments: " arguments)))))
     
-    (define (thunkify expressions-tail expression)
+    (define (thunkify expression)
       (define frozen-environment environment)
-      (define value (evaluate expressions-tail expression))
+      (define value (evaluate expression))
       (set! environment frozen-environment)
-      value)
-    
-    (define (return-from-control-flow-split value)
-      ;(merges-control-flow)
       value)
     
     (define (evaluate-sequence expressions)
@@ -72,61 +70,59 @@
           '()
           (let* ((head (car expressions))
                  (tail (cdr expressions))
-                 (value (evaluate tail head)))
+                 (value (evaluate head)))
             (if (null? tail)
                 value
                 (evaluate-sequence tail)))))
     
     (define (close parameters expressions closure-name)
       (define lexical-environment environment)
-      (define (closure expressions-tail . arguments)
+      (define (closure . arguments)
         (define dynamic-environment environment)
-        (display expressions-tail) (newline)
-        ;(can-start-loop (cons expressions-tail expressions) closure-name)
+        (can-start-loop expressions closure-name)
         (set! environment lexical-environment)
         (bind-parameters parameters arguments)
         (let* ((value (evaluate-sequence expressions)))
           (set! environment dynamic-environment)
-          ;(can-close-loop (cons expressions-tail expressions))
+          (can-close-loop expressions)
           value))
       closure)
     
-    (define (evaluate-and expressions-tail . expressions)
+    (define (evaluate-and . expressions)
       (define (and-loop expressions prev)
         (if (null? expressions)
             prev
-            (let* ((value (evaluate expressions-tail (car expressions))))
+            (let* ((value (evaluate (car expressions))))
               (if value
                   (and-loop (cdr expressions) value)
                   #f))))
       (and-loop expressions #t))
     
     (define (evaluate-application operator)
-      (lambda (expressions-tail . operands)
-        (apply (evaluate expressions-tail operator) (cons expressions-tail (map expressions-tail evaluate operands)))))
+      (lambda operands
+        (apply (evaluate operator) (map evaluate operands))))
     
-    (define (evaluate-apply expressions-tail . expressions)
-      (apply (evaluate expressions-tail (car expressions)) (evaluate expressions-tail (cadr expressions))))
+    (define (evaluate-apply . expressions)
+      (apply (evaluate (car expressions)) (evaluate (cadr expressions))))
     
-    (define (evaluate-begin expressions-tail . expressions)
+    (define (evaluate-begin . expressions)
       (evaluate-sequence expressions))
     
-    (define (evaluate-cond expressions-tail . expressions)
+    (define (evaluate-cond . expressions)
       (define (cond-loop expressions)
         (cond ((null? expressions) '())
               ((eq? (car (car expressions)) 'else)
                (if (not (null? (cdr expressions)))
                    (error "Syntax error: 'else' should be at the end of a cond-expression")
                    (evaluate-sequence (cdr (car expressions)))))
-              ((not (eq? (evaluate expressions-tail (car (car expressions))) #f))
+              ((not (eq? (evaluate (car (car expressions))) #f))
                (evaluate-sequence (cdr (car expressions))))
               (else (cond-loop (cdr expressions)))))
-      ;(splits-control-flow)
-      (return-from-control-flow-split (cond-loop expressions)))
+      (cond-loop expressions))
     
-    (define (evaluate-define expressions-tail pattern . expressions)
+    (define (evaluate-define pattern . expressions)
       (if (symbol? pattern)
-          (let* ((value (evaluate expressions-tail (car expressions)))
+          (let* ((value (evaluate (car expressions)))
                  (binding (vector pattern value)))
             (set! environment (cons binding environment))
             value)
@@ -136,32 +132,28 @@
               (vector-set! binding 1 closure)
               closure))))
     
-    (define (evaluate-eval expressions-tail expression)
-      (evaluate '() (evaluate expressions-tail expression)))
+    (define (evaluate-eval expression)
+      (evaluate (evaluate expression)))
     
-    (define (evaluate-if expressions-tail predicate consequent . alternate)
-      ;(display "If: ") (display predicate) (newline)
-      ;(display consequent) (newline)
-      ;(display alternate) (newline)
-      (let* ((cond (evaluate expressions-tail predicate)))
-        ;(splits-control-flow)
+    (define (evaluate-if predicate consequent . alternate)
+      (let* ((cond (evaluate predicate)))
         (if cond
-            (return-from-control-flow-split (thunkify expressions-tail consequent))
+            (thunkify consequent)
             (if (null? alternate)
-                (return-from-control-flow-split '())
-                (return-from-control-flow-split (thunkify expressions-tail (car alternate)))))))
+                '()
+                (thunkify (car alternate))))))
     
-    (define (evaluate-lambda expressions-tail parameters . expressions)
+    (define (evaluate-lambda parameters . expressions)
       (close parameters expressions "lambda"))
     
-    (define (evaluate-let expressions-tail . expressions)
+    (define (evaluate-let . expressions)
       (define frozen-environment environment)
       (define (evaluate-bindings bindings bindings-to-add)
         (if (null? bindings)
             bindings-to-add
             (let* ((let-binding (car bindings))
                    (variable (car let-binding))
-                   (value (evaluate expressions-tail (cadr let-binding)))
+                   (value (evaluate (cadr let-binding)))
                    (binding (vector variable value)))
               (evaluate-bindings (cdr bindings) (cons binding bindings-to-add)))))
       (for-each (lambda (binding) (set! environment (cons binding environment)))
@@ -170,13 +162,13 @@
         (set! environment frozen-environment)
         value))
     
-    (define (evaluate-let* expressions-tail bindings . expressions)
+    (define (evaluate-let* bindings . expressions)
       (define frozen-environment environment)
       (define (evaluate-bindings bindings)
         (if (not (null? bindings))
             (let* ((let*-binding (car bindings))
                    (variable (car let*-binding))
-                   (value (evaluate expressions-tail (cadr let*-binding)))
+                   (value (evaluate (cadr let*-binding)))
                    (binding (vector variable value)))
               (set! environment (cons binding environment))
               (evaluate-bindings (cdr bindings)))))
@@ -185,7 +177,7 @@
         (set! environment frozen-environment)
         value))
     
-    (define (evaluate-letrec expressions-tail . expressions)
+    (define (evaluate-letrec . expressions)
       (define frozen-environment environment)
       (define (evaluate-bindings bindings)
         (if (not (null? bindings))
@@ -193,24 +185,24 @@
                    (variable (car letrec-binding))
                    (binding (vector variable '())))
               (set! environment (cons binding environment))
-              (vector-set! binding 1 (evaluate expressions-tail (cadr letrec-binding)))
+              (vector-set! binding 1 (evaluate (cadr letrec-binding)))
               (evaluate-bindings (cdr bindings)))))
       (evaluate-bindings (car expressions))
       (let* ((value (evaluate-sequence (cdr expressions))))
         (set! environment frozen-environment)
         value))
     
-    (define (evaluate-load expressions-tail string)
+    (define (evaluate-load string)
       (let* ((port (open-input-file string))
-             (exp (read-port)))
+             (exp (read port)))
         (close-input-port port)
-        (evaluate expressions-tail (read port))))
+        (evaluate exp)))
     
-    (define (evaluate-or expressions-tail . expressions)
+    (define (evaluate-or . expressions)
       (define (or-loop expressions)
         (if (null? expressions)
             #f
-            (let* ((value (evaluate expressions-tail (car expressions))))
+            (let* ((value (evaluate (car expressions))))
               (if value
                   value
                   (or-loop (cdr expressions))))))
@@ -219,25 +211,24 @@
     (define (evaluate-quote expression)
       expression)
     
-    (define (evaluate-set! expressions-tail variable expression)
-      (define value (evaluate expressions-tail expression))
+    (define (evaluate-set! variable expression)
+      (define value (evaluate expression))
       (define binding (assocv variable environment))
       (if (vector? binding)
           (vector-set! binding 1 value)
           (abort "inaccessible variable: " variable)))
     
-    (define (evaluate-variable expressions-tail variable)
+    (define (evaluate-variable variable)
       (define binding (assocv variable environment))
       (if (vector? binding)
           (vector-ref binding 1)
-          (lambda (expressions-tail . arguments)
-            (apply (eval variable (interaction-environment))
-                   arguments))))
+          ((begin debug eval) variable (make-base-namespace))))
     
-    (define (actual-evaluate expressions-tail expression)
+    (define (actual-evaluate expression)
+      
       (cond
         ((symbol? expression)
-         (evaluate-variable expressions-tail expression))
+         (evaluate-variable expression))
         ((pair? expression)
          (let* ((operator (car expression))
                 (operands (cdr expression)))
@@ -273,15 +264,12 @@
                   ((eq? operator 'set!) 
                    evaluate-set!)
                   (else
-                   (evaluate-application operator))) (cons expressions-tail operands))))
+                   (evaluate-application operator))) operands)))
         (else
          expression)))
     
     (set! evaluate actual-evaluate)
     
-    (display output)
-    (newline)
-    (display ">>>")
-    (loop (evaluate '() (read))))
+    (evaluate-load "input_file.scm"))
   
   (loop "Slip"))

@@ -17,21 +17,25 @@
   
   (define BENCHMARK_INPUT_PATH "input_file.scm")
   (define NESTED_BENCHMARK_INPUT_PATH "input_file_nested.scm")
+  (define NESTED_SLIP_INTERPRETERS_FOLDER "./Nested interpretation/")
+  (define SLIP_INTERPRETERS_FOLDER "./Slip interpreters/")
            
   ;
   ; Interpreters
   ;
-  (define rec-slip-interpreter-normal-path "slip interpreters/base rec interpreter.scm")
-  (define rec-slip-interpreter-traced-path "slip interpreters/traced rec interpreter merging.scm")
-  (define rec-slip-interpreter-traced-merging-duplication-path "slip interpreters/traced rec interpreter merging duplication.scm")
-  (define rec-slip-interpreter-traced-no-merging-duplication-path "slip interpreters/traced rec interpreter duplication no merging.scm")
+  (define rec-interpreter-direct-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter direct.scm"))
+  (define rec-interpreter-traced-merging-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced merging.scm"))
+  (define rec-interpreter-traced-merging-duplication-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced merging duplication.scm"))
+  (define rec-interpreter-traced-no-merging-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced no merging.scm"))
+  (define rec-interpreter-traced-no-merging-duplication-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced no merging duplication.scm"))
   
-  (define rec-slip-interpreter-normal-exp (file->value rec-slip-interpreter-normal-path))
-  (define rec-slip-interpreter-traced-exp (file->value rec-slip-interpreter-traced-path))
-  (define rec-slip-interpreter-traced-merging-duplication-exp (file->value rec-slip-interpreter-traced-merging-duplication-path))
-  (define rec-slip-interpreter-traced-no-merging-duplication-exp (file->value rec-slip-interpreter-traced-no-merging-duplication-path))
+  (define rec-interpreter-direct-exp (file->value rec-interpreter-direct-path))
+  (define rec-interpreter-traced-merging-exp (file->value rec-interpreter-traced-merging-path))
+  (define rec-interpreter-traced-merging-duplication-exp (file->value rec-interpreter-traced-merging-duplication-path))
+  (define rec-interpreter-traced-no-merging-exp (file->value rec-interpreter-traced-no-merging-path))
+  (define rec-interpreter-traced-no-merging-duplication-exp (file->value rec-interpreter-traced-no-merging-duplication-path))
   
-  (define nested-interpreter-path "nested interpretation/recursive slip meta-interpreter no annotations.scm")
+  (define nested-interpreter-path (string-append NESTED_SLIP_INTERPRETERS_FOLDER "Rec interpreter direct.scm"))
   
   ;
   ; Output file
@@ -129,7 +133,6 @@
                     (set! variation (- (/ sum-2 n) (sqr average)))
                     (set! standard-deviation (sqrt variation))))
                 (process-ast-nodes-list all-ast-nodes)
-                ;(display all-ast-nodes) (newline)
                 (output-pretty root-expression) (newline)
                 (output-metric trace-duplication-metric-name (list (cons 'average average)
                                                                    (cons 'variation variation)
@@ -178,13 +181,13 @@
       (define (run-tracing-interpreter)
         (run-interpreter (lambda () (run (inject s-exp))) tracing-interpreter-name))
       (define (run-rec-slip-interpreter-normal)
-        (run-interpreter (lambda () (eval rec-slip-interpreter-normal-exp)) rec-slip-interpreter-normal-name))
+        (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-normal-meta-interpreted)
-        (run-interpreter (lambda () (eval rec-slip-interpreter-normal-exp)) rec-slip-interpreter-normal-name))
+        (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-traced-meta-interpreted)
-        (run-interpreter-timed (lambda () (run (inject rec-slip-interpreter-traced-merging-duplication-exp))) rec-slip-interpreter-traced-name))
+        (run-interpreter-timed (lambda () (run (inject rec-interpreter-traced-merging-duplication-exp))) rec-slip-interpreter-traced-name))
       (define (run-rec-slip-interpreter-traced-no-merging-meta-interpreted)
-        (run-interpreter-timed (lambda () (run (inject rec-slip-interpreter-traced-no-merging-duplication-exp))) rec-slip-interpreter-traced-no-merging-name))
+        (run-interpreter-timed (lambda () (run (inject rec-interpreter-traced-no-merging-duplication-exp))) rec-slip-interpreter-traced-no-merging-name))
       
       (output-benchmark-start)
       
