@@ -836,7 +836,7 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   (define (switch-to-trace-guard! guard-id old-trace-key)
-    (clear-trace!)
+    (stop-tracing-abnormal!)
     (start-tracing-guard! guard-id old-trace-key))
   
   (define (bootstrap guard-id state)
@@ -859,8 +859,11 @@
                   (corresponding-label (trace-key-label old-trace-key)))
              (pop-trace-node-frame-from-stack! corresponding-label)
              (let ((kk (top-continuation)))
-               (switch-to-trace-guard! guard-id old-trace-key)
-               (kk state))))))
+               (if (is-executing-trace?)
+                   (kk state)
+                   ;;To simplify the tracing interpreter, only start tracing this new guard if you're not already executing an existing trace.
+                   (begin (switch-to-trace-guard! guard-id old-trace-key)
+                          (kk state))))))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
