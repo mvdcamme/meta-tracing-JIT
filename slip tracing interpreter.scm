@@ -452,8 +452,7 @@
   (define (handle-can-close-loop-annotation label continuation)
     (output "closing annotation: tracing loop ") (output label) (output-newline)
     (when (is-tracing-label? label)
-      (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-      (stop-tracing! #f))
+      (output "----------- CLOSING ANNOTATION FOUND -----------") (output-newline))
     (execute `(remove-continuation))
     (step* continuation))
   
