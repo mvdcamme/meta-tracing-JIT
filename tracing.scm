@@ -348,8 +348,8 @@
       (loop current-trace-node-executing)))
   
   (define (pop-trace-node-frame-from-stack! label)
-    ;;Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
-    ;;Then pop one more time to get it off the stack.
+    ;; Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
+    ;; Then pop one more time to get it off the stack.
     (when (not (is-empty? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (pop-trace-node-frame-until-label! label)
       (pop-trace-node-frame!)))
@@ -438,7 +438,7 @@
         trace
         (apply error errormessage)))
   
-  ;guard-ids should go from the top of the tree to the bottom
+  ;;; guard-ids should go from the top of the tree to the bottom
   (define (search-guard-trace label guard-ids)
     (let ((first-trace-node (get-label-trace label)))
       (define (find-next-node-in-path trace-node guard-id)
@@ -453,9 +453,9 @@
             (follow-path (find-next-node-in-path trace-node (car guard-ids)) (cdr guard-ids))))
       (follow-path first-trace-node guard-ids)))
   
-  ;; Looks at the current trace-nodes-executing stack and creates a trace-key containing the label
-  ;; that is the ancestor of any new guard-trace that would be created, as well as the path from
-  ;; this label to the new guard-trace through the trace tree.
+  ;;; Looks at the current trace-nodes-executing stack and creates a trace-key containing the label
+  ;;; that is the ancestor of any new guard-trace that would be created, as well as the path from
+  ;;; this label to the new guard-trace through the trace tree.
   (define (get-path-to-new-guard-trace)
     (let* ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT))
            (list (stack->list trace-nodes-executing)))
@@ -749,12 +749,12 @@
                     (let ((pair (mcons (car trace) #t)))
                       (first-run (cdr trace) stack (cons pair first-run-through))))
                    ((mcdr (car stack))
-                    ;The environment should be saved and restored
+                    ;; The environment should be saved and restored
                     (let ((pair (mcons (car trace) #t)))
                       (first-run (cdr trace) (cdr stack) (cons pair first-run-through))))
                    (else 
                     (let ((pair (mcons (car trace) #f)))
-                      ;Not really necessary to add the pair to the first-run-through list
+                      ;; Not really necessary to add the pair to the first-run-through list
                       (first-run (cdr trace) (cdr stack) (cons pair first-run-through))))))
             ((changes-env? (caar trace))
              (let ((pair (mcons (car trace) #t)))

@@ -80,30 +80,30 @@
   ; Constants
   ;
   
-  ;; Determines whether all 'output'-statements effectively print their argument to the console
-  ;; or not.
+  ;;; Determines whether all 'output'-statements effectively print their argument to the console
+  ;;; or not.
   (define ENABLE_OUTPUT #f)
   
-  ;; Has the following effects:
-  ;;  - Provided the meta-traced interpreter uses the 'random' function defined on this level
-  ;;    (the tracing interpreter) when calling 'random' in the user-program, the random number
-  ;;    that is generated will be created based on a fixed, hardcoded pseudo-random generator state.
-  ;;    This means that the random numbers that are generated are always the same between program executions.
+  ;;; Has the following effects:
+  ;;;  - Provided the meta-traced interpreter uses the 'random' function defined on this level
+  ;;;    (the tracing interpreter) when calling 'random' in the user-program, the random number
+  ;;;    that is generated will be created based on a fixed, hardcoded pseudo-random generator state.
+  ;;;    This means that the random numbers that are generated are always the same between program executions.
   (define IS_DEBUGGING #t)
   
-  ;; The amount of times a label needs to be encountered before it is considered 'hot'.
+  ;;; The amount of times a label needs to be encountered before it is considered 'hot'.
   (define TRACING_THRESHOLD 5)
   
   ;
   ; Outputting
   ;
   
-  ;; Prints the given argument to the console, if ENABLE_OUTPUT is set to #t.
+  ;;; Prints the given argument to the console, if ENABLE_OUTPUT is set to #t.
   (define (output s)
     (when ENABLE_OUTPUT
       (display s)))
   
-  ;; Prints a newline to the console, if ENABLE_OUTPUT is set to #t.
+  ;;; Prints a newline to the console, if ENABLE_OUTPUT is set to #t.
   (define (output-newline)
     (output #\newline))
   
@@ -117,34 +117,34 @@
   ; CK wrappers
   ;
   
-  ;; Represents the state of a program when evaluating an expression.
-  ;; It consists of an expression to be evaluated (e), and a list of continuations to be followed
-  ;; once the evaluation is complete (κ).
+  ;;; Represents the state of a program when evaluating an expression.
+  ;;; It consists of an expression to be evaluated (e), and a list of continuations to be followed
+  ;;; once the evaluation is complete (κ).
   (struct ev (e κ) #:transparent)
   
-  ;; Represents the state of a program when following a continuation.
-  ;; It consists of the continuation to be followed immediately (φ) and a list of continuations
-  ;; to be followed afterwards (κ).
+  ;;; Represents the state of a program when following a continuation.
+  ;;; It consists of the continuation to be followed immediately (φ) and a list of continuations
+  ;;; to be followed afterwards (κ).
   (struct ko (φ κ) #:transparent)
   
   ;
   ; Registers
   ;
   
-  ;; Stores the environment during program execution.
+  ;;; Stores the environment during program execution.
   (define ρ #f) ; env
   
-  ;; Stores the store during program execution.
+  ;;; Stores the store during program execution.
   (define σ #f) ; store
   
-  ;; Stores the stack during program execution.
+  ;;; Stores the stack during program execution.
   (define θ #f) ; non-kont stack
   
-  ;; Stores the general-purpose register during program execution.
+  ;;; Stores the general-purpose register during program execution.
   (define v #f) ; value
   
-  ;; Stores the continuation stack during program execution.
-  ;; This stack is needed to switch back from trace execution to regular program interpretation.
+  ;;; Stores the continuation stack during program execution.
+  ;;; This stack is needed to switch back from trace execution to regular program interpretation.
   (define τ-κ #f) ;continuation stack
   
   ;
@@ -170,15 +170,15 @@
   (struct setk (x) #:transparent)
   
   
-  ;; A counter used to generate id's for newly allocated variables.
-  ;; This id is then used as the address in the environment.
+  ;;; A counter used to generate id's for newly allocated variables.
+  ;;; This id is then used as the address in the environment.
   (define gencounter 2)
   (define (new-gencounter!)
     (let ((temp gencounter))
       (set! gencounter (+ gencounter 1))
       temp))
   
-  ;; Creates a new store that contains all predefined functions/variables.
+  ;;; Creates a new store that contains all predefined functions/variables.
   (define (new-store)
     (let ((dict (new-dictionary = 100 (lambda (splits-cf-id) splits-cf-id))))
       (insert! dict meta-random-address meta-random)
@@ -189,13 +189,13 @@
   ; Tracing annotations continuations
   ;
   
-  ;; The continuation to be followed after encountering a can-close-loop annotation.
+  ;;; The continuation to be followed after encountering a can-close-loop annotation.
   (struct can-close-loopk () #:transparent)
   
-  ;; The continuation to be followed after encountering a can-start-loop annotation.
+  ;;; The continuation to be followed after encountering a can-start-loop annotation.
   (struct can-start-loopk (label debug-info) #:transparent)
   
-  ;; The continuation to be followed after encountering a is-evaluating annotation.
+  ;;; The continuation to be followed after encountering a is-evaluating annotation.
   (struct is-evaluatingk () #:transparent)
   
   ;
@@ -205,7 +205,7 @@
   (struct clo (λ ρ) #:transparent)
   (struct lam (x es) #:transparent)
   
-  ;; Checks whether two closures are equal.
+  ;;; Checks whether two closures are equal.
   (define (clo-equal? clo1 clo2)
     (or (eq? clo1 clo2)
         (and (clo? clo1)
@@ -217,7 +217,9 @@
   ; Environment
   ;
   
+  ;;; Represents the environment used by the tracing interpreter.
   (struct env (lst) #:transparent)
+  
   
   (define (make-new-env)
     (env `((random . ,meta-random-address))))
@@ -775,9 +777,11 @@
          (if v
              (begin (execute `(guard-true ,new-guard-id ',(if (null? e2)
                                                               '()
-                                                              (car e2)))) ;If the guard fails, the predicate was false, so e2 should be evaluated
+                                                              ;; If the guard fails, the predicate was false, so e2 should be evaluated
+                                                              (car e2)))) 
                     (ev e1 κ))
-             (begin (execute `(guard-false ,new-guard-id ',e1)) ;If the guard fails, the predicate was true, so e1 should be evaluated
+                    ;; If the guard fails, the predicate was true, so e1 should be evaluated
+             (begin (execute `(guard-false ,new-guard-id ',e1)) 
                     (if (null? e2)
                         (begin (execute `(remove-continuation)
                                         `(literal-value '()))
@@ -832,7 +836,7 @@
        (execute `(restore-env)
                 `(guard-same-closure ,v ,i  ,(inc-guard-id!)))
        (do-function-call i κ))
-      ((ko (seqk '()) (cons φ κ)) ;No tailcall optimization!
+      ((ko (seqk '()) (cons φ κ)) ; No tailcall optimization!
        (execute `(restore-env)
                 `(remove-continuation))
        (ko φ κ))
@@ -898,7 +902,7 @@
              (let ((kk (top-continuation)))
                (if (is-executing-trace?)
                    (kk state)
-                   ;;To simplify the tracing interpreter, only start tracing this new guard if you're not already executing an existing trace.
+                   ;; To simplify the tracing interpreter, only start tracing this new guard if you're not already executing an existing trace.
                    (begin (switch-to-trace-guard! guard-id old-trace-key)
                           (kk state))))))))
   
