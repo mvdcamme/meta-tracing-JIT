@@ -20,6 +20,7 @@
            inc-guard-id!
            inc-times-label-encountered!
            inc-times-label-encountered-while-tracing!
+           is-executing-trace?
            is-tracing?
            is-tracing-guard?
            is-tracing-label?
@@ -43,6 +44,7 @@
            start-tracing-guard!
            start-tracing-label!
            stop-tracing!
+           stop-tracing-abnormal!
            stop-tracing-normal!
            times-label-encountered-greater-than-threshold?
            top-continuation
@@ -311,6 +313,10 @@
                (equal? label (trace-key-label (trace-node-trace-key (car list)))))
               (else (loop (cdr list)))))
       (loop list)))
+  
+  (define (is-executing-trace?)
+    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+      (is-empty? trace-nodes-executing)))
   
   ;
   ; Continuation (call/cc stack)
