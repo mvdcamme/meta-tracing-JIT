@@ -1,6 +1,6 @@
 
-;;; Traced recursive Slip interpreter with annotations for merging and for measuring trace duplication.
-;;; This interpreter should be executed by the tracing interpreter.
+;;;; Traced recursive Slip interpreter with annotations for merging and for measuring
+;;;; trace duplication. This interpreter should be executed by the tracing interpreter.
 
 (begin
   
@@ -35,7 +35,7 @@
   
   (define meta-circularity-level 0)
   
-  ;; Forward referencing
+  ;;; Forward referencing
   (define transform-input '())
   
   (define (transform-exp exp)
@@ -113,8 +113,8 @@
   
   (set! transform-input transform-input-act)
   
-  ;; Binds the symbol 'random to the pseudo-random function that was placed by the
-  ;; tracing interpreter in the environment in which this recursive Slip evaluator is running.
+  ;;; Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;;; tracing interpreter in the environment in which this recursive Slip evaluator is running.
   (define random-binding (vector 'random random))
   
   (define environment (list random-binding))

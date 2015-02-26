@@ -1,8 +1,9 @@
 
-;;; Basic recursive Slip interpreter.
-;;; This is a stand-alone interpreter and should not be executed by another interpreter.
-;;; It contains no annotations for tracing.
-;;; It can be used to verify that the semantics of the other recursive Slip interpreter (which are based on this interpreter) are correct.
+;;;; Basic recursive Slip interpreter.
+;;;; This is a stand-alone interpreter and should not be executed by another interpreter.
+;;;; It contains no annotations for tracing.
+;;;; It can be used to verify that the semantics of the other recursive Slip interpreter
+;;;; (which are based on this interpreter) are correct.
 
 (begin
   
@@ -31,9 +32,9 @@
   
   (define meta-circularity-level 0)
   
-  ;; Binds the symbol 'random to the native random function.
-  ;; In contrast with the other rec Slip interpreters, this random-function refers to the native Racket random function
-  ;; instead of the random-function introduced by the tracing interpreter.
+  ;;; Binds the symbol 'random to the native random function.
+  ;;; In contrast with the other rec Slip interpreters, this random-function refers to the native
+  ;;; Racket random function instead of the random-function introduced by the tracing interpreter.
   (define random-binding (vector 'random random))
   
   (define environment (list random-binding))

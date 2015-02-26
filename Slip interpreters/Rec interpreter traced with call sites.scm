@@ -24,8 +24,8 @@
   
   (define meta-circularity-level 0)
   
-  ;;Binds the symbol 'random to the pseudo-random function that was placed by the
-  ;;tracing interpreter in the environment in which this recursive SLIP evaluator is running.
+  ;;; Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;;; tracing interpreter in the environment in which this recursive SLIP evaluator is running.
   (define random-binding (vector 'random random))
   
   (define environment (list random-binding))
@@ -137,9 +137,6 @@
       (evaluate '() (evaluate expressions-tail expression)))
     
     (define (evaluate-if expressions-tail predicate consequent . alternate)
-      ;(display "If: ") (display predicate) (newline)
-      ;(display consequent) (newline)
-      ;(display alternate) (newline)
       (let* ((cond (evaluate expressions-tail predicate)))
         (splits-control-flow)
         (if cond

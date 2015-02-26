@@ -1,6 +1,6 @@
 
-;;; Traced recursive Slip interpreter WITHOUT annotations for merging traces.
-;;; This interpreter should be executed by the tracing interpreter.
+;;;; Traced recursive Slip interpreter WITHOUT annotations for merging traces.
+;;;; This interpreter should be executed by the tracing interpreter.
 
 (begin
   
@@ -28,8 +28,8 @@
   
   (define meta-circularity-level 0)
   
-  ;; Binds the symbol 'random to the pseudo-random function that was placed by the
-  ;; tracing interpreter in the environment in which this recursive Slip evaluator is running.
+  ;;; Binds the symbol 'random to the pseudo-random function that was placed by the
+  ;;; tracing interpreter in the environment in which this recursive Slip evaluator is running.
   (define random-binding (vector 'random random))
   
   (define environment (list random-binding))
