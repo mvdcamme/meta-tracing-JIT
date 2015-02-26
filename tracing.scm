@@ -5,6 +5,10 @@
            (struct-out trace-node)
            (struct-out tracer-context)
            
+           (struct-out guard-trace)
+           (struct-out label-trace)
+           (struct-out mp-tail-trace)
+           
            ;; Tracing bookkeeping
            add-ast-node-traced!
            add-execution!
