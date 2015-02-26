@@ -83,7 +83,7 @@
 ; Nested interpretation benchmarks
 ;
 
-(define nested-fac-benchmark-path "nested interpretation/fac.scm")
-(define nested-fib-benchmark-path "nested interpretation/fib.scm")
-(define nested-simplified-trace-explosion-benchmark-path "nested interpretation/simplified trace-explosion.scm")
+(define nested-fac-benchmark-path "Nested interpretation/fac.scm")
+(define nested-fib-benchmark-path "Nested interpretation/fib.scm")
+(define nested-simplified-trace-explosion-benchmark-path "Nested interpretation/simplified trace-explosion.scm")
 )
