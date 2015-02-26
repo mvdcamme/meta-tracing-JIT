@@ -148,7 +148,7 @@
   (define (make-generic-trace-node constructor trace-key trace)
     (constructor trace-key trace '() '()))
   
-  (struct label-trace trace-node (loops?))
+  (struct label-trace trace-node ((loops? #:mutable)))
   (struct guard-trace trace-node ())
   (struct mp-tail-trace trace-node ())
   
