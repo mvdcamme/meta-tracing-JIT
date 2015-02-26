@@ -311,10 +311,14 @@
            (trace (trace-node-trace guard-trace))
            (old-trace-key (get-path-to-new-guard-trace))
            (corresponding-label (trace-key-label old-trace-key)))
+      ;; Only used for benchmarking purposes: indicate that this guard-trace has been executed.
       (add-execution! guard-trace)
       (execute `(let* ((value (call/cc (lambda (k)
+                                         ;; Push the guard-trace-node that will be executed on the stack.
                                          (push-trace-node-frame! ,guard-trace k)
+                                         ;; Actually execute the trace.
                                          (execute-trace ',trace)))))
+                  ;; Safeguard, suppose a 
                   (when (trace-node-frame-on-stack? ',corresponding-label)
                     (pop-trace-node-frame-from-stack! ',corresponding-label))
                   (let ((kk (top-continuation)))

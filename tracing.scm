@@ -161,6 +161,7 @@
   (define (make-mp-tail-trace trace-key trace)
     (make-generic-trace-node mp-tail-trace trace-key trace))
   
+  ;;; Used for benchmarking purposes
   (define (add-execution! trace-node)
     (let ((old-executions (trace-node-executions trace-node))
           (time (current-seconds)))
@@ -833,13 +834,20 @@
   ; Merging traces
   ;
   
+  (define (transform-merging-trace trace)
+    ;; Since the final instruction in the trace (should) consists of a call to some mp-tail-trace,
+    ;; we can use the transform-trace-non-looping-plain function, because it doesn't make sense
+    ;; to return the next state of the interpreter at the end of this trace: that should be done
+    ;; in the mp-tail-trace to which this trace links.
+    (transform-and-optimize-trace trace transform-trace-non-looping-plain))
+  
   (define (make-guard-merges-cf-function)
     (define (guard-merges-cf! trace)
       (let* ((trace-key-to-trace (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key-to-trace))
              (parent-id (get-parent-label-trace-id trace-key-to-trace))
              (guard-ids (trace-key-guard-ids trace-key-to-trace))
-             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
+             (transformed-trace (transform-merging-trace trace)))
         (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (lambda (trace looping?) '()))
         (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-mp-tail-trace-key label parent-id))
         (add-guard-trace! label parent-id guard-ids transformed-trace)))
@@ -848,7 +856,7 @@
   (define (make-label-merges-cf-function)
     (define (label-merges-cf! trace)
       (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
-            (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
+            (transformed-trace (transform-merging-trace trace)))
         ;; At the moment a merges-annotation is found, we cannot know whether the label-trace will loop or not.
         ;; TODO register some kind of callback to make sure that, when tracing finishes, the loops? field is updated with the correct value
         (add-label-trace! trace-key transformed-trace #f)))
@@ -858,6 +866,6 @@
     (define (mp-tail-merges-cf! trace)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (label (trace-key-label trace-key))
-             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
+             (transformed-trace (transform-merging-trace trace)))
         (add-mp-tail-trace! mp-id trace-key transformed-trace)))
     mp-tail-merges-cf!))
