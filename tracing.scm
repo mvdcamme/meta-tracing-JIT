@@ -144,12 +144,12 @@
   (define (make-generic-trace-node constructor trace-key trace)
     (constructor trace-key trace '() '()))
   
-  (struct label-trace trace-node ())
+  (struct label-trace trace-node (loops?))
   (struct guard-trace trace-node ())
   (struct mp-tail-trace trace-node ())
   
-  (define (make-label-trace trace-key trace)
-    (make-generic-trace-node label-trace trace-key trace))
+  (define (make-label-trace trace-key trace loops?)
+    (label-trace trace-key trace '() '() loops?))
   
   (define (make-guard-trace trace-key trace)
     (make-generic-trace-node guard-trace trace-key trace))
@@ -396,7 +396,7 @@
     (define (stop-tracing-label! trace looping?)
       (let* ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
-        (add-label-trace! trace-key transformed-trace)))
+        (add-label-trace! trace-key transformed-trace looping?)))
     stop-tracing-label!)
   
   (define (make-stop-tracing-mp-tail-function mp-id)
@@ -515,11 +515,11 @@
                                     (cons (make-guard-trace new-guard-trace-key trace)
                                           (trace-node-children parent-trace-node))))))
   
-  (define (add-label-trace! trace-key transformed-trace)
+  (define (add-label-trace! trace-key transformed-trace loops?)
     (let* ((label (trace-key-label trace-key))
            (debug-info (label-trace-key-debug-info trace-key))
            (trace-id (trace-key-id trace-key))
-           (label-trace (make-label-trace trace-key transformed-trace)))
+           (label-trace (make-label-trace trace-key transformed-trace loops?)))
       (write-label-trace label trace-id transformed-trace debug-info)
       (insert! (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT)
                trace-id
@@ -845,7 +845,9 @@
     (define (label-merges-cf! trace)
       (let ((trace-key (tracer-context-trace-key GLOBAL_TRACER_CONTEXT))
             (transformed-trace (transform-and-optimize-trace trace transform-trace-non-looping-plain)))
-        (add-label-trace! trace-key transformed-trace)))
+        ;; At the moment a merges-annotation is found, we cannot know whether the label-trace will loop or not.
+        ;; TODO register some kind of callback to make sure that, when tracing finishes, the loops? field is updated with the correct value
+        (add-label-trace! trace-key transformed-trace #f)))
     label-merges-cf!)
   
   (define (make-mp-tail-merges-cf-function mp-id)
