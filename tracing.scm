@@ -199,7 +199,7 @@
                     (new-stack)
                     #f
                     #f
-                    (new-dictionary = 100 (lambda (guard-id) guard-id))
+                    (new-dictionary equal? 100 (lambda (guard-id) (if (pair? guard-id) (car guard-id) guard-id)))
                     (new-dictionary = 100 (lambda (splits-cf-id) splits-cf-id))))
   
   (define (reset-global-tracer-context!)
