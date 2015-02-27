@@ -14,6 +14,7 @@
            add-continuation
            alloc-var
            apply-native
+           call-global-continuation
            call-label-trace!
            create-closure
            debug
