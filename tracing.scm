@@ -13,7 +13,9 @@
            add-ast-node-traced!
            add-execution!
            append-trace!
+           call-global-continuation
            clear-trace!
+           flush-trace-nodes-executing!
            get-guard-trace
            get-label-trace
            get-mp-tail-trace
@@ -32,18 +34,17 @@
            make-mp-tail-merges-cf-function
            make-stop-tracing-mp-tail-function
            mp-tail-trace-exists?
-           pop-continuation!
            pop-splits-cf-id!
            pop-trace-node-frame!
            pop-trace-node-frame-until-label!
            pop-trace-node-executing!
            pop-trace-node-frame-from-stack!
-           push-continuation!
            push-splits-cf-id!
            push-trace-node-frame!
            push-trace-node-executing!
            reset-global-tracer-context!
            reset-metrics!
+           set-global-continuation!
            set-root-expression-if-uninitialised!
            start-tracing-guard!
            start-tracing-label!
@@ -51,7 +52,6 @@
            stop-tracing-abnormal!
            stop-tracing-normal!
            times-label-encountered-greater-than-threshold?
-           top-continuation
            top-splits-cf-id
            top-trace-node-executing
            trace-node-frame-on-stack?
@@ -65,6 +65,7 @@
            
            ;; Global variables
            τ
+           GLOBAL_CONTINUATION
            GLOBAL_TRACER_CONTEXT)
   
   (require "dictionary.scm")
@@ -179,7 +180,6 @@
                           trace-nodes-dictionary
                           trace-nodes-executing
                           splits-cf-id-stack
-                          continuation-calls-stack
                           closing-function
                           merges-cf-function
                           guards-dictionary
@@ -195,7 +195,6 @@
                     '()
                     '()
                     (new-dictionary = 100 (lambda (label-trace-id) label-trace-id))
-                    (new-stack)
                     (new-stack)
                     (new-stack)
                     #f
@@ -228,6 +227,18 @@
   (define (add-trace-length! n)
     (let ((current-length (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT)))
       (set-tracer-context-current-trace-length! GLOBAL_TRACER_CONTEXT (+ current-length n))))
+  
+  ;
+  ; Continuation
+  ;
+  
+  (define GLOBAL_CONTINUATION #f)
+  
+  (define (call-global-continuation value)
+    (GLOBAL_CONTINUATION value))
+  
+  (define (set-global-continuation! k)
+    (set! GLOBAL_CONTINUATION k))
   
   ;
   ; Loop hotness
@@ -293,6 +304,9 @@
   ; Trace node executing stack
   ;
   
+  (define (flush-trace-nodes-executing!)
+    (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT (new-stack)))
+  
   (define (pop-trace-node-executing!)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (if (is-empty? trace-nodes-executing)
@@ -325,25 +339,11 @@
       (is-empty? trace-nodes-executing)))
   
   ;
-  ; Continuation (call/cc stack)
-  ;
-  
-  (define (pop-continuation!)
-    (pop! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
-  
-  (define (push-continuation! k)
-    (push! (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT) k))
-  
-  (define (top-continuation)
-    (top (tracer-context-continuation-calls-stack GLOBAL_TRACER_CONTEXT)))
-  
-  ;
   ; Trace frames stack
   ;
   
   (define (pop-trace-node-frame!)
-    (pop-trace-node-executing!)
-    (pop-continuation!))
+    (pop-trace-node-executing!))
   
   (define (pop-trace-node-frame-until-label! label)
     (let ((current-trace-node-executing (top-trace-node-executing)))
@@ -360,9 +360,8 @@
       (pop-trace-node-frame-until-label! label)
       (pop-trace-node-frame!)))
   
-  (define (push-trace-node-frame! trace-node-executing continuation)
-    (push-trace-node-executing! trace-node-executing)
-    (push-continuation! continuation))
+  (define (push-trace-node-frame! trace-node-executing)
+    (push-trace-node-executing! trace-node-executing))
   
   ;
   ; Start tracing

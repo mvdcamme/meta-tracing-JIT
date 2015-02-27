@@ -28,13 +28,11 @@
            literal-value
            lookup-var
            quote-value
-           pop-continuation!
            pop-splits-cf-id!
            pop-trace-node-frame!
            pop-trace-node-frame-until-label!
            pop-trace-node-executing!
            pop-trace-node-frame-from-stack!
-           push-continuation!
            push-splits-cf-id!
            push-trace-node-frame!
            push-trace-node-executing!
@@ -49,7 +47,6 @@
            set-env
            set-var
            switch-to-clo-env
-           top-continuation
            top-splits-cf-id
            top-trace-node-executing
            trace-node-frame-on-stack?
@@ -303,7 +300,7 @@
   (define (call-label-trace! label-trace-id)
     (let* ((label-trace (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id))
            (label (trace-key-label (trace-node-trace-key label-trace))))
-      (execute `(pop-trace-node-frame-from-stack! ',label))
+      ;(execute `(pop-trace-node-frame-from-stack! ',label))
       (execute-label-trace label)))
   
   (define (execute-guard-trace guard-id)
@@ -312,40 +309,31 @@
            (corresponding-label (trace-key-label (get-trace-node-executing-trace-key))))
       ;; Only used for benchmarking purposes: indicate that this guard-trace has been executed.
       (add-execution! guard-trace)
-      (execute `(let* ((value (call/cc (lambda (k)
-                                         ;; Push the guard-trace-node that will be executed on the stack.
-                                         (push-trace-node-frame! ,guard-trace k)
-                                         ;; Actually execute the trace.
-                                         (execute-trace ',trace)))))
-                  ;; Safeguard, suppose a 
-                  (when (trace-node-frame-on-stack? ',corresponding-label)
-                    (pop-trace-node-frame-from-stack! ',corresponding-label))
-                  (let ((kk (top-continuation)))
-                    (kk value))))))
+      (execute `(let ()
+                  (let* ((value (execute-trace ',trace))) ; Actually execute the trace.
+                    ;; Safeguard, suppose a 
+                    ;(when (trace-node-frame-on-stack? ',corresponding-label) TODO ?
+                    ;  (pop-trace-node-frame-from-stack! ',corresponding-label))
+                    (call-global-continuation value))))))
   
   (define (execute-label-trace label)
     (let* ((label-trace (get-label-trace label))
            (trace (trace-node-trace label-trace)))
       (add-execution! label-trace)
-      (execute `(let ((label-value (call/cc (lambda (k)
-                                              (push-trace-node-frame! ,label-trace k)
-                                              (execute-trace ',trace)))))
-                  (pop-trace-node-frame!)
-                  label-value))))
+      (execute `(let ()
+                  (push-trace-node-frame! ,label-trace)
+                  (let ((label-value (execute-trace ',trace)))
+                    (pop-trace-node-frame!)
+                    label-value)))))
   
   (define (execute-mp-tail-trace mp-id new-state)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
            (mp-tail-trace (get-mp-tail-trace mp-id)))
       (if mp-tail-trace
           (begin (add-execution! mp-tail-trace)
-                 (let ((mp-value (call/cc (lambda (k)
-                                            (push-trace-node-frame! mp-tail-trace k)
-                                            (execute-trace (trace-node-trace mp-tail-trace))))))
-                   (pop-trace-node-frame!)
-                   (let ((kk (top-continuation)))
-                     (kk mp-value))))
-          (let ((kk (top-continuation)))
-            (kk new-state)))))
+                 (let ((mp-value (execute-trace (trace-node-trace mp-tail-trace))))
+                   (call-global-continuation mp-value)))
+          (call-global-continuation new-state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -548,9 +536,9 @@
                `(pop-splits-cf-id!))
       (if (is-tracing?)
           (begin
-            (when (is-tracing-guard?)
-              (append-trace! `((pop-trace-node-frame!))))
-            (append-trace! `((pop-trace-node-frame!)
+            ;(when (is-tracing-guard?)
+            ;  (append-trace! `((pop-trace-node-frame!))))
+            (append-trace! `(;(pop-trace-node-frame!)
                              (execute-mp-tail-trace ,mp-id ,continuation)))
             ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
             (if (mp-tail-trace-exists? mp-id)
@@ -894,22 +882,17 @@
            (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
            (let* ((trace-key-executing (get-trace-node-executing-trace-key))
                   (corresponding-label (trace-key-label trace-key-executing)))
-             (pop-trace-node-frame-from-stack! corresponding-label)
-             (let ((kk (top-continuation)))
-               (start-tracing-guard! guard-id trace-key-executing)
-               (kk state))))
+             ;; Trace-nodes executing stack will be flushed
+             (call-global-continuation state)
+             (start-tracing-guard! guard-id trace-key-executing)))
           (else
-           (output "----------- CANNOT TRACE GUARD ") (output guard-id)
-           (output " ; ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-           (let* ((trace-key-executing (get-trace-node-executing-trace-key))
-                  (corresponding-label (trace-key-label trace-key-executing)))
-             (pop-trace-node-frame-from-stack! corresponding-label)
-             (let ((kk (top-continuation)))
-               (if (is-executing-trace?)
-                   (kk state)
-                   ;; To simplify the tracing interpreter, only start tracing this new guard if you're not already executing an existing trace.
-                   (begin (switch-to-trace-guard! guard-id trace-key-executing)
-                          (kk state))))))))
+           ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
+           ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
+           ;; tracing from this new guard-failure.
+           (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
+           (let ((trace-key-executing (get-trace-node-executing-trace-key)))
+             (switch-to-trace-guard! guard-id trace-key-executing)
+             (call-global-continuation state)))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
@@ -948,8 +931,9 @@
   (define (run s)
     (reset!)
     (apply step* (list (let ((v (call/cc (lambda (k)
-                                           (push-continuation! k)
+                                           (set-global-continuation! k)
                                            s))))
+                         (flush-trace-nodes-executing!)
                          v))))
   
   (define (start)
