@@ -14,6 +14,7 @@
            add-continuation
            alloc-var
            apply-native
+           bootstrap-to-evaluator
            call-global-continuation
            create-closure
            debug
@@ -320,7 +321,7 @@
       (add-execution! guard-trace)
       (execute/trace `(let ()
                         (let* ((state (execute-trace ',trace))) ; Actually execute the trace
-                          (call-global-continuation state))))))
+                          (bootstrap-to-evaluator state))))))
   
   ;;; Executes the trace of the given label-trace-node.
   (define (execute-label-trace-with-trace-node label-trace-node)
@@ -348,8 +349,8 @@
       (if mp-tail-trace
           (begin (add-execution! mp-tail-trace)
                  (let ((mp-value (execute-trace (trace-node-trace mp-tail-trace))))
-                   (call-global-continuation mp-value)))
-          (call-global-continuation new-state))))
+                   (bootstrap-to-evaluator mp-value)))
+          (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -579,6 +580,9 @@
   ;                                         Running evaluator                                            ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  (define (bootstrap-to-evaluator state)
+    (call-global-continuation state))
   
   (define (eval-seq es κ)
     (match es
@@ -899,7 +903,7 @@
            (let* ((trace-key-executing (get-trace-node-executing-trace-key))
                   (corresponding-label (trace-key-label trace-key-executing)))
              ;; Trace-nodes executing stack will be flushed
-             (call-global-continuation state)
+             (bootstrap-to-evaluator state)
              (start-tracing-guard! guard-id trace-key-executing)))
           (else
            ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
@@ -908,7 +912,7 @@
            (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
            (let ((trace-key-executing (get-trace-node-executing-trace-key)))
              (switch-to-trace-guard! guard-id trace-key-executing)
-             (call-global-continuation state)))))
+             (bootstrap-to-evaluator state)))))
   
   (define (bootstrap-to-ev guard-id e)
     (bootstrap guard-id (ev e τ-κ)))
