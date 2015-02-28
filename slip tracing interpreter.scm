@@ -15,12 +15,12 @@
            alloc-var
            apply-native
            call-global-continuation
-           call-label-trace!
            create-closure
            debug
            execute-trace
            execute-guard-trace
-           execute-label-trace
+           execute-label-trace-with-id
+           execute-label-trace-with-label
            execute-mp-tail-trace
            guard-false
            guard-true
@@ -298,34 +298,33 @@
       (for-each execute-instruction actual-trace)
       (execute-letrec-body letrec-body '())))
   
-  (define (call-label-trace! label-trace-id)
-    (let* ((label-trace (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id))
-           (label (trace-key-label (trace-node-trace-key label-trace))))
-      ;(execute `(pop-trace-node-frame-from-stack! ',label))
-      (execute-label-trace label)))
-  
   (define (execute-guard-trace guard-id)
     (let* ((guard-trace (get-guard-trace guard-id))
            (trace (trace-node-trace guard-trace))
            (corresponding-label (trace-key-label (get-trace-node-executing-trace-key))))
-      ;; Only used for benchmarking purposes: indicate that this guard-trace has been executed.
+      ;; Benchmarking: record the fact that this trace node will be executed
       (add-execution! guard-trace)
       (execute `(let ()
-                  (let* ((value (execute-trace ',trace))) ; Actually execute the trace.
-                    ;; Safeguard, suppose a 
-                    ;(when (trace-node-frame-on-stack? ',corresponding-label) TODO ?
-                    ;  (pop-trace-node-frame-from-stack! ',corresponding-label))
+                  (let* ((value (execute-trace ',trace))) ; Actually execute the trace
                     (call-global-continuation value))))))
   
-  (define (execute-label-trace label)
-    (let* ((label-trace (get-label-trace label))
-           (trace (trace-node-trace label-trace)))
-      (add-execution! label-trace)
+  (define (execute-label-trace-with-trace-node label-trace-node)
+    (let ((trace (trace-node-trace label-trace-node)))
+      ;; Benchmarking: record the fact that this trace node will be executed
+      (add-execution! label-trace-node)
       (execute `(let ()
-                  (push-trace-node-frame! ,label-trace)
+                  (push-trace-node-frame! ,label-trace-node)
                   (let ((label-value (execute-trace ',trace)))
                     (pop-trace-node-frame!)
                     label-value)))))
+  
+  (define (execute-label-trace-with-id label-trace-id)
+    (let ((label-trace-node (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id)))
+      (execute-label-trace-with-trace-node label-trace-node)))
+  
+  (define (execute-label-trace-with-label label)
+    (let ((label-trace-node (get-label-trace label)))
+      (execute-label-trace-with-trace-node label-trace-node)))
   
   (define (execute-mp-tail-trace mp-id new-state)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
@@ -492,7 +491,7 @@
     (define (do-stop-tracing!)
       (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
       (stop-tracing! #t)
-      (let ((new-state (execute-label-trace label)))
+      (let ((new-state (execute-label-trace-with-label label)))
         (step* new-state)))
     (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
@@ -513,7 +512,7 @@
            (output "----------- EXECUTING TRACE -----------") (output-newline)
            (let ((label-trace (get-label-trace label)))
              (if (and (is-tracing?) (label-trace-loops? label-trace))
-                 (let ((new-state (execute-label-trace label)))
+                 (let ((new-state (execute-label-trace-with-label label)))
                    (step* new-state))
                  (continue-with-continuation))))
           ((and (not (is-tracing?)) (>= (get-times-label-encountered label) TRACING_THRESHOLD))

@@ -78,8 +78,8 @@
   ;
   
   (define ENABLE_OPTIMIZATIONS #f)
-  (define MAX_TIMES_LABEL_ENCOUNTERED 5)
-  (define MAX_TRACE_LENGTH 100000)
+  (define MAX_TIMES_LABEL_ENCOUNTERED 0)
+  (define MAX_TRACE_LENGTH +inf.0)
   
   ;
   ; Trace register
@@ -742,7 +742,7 @@
     (define (transform-guard-trace-looping trace)
       `(letrec ((non-loop ,(append '(lambda ()) trace)))
          (non-loop)
-         (call-label-trace! ,label-trace-id)))
+         (execute-label-trace-with-id ,label-trace-id)))
     transform-guard-trace-looping)
   
   (define (transform-label-trace-looping trace)
