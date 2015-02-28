@@ -48,7 +48,7 @@
            save-vals
            set-env
            set-var
-           switch-to-clo-env
+           prepare-function-call
            top-splits-cf-id
            top-trace-node-executing
            trace-node-frame-on-stack?
@@ -293,7 +293,7 @@
   (define (get-letrec-body letrec-expression)
     (cddr letrec-expression))
   
-  ;;; Returns the operator of application.
+  ;;; Returns the operator of an application.
   (define get-operator car)
   
   ;;; Executes a given trace. As mentioned above, this trace should be in the form of a letrec.
@@ -332,20 +332,30 @@
                         ;; Push this trace-node on the stack of label-traces being executed
                         (push-trace-node-frame! ,label-trace-node)
                         (let ((state (execute-trace ',trace))) ; Actually execute the trace
+                          ;; Pop this trace-node again
                           (pop-trace-node-frame!)
+                          ;; Return the CK state
                           state)))))
   
+  ;;; Execute the label-trace associated with the given id.
   (define (execute-label-trace-with-id label-trace-id)
     (let ((label-trace-node (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id)))
       (execute-label-trace-with-trace-node label-trace-node)))
   
+  ;;; Execute the label-trace associated with the given label.
   (define (execute-label-trace-with-label label)
     (let ((label-trace-node (get-label-trace label)))
       (execute-label-trace-with-trace-node label-trace-node)))
   
-  (define (execute-mp-tail-trace mp-id new-state)
+  ;;; Execute the merge-point-tail-trace associated with the given merge-point-id.
+  (define (execute-mp-tail-trace mp-id state)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
            (mp-tail-trace (get-mp-tail-trace mp-id)))
+      ;; It might be that a call to this mp-tail-trace has been recorded before the actual tracing
+      ;; of this mp-tail was completed. In that case, it could be that the trace was never finished
+      ;; (e.g., because it reached the maximum trace length).
+      ;; So we have to check whether this mp-tail-trace actually exists.
+      ;; If it doesn't, we jump back to regular interpretation with the given state.
       (if mp-tail-trace
           (begin (add-execution! mp-tail-trace)
                  (let ((mp-value (execute-trace (trace-node-trace mp-tail-trace))))
@@ -358,93 +368,123 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  ;;; Check the value of the register v. If it is #f, do nothing, else handle this guard failure.
   (define (guard-false guard-id e)
     (if v
         (begin (output "Guard-false failed") (output-newline) (bootstrap-to-ev guard-id e))
         (begin (output "Guard passed") (output-newline))))
   
+  ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
   (define (guard-true guard-id e)
     (if v
         (begin (output "Guard passed") (output-newline))
         (begin (output "Guard-true failed") (output-newline) (bootstrap-to-ev guard-id e))))
   
+  ;;; Check whether the register v currently contains the same closure as it did when this guard
+  ;;; was recorded. If it does, do nothing, else handle this guard failure.
   (define (guard-same-closure clo i guard-id)
     (when (not (clo-equal? v clo))
       (output "Closure guard failed, expected: ") (output clo) (output ", evaluated: ") (output v) (output-newline)
       (bootstrap-to-ko guard-id (closure-guard-failedk i))))
   
+  ;;; Check whether the register v currently contains a list that has the same length as it did
+  ;;; when this guard was recorded. If it does, do nothing, else handle this guard failure.
   (define (guard-same-nr-of-args i rator guard-id)
     (let ((current-i (length v)))
       (when (not (= i current-i))
         (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
         (bootstrap-to-ko (cons guard-id current-i) (apply-failedk rator current-i)))))
   
+  ;;; Save the value in the register v to the stack θ.
   (define (save-val)
     (when (env? v)
       (error "Save-val: saved an environment instead of a val!"))
     (set! θ (cons v θ)))
   
+  ;;; Save the first i elements of the list currently stored in the register v to the stack θ
+  ;;; and drop these elements from the list in v.
   (define (save-vals i)
     (when (contains-env? v)
       (error "Save-vals: saved an environment instead of a val!"))
     (set! θ (append (take v i) θ))
     (set! v (drop v i)))
   
+  ;;; Save all elements of the list currently stored in the register v to the stack θ.
   (define (save-all-vals)
     (when (contains-env? v)
       (error "Save-all-vals: saved an environment instead of a val!"))
     (set! θ (append v θ)))
   
+  ;;; Save the environment currently stored in ρ to the stack θ.
   (define (save-env)
     (set! θ (cons ρ θ)))
   
+  ;;; Replace the environment currently stored in ρ by ρ*.
   (define (set-env ρ*)
     (set! ρ ρ*))
   
+  ;;; Pop the environment from the stack θ and store it in ρ.
   (define (restore-env)
     (set! ρ (car θ))
     (set! θ (cdr θ)))
   
+  ;;; Pop the first value from the stack θ and store it in the register v.
   (define (restore-val)
     (set! v (car θ))
     (when (env? v)
       (error "Restore-val: restored an environment instead of a val!"))
     (set! θ (cdr θ)))
   
+  ;;; Pop the first i values from the stack θ and store them in the form of a list in the register v.
   (define (restore-vals i)
     (set! v (take θ i))
     (when (contains-env? v)
       (error "Restore-vals: restored an environment instead of a val!"))
     (set! θ (drop θ i)))
   
+  ;;; Allocate a new variable in the environment and the store with the name x and
+  ;;; as current value, the value in the register v.
   (define (alloc-var x)
     (let ((a (new-gencounter!)))
       (set! ρ (add-var-to-env ρ x a))
       (insert! σ a v)))
   
+  ;;; Assign the value currently in the register v to the variable x.
   (define (set-var x)
     (let ((a (cdr (assoc x (env-lst ρ)))))
       (insert! σ a v)))
   
+  ;;; Used for debugging, allows you to place a breakpoint, stopping the debugger whenever this
+  ;;; function is called.
   (define (debug)
     (= 1 1))
   
+  ;;;  Looks up the current value of the variable x and stores in the register v.
   (define (lookup-var x)
+    ;; If the variable currently evaluated was called 'debug', call the debug function.
+    ;; This is especially useful for meta-level debugging: interesting locations in the code
+    ;; of the meta-level interpreter canbe debugged by simply using the variable 'debug.
     (when (eq? x 'debug) (debug))
     (let ((binding (assoc x (env-lst ρ))))
       (match binding
         ((cons _ a) (set! v (find σ a)))
         (_ (set! v (eval x))))))
   
+  ;;; Creates a closure with the arguments x, and the body es and places this new closure
+  ;;; in the register v.
   (define (create-closure x es)
     (set! v (clo (lam x es) ρ)))
   
+  ;;; Place the value e in the register v.
   (define (literal-value e)
     (set! v e))
   
+  ;;; Place the value e in the register v.
   (define (quote-value e)
     (set! v e))
   
+  ;;; Apply the native procedure currently stored in the register v to the first
+  ;;; i values on the stack θ.
   (define (apply-native i)
     (let ((rands (take θ i)))
       (when (contains-env? rands)
@@ -452,27 +492,36 @@
       (set! θ (drop θ i))
       (set! v (apply v rands))))
   
+  ;;; Push the continuation φ to the continuation stack τ-κ.
   (define (add-continuation φ)
     (set! τ-κ (cons φ τ-κ)))
   
+  ;;; Pop the first continuation from the continuation stack τ-κ.
   (define (remove-continuation)
     (set! τ-κ (cdr τ-κ)))
   
-  (define (switch-to-clo-env i)
+  ;;; Prepares for an application of the closure currently stored in the register v
+  ;;; by saving the current environment, popping the first i elements from the stack θ
+  ;;; and switching to the lexical environment of the closure to be called.
+  (define (prepare-function-call i)
     (let ((clo v))
       (restore-vals i)
       (save-env)
       (save-vals i)
       (set-env (clo-ρ clo))))
   
-  (define (run-trace ms)
+  ;;; Executes the given instructions by calling the Racket native 'eval' function on them and
+  ;;; returns the last value that was evaluated.
+  (define (eval-instructions ms)
     (for/last ((instruction ms))
       (eval instruction)))
   
+  ;;; Executes the given instructions and records them into the trace, if the interpreter is
+  ;;; currently tracing.
   (define (execute/trace . ms)
     (when (is-tracing?)
       (append-trace! ms))
-    (run-trace ms))
+    (eval-instructions ms))
   
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -485,26 +534,31 @@
   ; Is-evaluating
   ;
   
-  (define (handle-is-evaluating-annotation continuation)
+  ;;; Handles the (is-evaluating expression) annotation and afterwards continues
+  ;;; regular interpretation with the given state.
+  ;;; Used for benchmarking purposes.
+  (define (handle-is-evaluating-annotation state)
     (execute/trace `(remove-continuation))
     (set-root-expression-if-uninitialised! v)
     (when (is-tracing?)
       (add-ast-node-traced! v))
-    (step* continuation))
+    (step* state))
   
   ;
   ; Starting/ending trace recording
   ;
   
-  (define (handle-can-close-loop-annotation label continuation)
+  ;;; Handles the (can-close-loop label) annotation and afterwards continues
+  ;;; regular interpretation with the given state.
+  (define (handle-can-close-loop-annotation label state)
     (output "closing annotation: tracing loop ") (output label) (output-newline)
     (when (is-tracing-label? label)
       (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
       (stop-tracing! #f))
     (execute/trace `(remove-continuation))
-    (step* continuation))
+    (step* state))
   
-  (define (check-stop-tracing-label label continuation)
+  (define (check-stop-tracing-label label state)
     (define (do-stop-tracing!)
       (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
       (stop-tracing! #t)
@@ -513,39 +567,59 @@
     (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
       (execute/trace `(remove-continuation))
-      (step* continuation))
+      (step* state))
     (inc-times-label-encountered-while-tracing!)
     (if (times-label-encountered-greater-than-threshold?)
         (do-stop-tracing!)
         (do-continue-tracing)))
   
-  (define (handle-can-start-loop-annotation label debug-info continuation)
-    (define (continue-with-continuation)
+  ;;; Handles the (can-start-loop label debug-info) annotation. If it is decided not to
+  ;;; start executing the trace belonging to this label, regular interpretation continues
+  ;;; with the given state.
+  (define (handle-can-start-loop-annotation label debug-info state)
+    ;; Continue regular interpretation with the given state.
+    (define (continue-with-state)
       (execute/trace `(remove-continuation))
-      (step* continuation))
+      (step* state))
+    ;; Check whether it is worthwile to start tracing this label.
+    ;; In this implementation, whether it is worthwile to trace a label only depends
+    ;; on how hot the corresponding loop is: how many times has this label been encountered yet?
+    (define (can-start-tracing-label?)
+      (>= (get-times-label-encountered label) TRACING_THRESHOLD))
+          ;; We are currently tracing this label: check if this label refers to a 'true' loop.
     (cond ((is-tracing-label? label)
-           (check-stop-tracing-label label continuation))
+           (check-stop-tracing-label label state))
+          ;; A trace for this label already exists, so start executing that trace?
           ((label-trace-exists? label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
            (let ((label-trace (get-label-trace label)))
+             ;; If we are already tracing, and this trace is a 'true' loop, we record
+             ;; a jump to this already existing trace.
+             ;; Else, we ignore the existing trace and just inline everything.
              (if (and (is-tracing?) (label-trace-loops? label-trace))
                  (let ((new-state (execute-label-trace-with-label label)))
                    (step* new-state))
-                 (continue-with-continuation))))
-          ((and (not (is-tracing?)) (>= (get-times-label-encountered label) TRACING_THRESHOLD))
+                 (continue-with-state))))
+          ;; We are not tracing anything at the moment, and we have determined that it
+          ;; is worthwile to trace this label/loop, so start tracing.
+          ((and (not (is-tracing?)) (can-start-tracing-label?))
            (output "----------- STARTED TRACING -----------") (output-newline)
            (start-tracing-label! label debug-info)
-           (continue-with-continuation))
+           (continue-with-state))
+          ;; We are already tracing and/or it is not worthwile to trace this label,
+          ;; so continue regular interpretation. We do increase the counter for the number
+          ;; of times this label has been encountered (i.e., we raise the 'hotness' of this loop).
           (else
            (inc-times-label-encountered! label)
            (when (is-tracing?)
              (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline))
-           (continue-with-continuation))))
+           (continue-with-state))))
   
   ;
   ; Trace merging
   ;
   
+  ;;; Handles the (merges-control-flow) annotation.
   (define (handle-merges-cf-annotation continuation)
     (output "MERGES CONTROL FLOW") (output-newline)
     (let ((mp-id (top-splits-cf-id)))
@@ -553,10 +627,7 @@
                      `(pop-splits-cf-id!))
       (if (is-tracing?)
           (begin
-            ;(when (is-tracing-guard?)
-            ;  (append-trace! `((pop-trace-node-frame!))))
-            (append-trace! `(;(pop-trace-node-frame!)
-                             (execute-mp-tail-trace ,mp-id ,continuation)))
+            (append-trace! `((execute-mp-tail-trace ,mp-id ,continuation)))
             ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
             (if (mp-tail-trace-exists? mp-id)
                 (begin (output "MP TAIL TRACE EXISTS") (output-newline)
@@ -600,7 +671,7 @@
   (define (do-function-call i κ)
     (match v
       ((clo (lam x es) ρ)
-       (execute/trace `(switch-to-clo-env ,i))
+       (execute/trace `(prepare-function-call ,i))
        (let loop ((i i) (x x))
          (match x
            ('()
@@ -945,6 +1016,7 @@
   ; Starting evaluator
   ;
   
+  ;;; Transforms the given expression into a CK state, so that it can be used by the evaluator.
   (define (inject e)
     (ev e `(,(haltk))))
   
@@ -956,5 +1028,6 @@
                          (flush-trace-nodes-executing!)
                          v))))
   
+  ;;; Reads an s-expression from the console and runs the evaluator on it.
   (define (start)
     (run (inject (read)))))
