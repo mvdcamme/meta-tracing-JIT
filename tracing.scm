@@ -173,7 +173,7 @@
                           labels-encountered
                           trace-nodes
                           trace-nodes-dictionary
-                          trace-nodes-executing
+                          labels-executing
                           splits-cf-id-stack
                           closing-function
                           merges-cf-function
@@ -296,30 +296,30 @@
     (top (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
   
   ;
-  ; Trace node executing stack
+  ; Labels executing stack
   ;
   
   (define (flush-label-traces-executing!)
-    (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT (new-stack)))
+    (set-tracer-context-labels-executing! GLOBAL_TRACER_CONTEXT (new-stack)))
   
   (define (pop-label-trace-executing!)
-    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
       (if (is-empty? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
           (pop! trace-nodes-executing))))
   
   (define (push-label-trace-executing! trace-node)
-    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
       (push! trace-nodes-executing trace-node)))
   
   (define (top-label-trace-executing)
-    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
       (if (is-empty? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
           (top trace-nodes-executing))))
   
   (define (is-executing-trace?)
-    (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
+    (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
       (is-empty? trace-nodes-executing)))
   
   ;
