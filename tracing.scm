@@ -82,15 +82,20 @@
   
   (define τ #f) ; trace
   
+  (define (max-trace-length-reached?)
+    (> (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT) MAX_TRACE_LENGTH))
+  
+  (define (handle-max-trace-length-reached)
+    (display "##### MAX TRACE LENGTH REACHED #####") (newline)
+    (stop-tracing-abnormal!))
+  
   (define (append-trace! ms)
     (when τ
       (let ((new-instructions-length (length ms)))
         (set! τ (append (reverse ms) τ))
         (add-trace-length! new-instructions-length)
-        (when (> (tracer-context-current-trace-length GLOBAL_TRACER_CONTEXT) MAX_TRACE_LENGTH)
-          (display "##### MAX TRACE LENGTH REACHED #####") (newline)
-          (stop-tracing-abnormal!)))))
-    
+        (when (max-trace-length-reached?)
+          (handle-max-trace-length-reached)))))
   
   (define (clear-trace!)
     (set-tracer-context-current-trace-length! GLOBAL_TRACER_CONTEXT 0)
@@ -287,13 +292,16 @@
   ;
   
   (define (push-splits-cf-id! splits-cf-id)
-    (push! (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT) splits-cf-id))
+    (let ((splits-cf-id-stack (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
+      (push! splits-cf-id-stack splits-cf-id)))
   
   (define (pop-splits-cf-id!)
-    (pop! (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
+    (let ((splits-cf-id-stack (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
+      (pop! splits-cf-id-stack)))
   
   (define (top-splits-cf-id)
-    (top (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
+    (let ((splits-cf-id-stack (tracer-context-splits-cf-id-stack GLOBAL_TRACER_CONTEXT)))
+      (top splits-cf-id-stack)))
   
   ;
   ; Labels executing stack
@@ -304,9 +312,7 @@
   
   (define (pop-label-trace-executing!)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
-      (if (is-empty? trace-nodes-executing)
-          (error "Trace-nodes-executing stack is empty!")
-          (pop! trace-nodes-executing))))
+      (pop! trace-nodes-executing)))
   
   (define (push-label-trace-executing! trace-node)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
@@ -314,9 +320,7 @@
   
   (define (top-label-trace-executing)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
-      (if (is-empty? trace-nodes-executing)
-          (error "Trace-nodes-executing stack is empty!")
-          (top trace-nodes-executing))))
+      (top trace-nodes-executing)))
   
   (define (is-executing-trace?)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
