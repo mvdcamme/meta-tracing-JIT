@@ -15,12 +15,12 @@
            append-trace!
            call-global-continuation
            clear-trace!
-           flush-trace-nodes-executing!
+           flush-label-traces-executing!
            get-guard-trace
            get-label-trace
            get-mp-tail-trace
            get-times-label-encountered
-           get-trace-node-executing-trace-key
+           get-label-trace-executing-trace-key
            guard-trace-exists?
            inc-splits-cf-id!
            inc-guard-id!
@@ -35,13 +35,9 @@
            make-stop-tracing-mp-tail-function
            mp-tail-trace-exists?
            pop-splits-cf-id!
-           pop-trace-node-frame!
-           pop-trace-node-frame-until-label!
-           pop-trace-node-executing!
-           pop-trace-node-frame-from-stack!
+           pop-label-trace-executing!
            push-splits-cf-id!
-           push-trace-node-frame!
-           push-trace-node-executing!
+           push-label-trace-executing!
            reset-global-tracer-context!
            reset-metrics!
            set-global-continuation!
@@ -53,8 +49,7 @@
            stop-tracing-normal!
            times-label-encountered-greater-than-threshold?
            top-splits-cf-id
-           top-trace-node-executing
-           trace-node-frame-on-stack?
+           top-label-trace-executing
            
            ;; Metrics
            calculate-average-trace-length
@@ -304,64 +299,28 @@
   ; Trace node executing stack
   ;
   
-  (define (flush-trace-nodes-executing!)
+  (define (flush-label-traces-executing!)
     (set-tracer-context-trace-nodes-executing! GLOBAL_TRACER_CONTEXT (new-stack)))
   
-  (define (pop-trace-node-executing!)
+  (define (pop-label-trace-executing!)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (if (is-empty? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
           (pop! trace-nodes-executing))))
   
-  (define (push-trace-node-executing! trace-node)
+  (define (push-label-trace-executing! trace-node)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (push! trace-nodes-executing trace-node)))
   
-  (define (top-trace-node-executing)
+  (define (top-label-trace-executing)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (if (is-empty? trace-nodes-executing)
           (error "Trace-nodes-executing stack is empty!")
           (top trace-nodes-executing))))
   
-  (define (trace-node-frame-on-stack? label)
-    (let* ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT))
-           (list (stack->list trace-nodes-executing)))
-      (define (loop list)
-        (cond ((null? list) #f)
-              ((or (label-trace? (car list))
-                   (mp-tail-trace? (car list)))
-               (equal? label (trace-key-label (trace-node-trace-key (car list)))))
-              (else (loop (cdr list)))))
-      (loop list)))
-  
   (define (is-executing-trace?)
     (let ((trace-nodes-executing (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
       (is-empty? trace-nodes-executing)))
-  
-  ;
-  ; Trace frames stack
-  ;
-  
-  (define (pop-trace-node-frame!)
-    (pop-trace-node-executing!))
-  
-  (define (pop-trace-node-frame-until-label! label)
-    (let ((current-trace-node-executing (top-trace-node-executing)))
-      (define (loop current-trace-node-executing)
-        (unless (equal? (trace-key-label (trace-node-trace-key current-trace-node-executing)) label)
-          (pop-trace-node-frame!)
-          (loop (top-trace-node-executing))))
-      (loop current-trace-node-executing)))
-  
-  (define (pop-trace-node-frame-from-stack! label)
-    ;; Keep popping the trace frames from the stack until the top of the stack is the trace frame for this label.
-    ;; Then pop one more time to get it off the stack.
-    (when (not (is-empty? (tracer-context-trace-nodes-executing GLOBAL_TRACER_CONTEXT)))
-      (pop-trace-node-frame-until-label! label)
-      (pop-trace-node-frame!)))
-  
-  (define (push-trace-node-frame! trace-node-executing)
-    (push-trace-node-executing! trace-node-executing))
   
   ;
   ; Start tracing
@@ -436,9 +395,9 @@
   ; Finding traces
   ;
   
-  (define (get-trace-node-executing-trace-key)
-    (let ((top-trace-node (top-trace-node-executing)))
-      (trace-node-trace-key (top-trace-node-executing))))
+  (define (get-label-trace-executing-trace-key)
+    (let ((top-label-trace (top-label-trace-executing)))
+      (trace-node-trace-key top-label-trace)))
   
   (define (return-if-existing trace . errormessage)
     (if trace

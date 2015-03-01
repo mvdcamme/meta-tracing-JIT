@@ -23,6 +23,7 @@
            execute-label-trace-with-id
            execute-label-trace-with-label
            execute-mp-tail-trace
+           flush-label-traces-executing!
            guard-false
            guard-true
            guard-same-closure
@@ -31,13 +32,9 @@
            lookup-var
            quote-value
            pop-splits-cf-id!
-           pop-trace-node-frame!
-           pop-trace-node-frame-until-label!
-           pop-trace-node-executing!
-           pop-trace-node-frame-from-stack!
+           pop-label-trace-executing!
            push-splits-cf-id!
-           push-trace-node-frame!
-           push-trace-node-executing!
+           push-label-trace-executing!
            remove-continuation
            restore-env
            restore-val
@@ -50,8 +47,7 @@
            set-var
            prepare-function-call
            top-splits-cf-id
-           top-trace-node-executing
-           trace-node-frame-on-stack?
+           top-label-trace-executing
            
            ;; Metrics
            calculate-average-trace-length
@@ -315,8 +311,7 @@
   ;;; Executes the guard-trace associated with the given guard-id.
   (define (execute-guard-trace guard-id)
     (let* ((guard-trace (get-guard-trace guard-id))
-           (trace (trace-node-trace guard-trace))
-           (corresponding-label (trace-key-label (get-trace-node-executing-trace-key))))
+           (trace (trace-node-trace guard-trace)))
       ;; Benchmarking: record the fact that this trace node will be executed
       (add-execution! guard-trace)
       (execute/trace `(let ()
@@ -330,10 +325,10 @@
       (add-execution! label-trace-node)
       (execute/trace `(let ()
                         ;; Push this trace-node on the stack of label-traces being executed
-                        (push-trace-node-frame! ,label-trace-node)
+                        (push-label-trace-executing! ,label-trace-node)
                         (let ((state (execute-trace ',trace))) ; Actually execute the trace
                           ;; Pop this trace-node again
-                          (pop-trace-node-frame!)
+                          (pop-label-trace-executing!)
                           ;; Return the CK state
                           state)))))
   
@@ -641,10 +636,12 @@
                        (step* continuation))))
           (step* continuation))))
   
-  (define (handle-splits-cf-annotation continuation)
+  ;;; Handles the (splits-control-flow) annotation and afterwards continues
+  ;;; regular interpretation with the given state.
+  (define (handle-splits-cf-annotation state)
     (execute/trace `(remove-continuation)
              `(push-splits-cf-id! ,(inc-splits-cf-id!)))
-    (step* continuation))
+    (step* state))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -971,8 +968,7 @@
            (execute-guard-trace guard-id))
           ((not (is-tracing?))
            (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-           (let* ((trace-key-executing (get-trace-node-executing-trace-key))
-                  (corresponding-label (trace-key-label trace-key-executing)))
+           (let ((trace-key-executing (get-label-trace-executing-trace-key)))
              ;; Trace-nodes executing stack will be flushed
              (bootstrap-to-evaluator state)
              (start-tracing-guard! guard-id trace-key-executing)))
@@ -981,7 +977,7 @@
            ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
            ;; tracing from this new guard-failure.
            (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
-           (let ((trace-key-executing (get-trace-node-executing-trace-key)))
+           (let ((trace-key-executing (get-label-trace-executing-trace-key)))
              (switch-to-trace-guard! guard-id trace-key-executing)
              (bootstrap-to-evaluator state)))))
   
@@ -1001,6 +997,7 @@
   ; Resetting evaluator
   ;
   
+  ;;; Resets all bookkeeping behind the tracing interpreter.
   (define (reset!)
     (set! ρ (make-new-env))
     (set! σ (new-store))
@@ -1025,7 +1022,7 @@
     (apply step* (list (let ((v (call/cc (lambda (k)
                                            (set-global-continuation! k)
                                            s))))
-                         (flush-trace-nodes-executing!)
+                         (flush-label-traces-executing!)
                          v))))
   
   ;;; Reads an s-expression from the console and runs the evaluator on it.
