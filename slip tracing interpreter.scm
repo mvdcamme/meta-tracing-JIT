@@ -366,21 +366,21 @@
   ;;; Check the value of the register v. If it is #f, do nothing, else handle this guard failure.
   (define (guard-false guard-id e)
     (if v
-        (begin (output "Guard-false failed") (output-newline) (bootstrap-to-ev guard-id e))
+        (begin (output "Guard-false failed") (output-newline) (guard-failed-with-ev guard-id e))
         (begin (output "Guard passed") (output-newline))))
   
   ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
   (define (guard-true guard-id e)
     (if v
         (begin (output "Guard passed") (output-newline))
-        (begin (output "Guard-true failed") (output-newline) (bootstrap-to-ev guard-id e))))
+        (begin (output "Guard-true failed") (output-newline) (guard-failed-with-ev guard-id e))))
   
   ;;; Check whether the register v currently contains the same closure as it did when this guard
   ;;; was recorded. If it does, do nothing, else handle this guard failure.
   (define (guard-same-closure clo i guard-id)
     (when (not (clo-equal? v clo))
       (output "Closure guard failed, expected: ") (output clo) (output ", evaluated: ") (output v) (output-newline)
-      (bootstrap-to-ko guard-id (closure-guard-failedk i))))
+      (guard-failed-with-ko guard-id (closure-guard-failedk i))))
   
   ;;; Check whether the register v currently contains a list that has the same length as it did
   ;;; when this guard was recorded. If it does, do nothing, else handle this guard failure.
@@ -388,7 +388,7 @@
     (let ((current-i (length v)))
       (when (not (= i current-i))
         (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
-        (bootstrap-to-ko (cons guard-id current-i) (apply-failedk rator current-i)))))
+        (guard-failed-with-ko (cons guard-id current-i) (apply-failedk rator current-i)))))
   
   ;;; Save the value in the register v to the stack θ.
   (define (save-val)
@@ -953,13 +953,13 @@
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
-  ;                                           Bootstrapping                                              ;
+  ;                                           Guard failure                                              ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  (define (bootstrap guard-id state)
-    ;;; Stop tracing whatever is being traced and start tracing the guard associated with this
-    ;;; guard-id.
+  (define (guard-failed guard-id state)
+    ;; Stop tracing whatever is being traced and start tracing the guard associated with this
+    ;; guard-id.
     (define (switch-to-trace-guard! guard-id old-trace-key)
       (stop-tracing-abnormal!)
       (start-tracing-guard! guard-id old-trace-key))
@@ -982,11 +982,11 @@
              (switch-to-trace-guard! guard-id trace-key-executing)
              (bootstrap-to-evaluator state)))))
   
-  (define (bootstrap-to-ev guard-id e)
-    (bootstrap guard-id (ev e τ-κ)))
+  (define (guard-failed-with-ev guard-id e)
+    (guard-failed guard-id (ev e τ-κ)))
   
-  (define (bootstrap-to-ko guard-id φ)
-    (bootstrap guard-id (ko φ τ-κ)))
+  (define (guard-failed-with-ko guard-id φ)
+    (guard-failed guard-id (ko φ τ-κ)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
