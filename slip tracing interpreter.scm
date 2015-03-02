@@ -957,11 +957,12 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  (define (switch-to-trace-guard! guard-id old-trace-key)
-    (stop-tracing-abnormal!)
-    (start-tracing-guard! guard-id old-trace-key))
-  
   (define (bootstrap guard-id state)
+    ;;; Stop tracing whatever is being traced and start tracing the guard associated with this
+    ;;; guard-id.
+    (define (switch-to-trace-guard! guard-id old-trace-key)
+      (stop-tracing-abnormal!)
+      (start-tracing-guard! guard-id old-trace-key))
     (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
     (cond ((guard-trace-exists? guard-id)
            (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
@@ -970,8 +971,8 @@
            (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
            (let ((trace-key-executing (get-label-trace-executing-trace-key)))
              ;; Trace-nodes executing stack will be flushed
-             (bootstrap-to-evaluator state)
-             (start-tracing-guard! guard-id trace-key-executing)))
+             (start-tracing-guard! guard-id trace-key-executing)
+             (bootstrap-to-evaluator state)))
           (else
            ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
            ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
