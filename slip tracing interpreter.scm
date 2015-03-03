@@ -11,7 +11,6 @@
            τ-κ
            
            ;; Trace instructions
-           add-continuation
            alloc-var
            apply-native
            bootstrap-to-evaluator
@@ -31,11 +30,12 @@
            literal-value
            lookup-var
            quote-value
+           pop-continuation
            pop-splits-cf-id!
            pop-label-trace-executing!
+           push-continuation
            push-splits-cf-id!
            push-label-trace-executing!
-           remove-continuation
            restore-env
            restore-val
            restore-vals
@@ -135,7 +135,7 @@
   ;;; Stores the stack during program execution.
   (define θ #f) ; non-kont stack
   
-  ;;; Stores the general-purpose register during program execution.
+  ;;; The general-purpose register used during program execution.
   (define v #f) ; value
   
   ;;; Stores the continuation stack during program execution.
@@ -488,11 +488,11 @@
       (set! v (apply v rands))))
   
   ;;; Push the continuation φ to the continuation stack τ-κ.
-  (define (add-continuation φ)
+  (define (push-continuation φ)
     (set! τ-κ (cons φ τ-κ)))
   
   ;;; Pop the first continuation from the continuation stack τ-κ.
-  (define (remove-continuation)
+  (define (pop-continuation)
     (set! τ-κ (cdr τ-κ)))
   
   ;;; Prepares for an application of the closure currently stored in the register v
@@ -533,7 +533,7 @@
   ;;; regular interpretation with the given state.
   ;;; Used for benchmarking purposes.
   (define (handle-is-evaluating-annotation state)
-    (execute/trace `(remove-continuation))
+    (execute/trace `(pop-continuation))
     (set-root-expression-if-uninitialised! v)
     (when (is-tracing?)
       (add-ast-node-traced! v))
@@ -550,7 +550,7 @@
     (when (is-tracing-label? label)
       (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
       (stop-tracing! #f))
-    (execute/trace `(remove-continuation))
+    (execute/trace `(pop-continuation))
     (step* state))
   
   (define (check-stop-tracing-label label state)
@@ -561,7 +561,7 @@
         (step* new-state)))
     (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
-      (execute/trace `(remove-continuation))
+      (execute/trace `(pop-continuation))
       (step* state))
     (inc-times-label-encountered-while-tracing!)
     (if (times-label-encountered-greater-than-threshold?)
@@ -574,7 +574,7 @@
   (define (handle-can-start-loop-annotation label debug-info state)
     ;; Continue regular interpretation with the given state.
     (define (continue-with-state)
-      (execute/trace `(remove-continuation))
+      (execute/trace `(pop-continuation))
       (step* state))
     ;; Check whether it is worthwile to start tracing this label.
     ;; In this implementation, whether it is worthwile to trace a label only depends
@@ -618,7 +618,7 @@
   (define (handle-merges-cf-annotation continuation)
     (output "MERGES CONTROL FLOW") (output-newline)
     (let ((mp-id (top-splits-cf-id)))
-      (execute/trace `(remove-continuation)
+      (execute/trace `(pop-continuation)
                      `(pop-splits-cf-id!))
       (if (is-tracing?)
           (begin
@@ -639,8 +639,8 @@
   ;;; Handles the (splits-control-flow) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   (define (handle-splits-cf-annotation state)
-    (execute/trace `(remove-continuation)
-             `(push-splits-cf-id! ,(inc-splits-cf-id!)))
+    (execute/trace `(pop-continuation)
+                   `(push-splits-cf-id! ,(inc-splits-cf-id!)))
     (step* state))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -656,13 +656,13 @@
     (match es
       ('()
        (execute/trace `(literal-value '())
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((list e)
        (ev e κ))
       ((cons e es)
        (execute/trace `(save-env)
-                `(add-continuation ,(seqk es)))
+                `(push-continuation ,(seqk es)))
        (ev e (cons (seqk es) κ)))))
   
   (define (do-function-call i κ)
@@ -674,7 +674,7 @@
            ('()
             (unless (= i 0)
               (error "Incorrect number of args: " (lam x es) ", i = " i))
-            (execute/trace `(add-continuation ,(applicationk (lam x es))))
+            (execute/trace `(push-continuation ,(applicationk (lam x es))))
             (eval-seq es (cons (applicationk (lam x es)) κ)))
            ((cons x xs)
             (when (< i 0)
@@ -687,64 +687,64 @@
               (error "Incorrect number of args: " (lam x es) "case 3"))
             (execute/trace `(restore-vals ,i)
                            `(alloc-var ',x)
-                           `(add-continuation ,(applicationk (lam x es))))
+                           `(push-continuation ,(applicationk (lam x es))))
             (eval-seq es (cons (applicationk (lam x es)) κ))))))
       (_
        (execute/trace `(apply-native ,i)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko (car κ) (cdr κ)))))
   
   (define (step state)
     (match state
       ((ev `(and ,e . ,es) κ)
-       (execute/trace `(add-continuation ,(andk es)))
+       (execute/trace `(push-continuation ,(andk es)))
        (ev e (cons (andk es) κ)))
       ((ev `(apply ,rator ,args) κ)
-       (execute/trace `(add-continuation ,(applyk rator)))
+       (execute/trace `(push-continuation ,(applyk rator)))
        (ev args (cons (applyk rator) κ)))
       ((ev (? symbol? x) (cons φ κ))
        (execute/trace `(lookup-var ',x)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))
       ((ev `(begin ,es ...) κ)
        (eval-seq es κ))
       ((ev `(can-close-loop ,e) κ)
-       (execute/trace `(add-continuation ,(can-close-loopk)))
+       (execute/trace `(push-continuation ,(can-close-loopk)))
        (ev e (cons (can-close-loopk) κ)))
       ((ev `(can-start-loop ,e ,debug-info) κ)
-       (execute/trace `(add-continuation ,(can-start-loopk e '())))
+       (execute/trace `(push-continuation ,(can-start-loopk e '())))
        (ev debug-info (cons (can-start-loopk e '()) κ)))
       ((ev `(cond) (cons φ κ))
        (execute/trace `(literal-value ())
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))      
       ((ev `(cond (else . ,es)) κ)
        (eval-seq es κ))
       ((ev `(cond (,pred . ,pes) . ,es) κ)
        (execute/trace `(save-env)
-                      `(add-continuation ,(condk pes es)))
+                      `(push-continuation ,(condk pes es)))
        (ev pred (cons (condk pes es) κ)))
       ((ev `(define ,pattern . ,expressions) κ)
        (if (symbol? pattern)
            (begin (execute/trace `(save-env)
-                                 `(add-continuation ,(definevk pattern)))
+                                 `(push-continuation ,(definevk pattern)))
                   (ev (car expressions) (cons (definevk pattern) κ)))
            (begin (execute/trace `(alloc-var ',(car pattern))
                                  `(create-closure ',(cdr pattern) ',expressions)
                                  `(set-var ',(car pattern))
-                                 `(remove-continuation))
+                                 `(pop-continuation))
                   (match κ
                     ((cons φ κ) (ko φ κ))))))
       ((ev `(if ,e ,e1 . ,e2) κ)
        (execute/trace `(save-env)
-                      `(add-continuation ,(ifk e1 e2)))
+                      `(push-continuation ,(ifk e1 e2)))
        (ev e (cons (ifk e1 e2) κ)))
       ((ev `(is-evaluating ,e) κ)
-       (execute/trace `(add-continuation ,(is-evaluatingk)))
+       (execute/trace `(push-continuation ,(is-evaluatingk)))
        (ev e (cons (is-evaluatingk) κ)))
       ((ev `(lambda ,x ,es ...) (cons φ κ))
        (execute/trace `(create-closure ',x ',es)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))
       ((ev `(let () . ,expressions)  κ)
        (eval-seq expressions κ))
@@ -752,71 +752,71 @@
        (unless (null? bds)
          (error "Syntax error: let used with more than one binding: " bds))
        (execute/trace `(save-env)
-                      `(add-continuation ,(letk var es)))
+                      `(push-continuation ,(letk var es)))
        (ev val (cons (letk var es) κ)))
       ((ev `(let* () . ,expressions) κ)
        (eval-seq expressions κ))
       ((ev `(let* ((,var ,val) . ,bds) . ,es) κ)
        (execute/trace `(save-env)
-                      `(add-continuation ,(let*k var bds es)))
+                      `(push-continuation ,(let*k var bds es)))
        (ev val (cons (let*k var bds es) κ)))
       ((ev `(letrec ((,x ,e) . ,bds) . ,es) κ)
        (execute/trace `(literal-value '())
                       `(alloc-var ',x)
                       `(save-env)
-                      `(add-continuation ,(letreck x bds es)))
+                      `(push-continuation ,(letreck x bds es)))
        (ev e (cons (letreck x bds es) κ)))
       ((ev `(or ,e . ,es) κ)
-       (execute/trace `(add-continuation ,(ork es)))
+       (execute/trace `(push-continuation ,(ork es)))
        (ev e (cons (ork es) κ)))
       ((ev `(quote ,e) (cons φ κ))
        (execute/trace `(quote-value ',e)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))
       ((ev `(set! ,x ,e) κ)
        (execute/trace `(save-env)
-                      `(add-continuation ,(setk x)))
+                      `(push-continuation  ,(setk x)))
        (ev e (cons (setk x) κ)))
       ((ev `(,rator) κ)
        (execute/trace `(save-env)
-                      `(add-continuation ,(ratork 0 'regular-nulary)))
+                      `(push-continuation ,(ratork 0 'regular-nulary)))
        (ev rator (cons (ratork 0 'regular-nulary) κ)))
       ((ev `(,rator . ,rands) κ)
        (execute/trace `(save-env))
        (let ((rrands (reverse rands)))
-         (execute/trace `(add-continuation ,(randk rator (cdr rrands) 1)))
+         (execute/trace `(push-continuation ,(randk rator (cdr rrands) 1)))
          (ev (car rrands) (cons (randk rator (cdr rrands) 1) κ))))
       ((ev e (cons φ κ))
        (execute/trace `(literal-value ,e)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))
       ((ko (andk '()) κ)
-       (execute/trace `(remove-continuation))
+       (execute/trace `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((ko (andk '()) (cons φ κ))
-       (execute/trace `(remove-continuation))
+       (execute/trace `(pop-continuation))
        (ko φ κ))
       ((ko (andk es) κ)
        (if v
-           (begin (execute/trace `(add-continuation ,(andk (cdr es))))
+           (begin (execute/trace `(push-continuation  ,(andk (cdr es))))
                   (ev (car es) (cons (andk (cdr es)) κ)))
-           (begin (execute/trace `(remove-continuation))
+           (begin (execute/trace `(pop-continuation))
                   (ko (car κ) (cdr κ)))))
       ((ko (applicationk debug) κ)
        (execute/trace `(restore-env)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((ko (apply-failedk rator i) κ)
        (execute/trace `(save-all-vals)
                       `(save-env)
-                      `(add-continuation ,(ratork i 'apply)))
+                      `(push-continuation ,(ratork i 'apply)))
        (ev rator (cons (ratork i 'apply) κ)))
       ((ko (applyk rator) κ)
        (let ((i (length v)))
          (execute/trace `(guard-same-nr-of-args ,i ',rator ,(inc-guard-id!))
                         `(save-all-vals)
                         `(save-env)
-                        `(add-continuation ,(ratork i 'apply)))
+                        `(push-continuation ,(ratork i 'apply)))
          (ev rator (cons (ratork i 'apply) κ))))
       ((ko (closure-guard-failedk i) κ)
        (do-function-call i κ))
@@ -827,7 +827,7 @@
                   (eval-seq pes κ))
            (begin (execute/trace `(guard-false ,(inc-guard-id!) ',`(begin ,@pes))
                                  `(literal-value '())
-                                 `(remove-continuation))
+                                 `(pop-continuation))
                   (ko (car κ) (cdr κ)))))
       ((ko (condk pes `((else . ,else-es))) κ)
        (execute/trace `(restore-env))
@@ -843,12 +843,12 @@
                   (eval-seq pes κ))
            (begin (execute/trace `(guard-false ,(inc-guard-id!) ',`(begin ,@pes))
                                  `(save-env)
-                                 `(add-continuation ,(condk pred-es es)))
+                                 `(push-continuation ,(condk pred-es es)))
                   (ev pred (cons (condk pred-es es) κ)))))
       ((ko (definevk x) (cons φ κ))
        (execute/trace `(restore-env)
                       `(alloc-var ',x)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))
       ((ko (haltk) _)
        #f) 
@@ -864,7 +864,7 @@
              ;; If the guard fails, the predicate was true, so e1 should be evaluated
              (begin (execute/trace `(guard-false ,new-guard-id ',e1)) 
                     (if (null? e2)
-                        (begin (execute/trace `(remove-continuation)
+                        (begin (execute/trace `(pop-continuation)
                                               `(literal-value '()))
                                (ko (car κ) (cdr κ)))
                         (ev (car e2) κ))))))
@@ -880,7 +880,7 @@
        (execute/trace `(restore-env)
                       `(alloc-var ',x)
                       `(save-env)
-                      `(add-continuation ,(let*k var bds es)))
+                      `(push-continuation ,(let*k var bds es)))
        (ev val (cons (let*k var bds es) κ)))
       ((ko (letreck x '() es) κ)
        (execute/trace `(restore-env)
@@ -891,27 +891,27 @@
                       `(set-var ',x)
                       `(alloc-var ',var)
                       `(save-env)
-                      `(add-continuation ,(letreck var bds es)))
+                      `(push-continuation ,(letreck var bds es)))
        (ev val (cons (letreck var bds es) κ)))
       ((ko (ork '()) κ)
-       (execute/trace `(remove-continuation))
+       (execute/trace `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((ko (ork es) κ)
        (if v
-           (begin (execute/trace `(remove-continuation))
+           (begin (execute/trace `(pop-continuation))
                   (ko (car κ) (cdr κ)))
            (ev `(or ,@es) κ)))
       ((ko (randk rator '() i) κ)
        (execute/trace `(restore-env)
                       `(save-val)
                       `(save-env)
-                      `(add-continuation ,(ratork i 'regular)))
+                      `(push-continuation ,(ratork i 'regular)))
        (ev rator (cons (ratork i 'regular) κ)))
       ((ko (randk rator rands i) κ)
        (execute/trace `(restore-env)
                       `(save-val)
                       `(save-env)
-                      `(add-continuation ,(randk rator (cdr rands) (+ i 1))))
+                      `(push-continuation ,(randk rator (cdr rands) (+ i 1))))
        (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
       ((ko (ratork i debug) κ)
        (execute/trace `(restore-env)
@@ -919,21 +919,23 @@
        (do-function-call i κ))
       ((ko (seqk '()) (cons φ κ)) ; No tailcall optimization!
        (execute/trace `(restore-env)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))
       ((ko (seqk (cons e exps)) κ)
-       (execute/trace `(add-continuation ,(seqk exps)))
+       (execute/trace `(push-continuation ,(seqk exps)))
        (ev e (cons (seqk exps) κ)))
       ((ko (setk x) (cons φ κ))
        (execute/trace `(restore-env)
                       `(set-var ',x)
-                      `(remove-continuation))
+                      `(pop-continuation))
        (ko φ κ))))
   
   (define (step* s)
     (match s
       ((ko (haltk) _)
        v)
+      ;; Evaluate annotations in step* instead of step
+      ;; Annotations might not lead to recursive call to step*
       ((ko (is-evaluatingk) (cons φ κ))
        (handle-is-evaluating-annotation (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
@@ -943,7 +945,7 @@
       ((ko (can-close-loopk) (cons φ κ))
        (handle-can-close-loop-annotation v (ko φ κ)))
       ((ko (can-start-loopk label '()) κ)
-       (execute/trace `(add-continuation ,(can-start-loopk '() v)))
+       (execute/trace `(push-continuation ,(can-start-loopk '() v)))
        (step* (ev label (cons (can-start-loopk '() v) κ))))
       ((ko (can-start-loopk '() debug-info) (cons φ κ))
        (handle-can-start-loop-annotation v debug-info (ko φ κ)))
