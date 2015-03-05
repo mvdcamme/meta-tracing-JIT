@@ -1,5 +1,21 @@
 ;; Utilities.
 (begin
+  
+  ;;; Forward referencing
+  (define env-lookup #f)
+  (define perform-apply #f)
+  
+(define three-d-quote #f)
+(define three-d-if #f)
+(define three-d-cond #f)
+(define three-d-and #f)
+(define three-d-or #f)
+(define three-d-let #f)
+(define three-d-let* #f)
+(define three-d-letrec #f)
+(define three-d-begin #f)
+(define three-d-set! #f)
+(define three-d-lambda #f)
 
 (define (cadr p) (car (cdr p)))
 (define (cddr p) (cdr (cdr p)))
@@ -286,15 +302,15 @@
 ; (newline)
   (if (not (letrec? exp))
       exp
-      (let ((bindings (map (lambda (binding)
-                             (list (binding->var binding)
-                                   #f))
-                           (letrec->bindings exp)))
-            (sets (map (lambda (binding)
-                         (list three-d-set!
-                               (binding->var binding)
-                               (binding->exp binding)))
-                       (letrec->bindings exp))))
+      (let* ((bindings (map (lambda (binding)
+                              (list (binding->var binding)
+                                    #f))
+                            (letrec->bindings exp)))
+             (sets (map (lambda (binding)
+                          (list three-d-set!
+                                (binding->var binding)
+                                (binding->exp binding)))
+                        (letrec->bindings exp))))
         (list three-d-let
               bindings
               (make-begin
@@ -513,7 +529,7 @@
 ; then it returns the value of that variable.
 
 ; env-lookup : env var -> value
-(define (env-lookup env var)
+(define (env-lookup-act env var)
   ;DEBUG
   ;(display 'lookup:)
   ;(display var)
@@ -523,6 +539,8 @@
     ;(display value)
     ;(newline)
     value))
+
+(set! env-lookup env-lookup-act)
 
 ; env-set! : env var value -> void
 (define (env-set! env var value)
@@ -549,7 +567,7 @@
 
 ; empty-env : env
 (define (empty-env var modify? value!)
-  (error))
+  (error "empty env"))
 
 ; initial-environment-amap : alist[symbol,value]
 (define initial-environment-amap
@@ -613,20 +631,32 @@
   (lambda () value))
 
 ; three-d primitives:
-(define three-d-quote   (three-d (initial 'quote)))
-(define three-d-if      (three-d (initial 'if)))
-(define three-d-cond    (three-d (initial 'cond)))
-(define three-d-and     (three-d (initial 'and)))
-(define three-d-or      (three-d (initial 'or)))
-(define three-d-let     (three-d (initial 'let)))
-(define three-d-let*    (three-d (initial 'let*)))
-(define three-d-letrec  (three-d (initial 'letrec)))
-(define three-d-set!    (three-d (initial 'set!)))
-(define three-d-lambda  (three-d (initial 'lambda)))
-(define three-d-begin   (three-d (initial 'begin)))
+(define three-d-quote-act       (three-d (initial 'quote)))
+(define three-d-if-act          (three-d (initial 'if)))
+(define three-d-cond-act        (three-d (initial 'cond)))
+(define three-d-and-act         (three-d (initial 'and)))
+(define three-d-or-act          (three-d (initial 'or)))
+(define three-d-let-act         (three-d (initial 'let)))
+(define three-d-let*-act        (three-d (initial 'let*)))
+(define three-d-letrec-act      (three-d (initial 'letrec)))
+(define three-d-set!-act        (three-d (initial 'set!)))
+(define three-d-lambda-act      (three-d (initial 'lambda)))
+(define three-d-begin-act       (three-d (initial 'begin)))
+
+(set! three-d-quote three-d-quote-act)
+(set! three-d-if three-d-if-act)
+(set! three-d-cond three-d-cond-act)
+(set! three-d-and three-d-and-act)
+(set! three-d-or three-d-or-act)
+(set! three-d-let three-d-let-act)
+(set! three-d-let* three-d-let*-act)
+(set! three-d-letrec three-d-letrec-act)
+(set! three-d-begin three-d-begin-act)
+(set! three-d-set! three-d-set!-act)
+(set! three-d-lambda three-d-lambda-act)
 
 
-(define (perform-apply fun app-exp env)
+(define (perform-apply-act fun app-exp env)
   (let ((args (app->args app-exp)))
     (cond
       ((macro? fun)            (eval (apply (macro->proc fun) args) env))
@@ -634,5 +664,7 @@
       (else                    (let ((arg-values (eval* args env)))
                                  (apply fun arg-values))))))
 
+(set! perform-apply perform-apply-act)
 
-(eval '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)) (initial-environment)))
+
+(eval '(letrec ((fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2))))))) (fib 4)) (initial-environment)))
