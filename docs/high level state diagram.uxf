@@ -1,213 +1,293 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<diagram program="umlet" version="11.2">
-  <zoom_level>10</zoom_level>
+<diagram program="umlet" version="13.1">
+  <help_text>// Uncomment the following line to change the fontsize and font:
+ fontsize=14
+// fontfamily=SansSerif //possible: SansSerif,Serif,Monospaced
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+// Welcome to UMLet!
+//
+// Double-click on elements to add them to the diagram, or to copy them
+// Edit elements by modifying the text in this panel
+// Hold Ctrl to select multiple elements
+// Use Ctrl+mouse to select via lasso
+//
+// Use +/- or Ctrl+mouse wheel to zoom
+// Drag a whole relation at its central square icon
+//
+// Press Ctrl+C to copy the whole diagram to the system clipboard (then just paste it to, eg, Word)
+// Edit the files in the "palettes" directory to create your own element palettes
+//
+// Select "Custom Elements &gt; New..." to create new element types
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+// This text will be stored with each diagram;  use it for notes.</help_text>
+  <zoom_level>8</zoom_level>
   <element>
-    <type>com.umlet.element.custom.InitialState</type>
+    <type>com.baselet.element.old.element.InitialState</type>
     <coordinates>
-      <x>240</x>
-      <y>270</y>
-      <w>20</w>
-      <h>20</h>
+      <x>304</x>
+      <y>48</y>
+      <w>16</w>
+      <h>16</h>
     </coordinates>
     <panel_attributes/>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>220</x>
-      <y>260</y>
-      <w>50</w>
-      <h>140</h>
+      <x>288</x>
+      <y>40</y>
+      <w>40</w>
+      <h>152</h>
     </coordinates>
     <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>30;120;30;30</additional_attributes>
+    <additional_attributes>24;136;24;24</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.custom.State</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>190</x>
-      <y>380</y>
-      <w>110</w>
-      <h>50</h>
+      <x>368</x>
+      <y>192</y>
+      <w>304</w>
+      <h>40</h>
     </coordinates>
-    <panel_attributes>Regular
-interpretation</panel_attributes>
-    <additional_attributes/>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>288;24;24;24</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.State</type>
     <coordinates>
-      <x>270</x>
-      <y>350</y>
-      <w>270</w>
-      <h>94</h>
-    </coordinates>
-    <panel_attributes>lt=&lt;-
-Entering loop
-[existing trace]</panel_attributes>
-    <additional_attributes>250;50;30;50</additional_attributes>
-  </element>
-  <element>
-    <type>com.umlet.element.custom.State</type>
-    <coordinates>
-      <x>520</x>
-      <y>370</y>
-      <w>110</w>
-      <h>60</h>
+      <x>656</x>
+      <y>192</y>
+      <w>88</w>
+      <h>48</h>
     </coordinates>
     <panel_attributes>Executing trace</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Text</type>
     <coordinates>
-      <x>220</x>
-      <y>400</y>
-      <w>50</w>
-      <h>190</h>
+      <x>232</x>
+      <y>312</y>
+      <w>80</w>
+      <h>32</h>
     </coordinates>
-    <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>30;170;30;30</additional_attributes>
-  </element>
-  <element>
-    <type>com.umlet.element.custom.Text</type>
-    <coordinates>
-      <x>160</x>
-      <y>500</y>
-      <w>100</w>
-      <h>40</h>
-    </coordinates>
-    <panel_attributes>
-Entering loop
-[loop is hot]</panel_attributes>
+    <panel_attributes>can-start-loop
+[label is hot]</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.custom.Text</type>
+    <type>com.baselet.element.old.element.Text</type>
     <coordinates>
-      <x>50</x>
-      <y>340</y>
-      <w>160</w>
-      <h>60</h>
+      <x>144</x>
+      <y>144</y>
+      <w>128</w>
+      <h>48</h>
     </coordinates>
-    <panel_attributes>Entering loop
-[loop is not hot]/
-Increment loop counter</panel_attributes>
+    <panel_attributes>can-start-loop
+[label is not hot]/
+Increment label counter</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.custom.State</type>
+    <type>com.baselet.element.old.element.State</type>
     <coordinates>
-      <x>180</x>
-      <y>570</y>
-      <w>140</w>
-      <h>60</h>
+      <x>256</x>
+      <y>352</y>
+      <w>112</w>
+      <h>48</h>
     </coordinates>
-    <panel_attributes>Regular interpretation
+    <panel_attributes>Regular evaluation
 Recording trace</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>10</x>
-      <y>300</y>
-      <w>230</w>
-      <h>130</h>
+      <x>120</x>
+      <y>112</y>
+      <w>184</w>
+      <h>104</h>
     </coordinates>
     <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>210;80;210;30;30;30;30;110;180;110</additional_attributes>
+    <additional_attributes>168;64;168;24;24;24;24;88;144;88</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.custom.Text</type>
+    <type>com.baselet.element.old.element.Text</type>
     <coordinates>
-      <x>400</x>
-      <y>450</y>
-      <w>140</w>
-      <h>40</h>
+      <x>584</x>
+      <y>264</y>
+      <w>176</w>
+      <h>32</h>
     </coordinates>
-    <panel_attributes>Entering same loop/
-Add trace</panel_attributes>
+    <panel_attributes>can-start-loop
+[same label]/Add trace</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>530</x>
-      <y>280</y>
-      <w>160</w>
-      <h>150</h>
+      <x>664</x>
+      <y>120</y>
+      <w>128</w>
+      <h>120</h>
     </coordinates>
     <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>100;130;140;130;140;30;30;30;30;90</additional_attributes>
+    <additional_attributes>80;104;112;104;112;24;24;24;24;72</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.custom.Text</type>
+    <type>com.baselet.element.old.element.Text</type>
     <coordinates>
-      <x>570</x>
-      <y>320</y>
-      <w>100</w>
-      <h>40</h>
+      <x>696</x>
+      <y>152</y>
+      <w>80</w>
+      <h>32</h>
     </coordinates>
     <panel_attributes>Guard fails
 [existing trace]</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.custom.Text</type>
+    <type>com.baselet.element.old.element.Text</type>
     <coordinates>
-      <x>350</x>
-      <y>600</y>
-      <w>120</w>
-      <h>50</h>
+      <x>520</x>
+      <y>376</y>
+      <w>104</w>
+      <h>40</h>
     </coordinates>
     <panel_attributes>Guard fails
 [no existing trace]</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>290</x>
-      <y>400</y>
-      <w>300</w>
-      <h>220</h>
+      <x>344</x>
+      <y>216</y>
+      <w>368</w>
+      <h>176</h>
     </coordinates>
     <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>30;200;280;200;280;30</additional_attributes>
+    <additional_attributes>24;160;352;160;352;24</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>280</x>
-      <y>400</y>
-      <w>260</w>
-      <h>190</h>
+      <x>336</x>
+      <y>216</y>
+      <w>336</w>
+      <h>152</h>
     </coordinates>
     <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>240;30;30;170</additional_attributes>
+    <additional_attributes>320;24;24;136</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.Relation</type>
+    <type>com.baselet.element.old.element.Relation</type>
     <coordinates>
-      <x>240</x>
-      <y>300</y>
-      <w>320</w>
-      <h>100</h>
+      <x>344</x>
+      <y>96</y>
+      <w>344</w>
+      <h>112</h>
     </coordinates>
     <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>30;80;30;30;300;30;300;70</additional_attributes>
+    <additional_attributes>24;80;24;24;328;24;328;96</additional_attributes>
   </element>
   <element>
-    <type>com.umlet.element.custom.Text</type>
+    <type>com.baselet.element.old.element.Text</type>
     <coordinates>
-      <x>280</x>
-      <y>340</y>
-      <w>100</w>
-      <h>30</h>
+      <x>368</x>
+      <y>136</y>
+      <w>80</w>
+      <h>32</h>
     </coordinates>
     <panel_attributes>Trace finished</panel_attributes>
     <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>344</x>
+      <y>240</y>
+      <w>24</w>
+      <h>128</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>10.0;140.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <type>com.baselet.element.old.element.Text</type>
+    <coordinates>
+      <x>352</x>
+      <y>256</y>
+      <w>96</w>
+      <h>32</h>
+    </coordinates>
+    <panel_attributes>Trace too long/
+discard trace</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.baselet.element.old.element.Text</type>
+    <coordinates>
+      <x>400</x>
+      <y>184</y>
+      <w>80</w>
+      <h>32</h>
+    </coordinates>
+    <panel_attributes>can-start-loop
+[existing trace]</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>200</x>
+      <y>216</y>
+      <w>80</w>
+      <h>176</h>
+    </coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>70.0;200.0;10.0;200.0;10.0;10.0;80.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <type>com.baselet.element.old.element.Text</type>
+    <coordinates>
+      <x>136</x>
+      <y>232</y>
+      <w>136</w>
+      <h>32</h>
+    </coordinates>
+    <panel_attributes>can-close-loop/
+[same label] Add trace</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLState</id>
+    <coordinates>
+      <x>264</x>
+      <y>176</y>
+      <w>128</w>
+      <h>72</h>
+    </coordinates>
+    <panel_attributes>Regular
+evaluation
+fontsize=20</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <type>com.baselet.element.old.element.Relation</type>
+    <coordinates>
+      <x>280</x>
+      <y>224</y>
+      <w>40</w>
+      <h>144</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>24;128;24;24</additional_attributes>
   </element>
 </diagram>
