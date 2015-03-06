@@ -324,7 +324,7 @@
   
   (define (is-executing-trace?)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
-      (is-empty? trace-nodes-executing)))
+      (not (is-empty? trace-nodes-executing))))
   
   ;
   ; Start tracing
