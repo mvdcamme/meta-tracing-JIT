@@ -38,6 +38,7 @@
            pop-label-trace-executing!
            push-splits-cf-id!
            push-label-trace-executing!
+           push-label-trace-executing-if-not-on-top!
            reset-global-tracer-context!
            reset-metrics!
            set-global-continuation!
@@ -317,6 +318,12 @@
   (define (push-label-trace-executing! trace-node)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
       (push! trace-nodes-executing trace-node)))
+  
+  (define (push-label-trace-executing-if-not-on-top! trace-node)
+    (unless (and (is-executing-trace?)
+                 (equal? (trace-key-label (get-label-trace-executing-trace-key))
+                         (trace-key-label (trace-node-trace-key trace-node))))
+      (push-label-trace-executing! trace-node)))
   
   (define (top-label-trace-executing)
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))

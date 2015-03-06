@@ -345,7 +345,9 @@
   ;;; Execute the merge-point-tail-trace associated with the given merge-point-id.
   (define (execute-mp-tail-trace mp-id state)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-           (mp-tail-trace (get-mp-tail-trace mp-id)))
+           (mp-tail-trace (get-mp-tail-trace mp-id))
+           (label (trace-key-label (trace-node-trace-key mp-tail-trace)))
+           (label-trace-node (get-label-trace label)))
       ;; It might be that a call to this mp-tail-trace has been recorded before the actual tracing
       ;; of this mp-tail was completed. In that case, it could be that the trace was never finished
       ;; (e.g., because it reached the maximum trace length).
@@ -353,7 +355,10 @@
       ;; If it doesn't, we jump back to regular interpretation with the given state.
       (if mp-tail-trace
           (begin (add-execution! mp-tail-trace)
+                 (push-label-trace-executing-if-not-on-top! label-trace-node)
                  (let ((mp-value (execute-trace (trace-node-trace mp-tail-trace))))
+                   ;; Pop this trace-node again
+                   (pop-label-trace-executing!)
                    (bootstrap-to-evaluator mp-value)))
           (bootstrap-to-evaluator state))))
   
