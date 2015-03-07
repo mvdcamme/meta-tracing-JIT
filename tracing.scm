@@ -69,6 +69,14 @@
   (require "stack.scm")
   (require "trace-outputting.scm")
   
+  ;
+  ; tracer-context-copy
+  ;
+  
+  (define-syntax tracer-context-copy
+    (syntax-rules ()
+      ((_ a-tracer-context ...)
+       (struct-copy tracer-context a-tracer-context ...))))
   
   ;
   ; Constants
