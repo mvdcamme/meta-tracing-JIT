@@ -27,6 +27,7 @@
            inc-times-label-encountered!
            inc-times-label-encountered-while-tracing!
            is-executing-trace?
+           is-regular-interpreting?
            is-tracing?
            is-tracing-guard?
            is-tracing-label?
@@ -76,6 +77,29 @@
   (define ENABLE_OPTIMIZATIONS #f)
   (define MAX_TIMES_LABEL_ENCOUNTERED 5)
   (define MAX_TRACE_LENGTH 100000)
+  
+  ;
+  ; States
+  ;
+  
+  (define EXECUTING_TRACE_STATE 'executing-trace)
+  (define REGULAR_INTERPRETATION_STATE 'regular-interpretation)
+  (define TRACING_STATE 'tracing)
+  
+  (define (state-equals? state)
+    (eq? (tracer-context-state GLOBAL_TRACER_CONTEXT) state))
+  
+  (define (is-executing-trace?)
+    (state-equals? EXECUTING_TRACE_STATE))
+  
+  (define (is-regular-interpreting?)
+    (state-equals? REGULAR_INTERPRETATION_STATE))
+  
+  (define (is-tracing?)
+    (state-equals? TRACING_STATE))
+  
+  (define (set-state! new-state)
+    (set-tracer-context-state! GLOBAL_TRACER_CONTEXT new-state))
   
   ;
   ; Trace register
@@ -172,7 +196,7 @@
   ; Tracer context
   ;
   
-  (struct tracer-context (is-tracing?
+  (struct tracer-context (state
                           trace-key
                           times-label-encountered-while-tracing
                           current-trace-length
@@ -189,7 +213,7 @@
   (define GLOBAL_TRACER_CONTEXT #f)
   
   (define (new-tracer-context)
-    (tracer-context #f
+    (tracer-context REGULAR_INTERPRETATION_STATE
                     #f
                     0
                     0
@@ -205,9 +229,6 @@
   
   (define (reset-global-tracer-context!)
     (set! GLOBAL_TRACER_CONTEXT (new-tracer-context)))
-  
-  (define (is-tracing?)
-    (tracer-context-is-tracing? GLOBAL_TRACER_CONTEXT))
   
   (define (is-tracing-label? label)
     (and (tracer-context-trace-key GLOBAL_TRACER_CONTEXT)
@@ -329,10 +350,6 @@
     (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
       (top trace-nodes-executing)))
   
-  (define (is-executing-trace?)
-    (let ((trace-nodes-executing (tracer-context-labels-executing GLOBAL_TRACER_CONTEXT)))
-      (not (is-empty? trace-nodes-executing))))
-  
   ;
   ; Start tracing
   ;
@@ -341,7 +358,7 @@
     (clear-trace!)
     (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-guard-function guard-id))
     (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-guard-merges-cf-function guard-id))
-    (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #t)
+    (set-state! TRACING_STATE)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-guard-trace-key (trace-key-label old-trace-key)
                                                                                (get-parent-label-trace-id old-trace-key))))
   
@@ -349,7 +366,7 @@
     (clear-trace!)
     (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-label-function))
     (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-label-merges-cf-function))
-    (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #t)
+    (set-state! TRACING_STATE)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-label-trace-key label debug-info)))
   
   ;
@@ -382,7 +399,7 @@
     stop-tracing-mp-tail!)
   
   (define (stop-tracing-bookkeeping!)
-    (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #f)
+    (set-state! REGULAR_INTERPRETATION_STATE)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT #f)
     (set-tracer-context-times-label-encountered-while-tracing! GLOBAL_TRACER_CONTEXT 0)
