@@ -316,7 +316,7 @@
       (add-execution! guard-trace)
       (execute/trace `(let ()
                         (let* ((state (execute-trace ',trace))) ; Actually execute the trace
-                          (bootstrap-to-evaluator state))))))
+                          state)))))
   
   ;;; Executes the trace of the given label-trace-node.
   (define (execute-label-trace-with-trace-node label-trace-node)
@@ -356,10 +356,10 @@
       (if mp-tail-trace
           (begin (add-execution! mp-tail-trace)
                  (push-label-trace-executing-if-not-on-top! label-trace-node)
-                 (let ((mp-value (execute-trace (trace-node-trace mp-tail-trace))))
+                 (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
                    ;; Pop this trace-node again
                    (pop-label-trace-executing!)
-                   (bootstrap-to-evaluator mp-value)))
+                   state))
           (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
