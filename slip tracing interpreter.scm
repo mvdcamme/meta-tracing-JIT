@@ -596,7 +596,7 @@
              ;; If we are already tracing, and this trace is a 'true' loop, we record
              ;; a jump to this already existing trace.
              ;; Else, we ignore the existing trace and just inline everything.
-             (if (and (is-tracing?) (label-trace-loops? label-trace))
+             (if (or (not (is-tracing?)) (label-trace-loops? label-trace))
                  (let ((new-state (execute-label-trace-with-label label)))
                    (step* new-state))
                  (continue-with-state))))
