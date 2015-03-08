@@ -615,7 +615,7 @@
           (else
            (inc-times-label-encountered! label)
            (when (is-tracing?)
-             (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline))
+             (output "----------- LABEL NOT HOT YET -----------") (output-newline))
            (continue-with-state))))
   
   ;;; Handles the (can-start-loop label debug-info) annotation. If it is decided not to
@@ -645,12 +645,6 @@
                  (let ((new-state (execute-label-trace-with-label label)))
                    (step* new-state))
                  (continue-with-state))))
-          ;; We are not tracing anything at the moment, and we have determined that it
-          ;; is worthwile to trace this label/loop, so start tracing.
-          ((and (not (is-tracing?)) (can-start-tracing-label?))
-           (output "----------- STARTED TRACING -----------") (output-newline)
-           (start-tracing-label! label debug-info)
-           (continue-with-state))
           ;; We are already tracing and/or it is not worthwile to trace this label,
           ;; so continue regular interpretation. We do increase the counter for the number
           ;; of times this label has been encountered (i.e., we raise the 'hotness' of this loop).
@@ -1015,6 +1009,40 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define (do-is-executing-trace-state tracer-context program-state)
+    (define (guard-failed sentinel guard-id state)
+      ;; Stop tracing whatever is being traced and start tracing the guard associated with this
+      ;; guard-id.
+      (define (switch-to-trace-guard! guard-id old-trace-key)
+        (stop-tracing-abnormal!)
+        (start-tracing-guard! guard-id old-trace-key))
+      (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
+      (cond ((guard-trace-exists? guard-id)
+             (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
+             (execute-guard-trace guard-id))
+            ((not (is-tracing?))
+             (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
+             (let ((trace-key-executing (get-label-trace-executing-trace-key)))
+               ;; Trace-nodes executing stack will be flushed
+               (start-tracing-guard! guard-id trace-key-executing)
+               (bootstrap-to-evaluator state)))
+            (else
+             ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
+             ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
+             ;; tracing from this new guard-failure.
+             (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
+             (let ((trace-key-executing (get-label-trace-executing-trace-key)))
+               (switch-to-trace-guard! guard-id trace-key-executing)
+               (bootstrap-to-evaluator state)))))
+    (define (do-trace-execution)
+      )
+    (let ((answer (call/cc (lambda (k) (set-global-continuation! k)
+                             (list 'normal)))))
+      (if (eq? (car answer) 'normal)
+          (do-trace-execution)
+          (apply guard-failed (cdr answer)))))
+    
+  
   (define (do-is-tracing-state tracer-context program-state)
     (match program-state
       ((ko (haltk) _)
@@ -1053,31 +1081,6 @@
   ;                                           Guard failure                                              ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  (define (guard-failed guard-id state)
-    ;; Stop tracing whatever is being traced and start tracing the guard associated with this
-    ;; guard-id.
-    (define (switch-to-trace-guard! guard-id old-trace-key)
-      (stop-tracing-abnormal!)
-      (start-tracing-guard! guard-id old-trace-key))
-    (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
-    (cond ((guard-trace-exists? guard-id)
-           (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
-           (execute-guard-trace guard-id))
-          ((not (is-tracing?))
-           (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-           (let ((trace-key-executing (get-label-trace-executing-trace-key)))
-             ;; Trace-nodes executing stack will be flushed
-             (start-tracing-guard! guard-id trace-key-executing)
-             (bootstrap-to-evaluator state)))
-          (else
-           ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
-           ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
-           ;; tracing from this new guard-failure.
-           (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
-           (let ((trace-key-executing (get-label-trace-executing-trace-key)))
-             (switch-to-trace-guard! guard-id trace-key-executing)
-             (bootstrap-to-evaluator state)))))
   
   (define (guard-failed-with-ev guard-id e)
     (guard-failed guard-id (ev e τ-κ)))
