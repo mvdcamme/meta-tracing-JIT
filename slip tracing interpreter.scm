@@ -1061,7 +1061,7 @@
        (execute/trace tracer-context `(push-continuation ,(can-start-loopk '() v)))
        (run-evaluator tracer-context (ev label (cons (can-start-loopk '() v) κ))))
       ((ko (can-start-loopk '() debug-info) (cons φ κ))
-       (handle-can-start-loop-annotation-reg tracer-context v debug-info (ko φ κ)))
+       (handle-can-start-loop-annotation-tracing tracer-context v debug-info (ko φ κ)))
       (_
        (let ((new-state (step tracer-context s)))
          (run-evaluator tracer-context new-state)))))
