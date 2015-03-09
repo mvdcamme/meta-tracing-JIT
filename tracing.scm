@@ -45,6 +45,7 @@
            set-root-expression-if-uninitialised!
            start-tracing-guard!
            start-tracing-label!
+           start-tracing-mp-tail!
            stop-tracing!
            stop-tracing-abnormal!
            stop-tracing-normal!
@@ -352,6 +353,11 @@
     (set-tracer-context-is-tracing?! GLOBAL_TRACER_CONTEXT #t)
     (set-tracer-context-trace-key! GLOBAL_TRACER_CONTEXT (make-label-trace-key label debug-info)))
   
+  (define (start-tracing-mp-tail! mp-id)
+    (clear-trace!)
+    (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function mp-id))
+    (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id)))
+
   ;
   ; Stop tracing
   ;

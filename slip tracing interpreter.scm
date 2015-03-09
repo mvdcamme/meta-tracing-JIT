@@ -635,9 +635,7 @@
                        (let ((new-state (eval `(execute-mp-tail-trace ,mp-id ,continuation))))
                          (step* new-state)))
                 (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                       (clear-trace!)
-                       (set-tracer-context-closing-function! GLOBAL_TRACER_CONTEXT (make-stop-tracing-mp-tail-function mp-id))
-                       (set-tracer-context-merges-cf-function! GLOBAL_TRACER_CONTEXT (make-mp-tail-merges-cf-function mp-id))
+                       (start-tracing-mp-tail! mp-id)
                        (step* continuation))))
           (step* continuation))))
   
