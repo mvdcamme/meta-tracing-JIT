@@ -274,7 +274,10 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  (define (execute-label-trace-next! tracer-context label-trace-node)
+  (define (execute-label-trace-next! tracer-context label-trace-node still-tracing?)
+    (if still-tracing?
+        (set-tracing-trace-execution-state! tracer-context)
+        (set-executing-trace-state! tracer-context))
     (push-label-trace-executing! tracer-context label-trace-node))
   
   ;;; Recall that a trace is constructed in the form of a letrec-expression, e.g.,
@@ -579,7 +582,7 @@
     (define (do-stop-tracing!)
       (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
       (stop-tracing! tracer-context #t)
-      (execute-label-trace-next! tracer-context label)
+      (execute-label-trace-next! tracer-context label #f)
       (run-evaluator tracer-context next-state))
     (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
@@ -648,7 +651,7 @@
              ;; a jump to this already existing trace.
              ;; Else, we ignore the existing trace and just inline everything.
              (if (label-trace-loops? label-trace)
-                 (begin (execute-label-trace-next! tracer-context label-trace)
+                 (begin (execute-label-trace-next! tracer-context label-trace #t)
                         (run-evaluator tracer-context next-state))
                  (continue-with-state))))
           ;; We are already tracing and/or it is not worthwile to trace this label,
