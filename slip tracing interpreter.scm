@@ -361,7 +361,7 @@
                    ;; Pop this trace-node again
                    (pop-label-trace-executing! tracer-context)
                    state))
-          (bootstrap-to-evaluator state))))
+          (error "TODO: Not implemented yet!")))) ;TODO origineel: (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1084,7 +1084,7 @@
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
                ;; Trace-nodes executing stack will be flushed
                (start-tracing-guard! tracer-context guard-id trace-key-executing)
-               (bootstrap-to-evaluator state)))
+               (run-evaluator tracer-context state)))
             (else
              ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
              ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
@@ -1092,7 +1092,7 @@
              (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
                (switch-to-trace-guard! guard-id trace-key-executing)
-               (bootstrap-to-evaluator state)))))
+               (run-evaluator tracer-context state)))))
     (define (do-trace-execution)
       (let* ((label-trace-node (top-label-trace-executing tracer-context))
              (label (trace-key-label (trace-node-trace-key label-trace-node)))

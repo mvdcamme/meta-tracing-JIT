@@ -440,7 +440,6 @@
     stop-tracing-mp-tail!)
   
   (define (stop-tracing-bookkeeping! tracer-context)
-    (set-state! tracer-context REGULAR_INTERPRETATION_STATE)
     (set-tracer-context-trace-key! tracer-context #f)
     (set-tracer-context-closing-function! tracer-context #f)
     (set-tracer-context-times-label-encountered-while-tracing! tracer-context 0)
