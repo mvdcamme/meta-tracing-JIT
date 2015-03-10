@@ -323,7 +323,7 @@
       (execute/trace tracer-context
                      `(let ()
                         (let* ((state (execute-trace ',trace))) ; Actually execute the trace
-                          state)))))
+                          (call-global-continuation (list 'regular-interpreting state)))))))
   
   ;;; Executes the trace of the given label-trace-node.
   (define (execute-label-trace-with-trace-node tracer-context label-trace-node)
@@ -367,7 +367,7 @@
                  (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
                    ;; Pop this trace-node again
                    (pop-label-trace-executing! tracer-context)
-                   state))
+                   (call-global-continuation (list 'regular-interpreting state))))
           (error "TODO: Not implemented yet!")))) ;TODO origineel: (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1114,12 +1114,17 @@
              (new-state (execute-label-trace-with-trace-node tracer-context label-trace-node)))
         (state-update-function! tracer-context)
         (run-evaluator tracer-context new-state)))
+    (define (do-bootstrap-regular-interpreter state)
+      (cond ((is-executing-trace? tracer-context) (set-regular-interpreting-state! tracer-context))
+            ((is-tracing-trace-execution? tracer-context) (set-tracing-state! tracer-context))
+            (else (error "Shouldn't happen! Trace execution finished with unexpected tracing state!" (tracer-context-state tracer-context))))
+      (run-evaluator tracer-context state))
     (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k)
-                                                          (list 'normal)))))
+                                                          (list 'trace-execution)))))
                     combined-state-answer)))
-      (if (eq? (car answer) 'normal)
-          (do-trace-execution)
-          (apply guard-failed (cdr answer)))))
+      (cond ((eq? (car answer) 'trace-execution) (do-trace-execution))
+            ((eq? (car answer) 'regular-interpreting) (do-bootstrap-regular-interpreter (cadr answer)))
+            (else (apply guard-failed (cdr answer))))))
   
   (define (do-is-executing-trace-state tracer-context program-state)
     (do-trace-execution-state tracer-context program-state set-regular-interpreting-state!))
