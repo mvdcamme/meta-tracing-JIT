@@ -1100,8 +1100,10 @@
              (label (trace-key-label (trace-node-trace-key label-trace-node)))
              (new-state (execute-label-trace-with-label tracer-context label)))
         (run-evaluator tracer-context new-state)))
-    (let ((answer (call/cc (lambda (k) (set-global-continuation! k)
-                             (list 'normal)))))
+    (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k))
+                                                        (list 'normal))))
+                    (flush-label-traces-executing! tracer-context)
+                    combined-state-answer)))
       (if (eq? (car answer) 'normal)
           (do-trace-execution)
           (apply guard-failed (cdr answer)))))
@@ -1183,12 +1185,7 @@
   (define (run s)
     (let ((tracer-context (new-tracer-context)))
       (reset! tracer-context)
-      (apply run-evaluator
-             (let ((combined-state (call/cc (lambda (k)
-                                              (set-global-continuation! k)
-                                              (list tracer-context s)))))
-               (flush-label-traces-executing! tracer-context)
-               combined-state))))
+      (run-evaluator tracer-context s)))
   
   ;;; Reads an s-expression from the console and runs the evaluator on it.
   (define (start)
