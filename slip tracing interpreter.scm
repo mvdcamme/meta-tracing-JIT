@@ -565,6 +565,7 @@
   ;;; evaluation with the given state.
   (define (handle-can-close-loop-annotation-reg tracer-context label next-state)
     (output "closing annotation: tracing loop ") (output label) (output-newline)
+    (set-regular-interpreting-state! tracer-context)
     (execute/trace tracer-context `(pop-continuation))
     (run-evaluator tracer-context next-state))
   
@@ -575,6 +576,7 @@
     (when (is-tracing-label? tracer-context label)
       (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
       (stop-tracing! tracer-context #f))
+    (set-regular-interpreting-state! tracer-context)
     (execute/trace tracer-context `(pop-continuation))
     (run-evaluator tracer-context next-state))
   
