@@ -1092,7 +1092,7 @@
       (cond ((guard-trace-exists? tracer-context guard-id)
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute-guard-trace tracer-context guard-id))
-            ((not (is-tracing?)) ;TODO (is-tracing? tracer-context)?
+            ((not (is-tracing-trace-execution? tracer-context))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
                (start-tracing-guard! tracer-context guard-id trace-key-executing)
