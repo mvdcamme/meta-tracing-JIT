@@ -26,9 +26,6 @@
            inc-guard-id!
            inc-times-label-encountered!
            inc-times-label-encountered-while-tracing!
-           is-executing-trace?
-           is-regular-interpreting?
-           is-tracing?
            is-tracing-guard?
            is-tracing-label?
            label-trace-exists?
@@ -54,6 +51,16 @@
            times-label-encountered-greater-than-threshold?
            top-splits-cf-id
            top-label-trace-executing
+           
+           ;; State
+           is-executing-trace?
+           is-regular-interpreting?
+           is-tracing?
+           is-tracing-trace-execution?
+           set-executing-trace-state!
+           set-regular-interpreting-state!
+           set-tracing-state!
+           set-tracing-trace-execution-state!
            
            ;; Metrics
            calculate-average-trace-length
@@ -102,14 +109,27 @@
   (define (is-executing-trace? tracer-context)
     (state-equals? tracer-context EXECUTING_TRACE_STATE))
   
+  (define (set-executing-trace-state! tracer-context)
+    (set-state! tracer-context EXECUTING_TRACE_STATE))
+  
   (define (is-regular-interpreting? tracer-context)
     (state-equals? tracer-context REGULAR_INTERPRETATION_STATE))
+  
+  (define (set-regular-interpreting-state! tracer-context)
+    (set-state! tracer-context REGULAR_INTERPRETATION_STATE))
   
   (define (is-tracing? tracer-context)
     (state-equals? tracer-context TRACING_STATE))
   
+  (define (set-tracing-state! tracer-context)
+    (set-state! tracer-context TRACING_STATE))
+  
   (define (is-tracing-trace-execution? tracer-context)
     (state-equals? tracer-context TRACING_TRACE_EXECUTION_STATE))
+  
+  (define (set-tracing-trace-execution-state! tracer-context)
+    (set-state! tracer-context TRACING_TRACE_EXECUTION_STATE))
+  
   (define (set-state! tracer-context new-state)
     (set-tracer-context-state! tracer-context new-state))
   
@@ -373,7 +393,7 @@
     (clear-trace! tracer-context)
     (set-tracer-context-closing-function! tracer-context (make-stop-tracing-guard-function tracer-context guard-id))
     (set-tracer-context-merges-cf-function! tracer-context (make-guard-merges-cf-function tracer-context guard-id))
-    (set-state! tracer-context TRACING_STATE)
+    (set-tracing-state! tracer-context)
     (set-tracer-context-trace-key! tracer-context (make-guard-trace-key (trace-key-label old-trace-key)
                                                                         (get-parent-label-trace-id old-trace-key))))
   
@@ -381,13 +401,14 @@
     (clear-trace! tracer-context)
     (set-tracer-context-closing-function! tracer-context (make-stop-tracing-label-function tracer-context))
     (set-tracer-context-merges-cf-function! tracer-context (make-label-merges-cf-function tracer-context))
-    (set-state! tracer-context TRACING_STATE)
+    (set-tracing-state! tracer-context)
     (set-tracer-context-trace-key! tracer-context (make-label-trace-key label debug-info)))
   
   (define (start-tracing-mp-tail! tracer-context mp-id)
     (clear-trace!)
     (set-tracer-context-closing-function! tracer-context (make-stop-tracing-mp-tail-function mp-id))
-    (set-tracer-context-merges-cf-function! tracer-context (make-mp-tail-merges-cf-function mp-id)))
+    (set-tracer-context-merges-cf-function! tracer-context (make-mp-tail-merges-cf-function mp-id))
+    (set-tracing-state! tracer-context))
 
   ;
   ; Stop tracing
