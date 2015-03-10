@@ -1095,6 +1095,7 @@
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
                (start-tracing-guard! tracer-context guard-id trace-key-executing)
+               (flush-label-traces-executing! tracer-context)
                (run-evaluator tracer-context state)))
             (else
              ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
@@ -1103,6 +1104,7 @@
              (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
                (switch-to-trace-guard! guard-id trace-key-executing)
+               (flush-label-traces-executing! tracer-context)
                (run-evaluator tracer-context state)))))
     (define (do-trace-execution)
       (let* ((label-trace-node (top-label-trace-executing tracer-context))
@@ -1111,7 +1113,6 @@
         (run-evaluator tracer-context new-state)))
     (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k)
                                                           (list 'normal)))))
-                    (flush-label-traces-executing! tracer-context)
                     combined-state-answer)))
       (if (eq? (car answer) 'normal)
           (do-trace-execution)
