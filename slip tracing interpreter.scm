@@ -589,7 +589,7 @@
       (execute/trace tracer-context `(pop-continuation))
       (run-evaluator tracer-context next-state))
     (inc-times-label-encountered-while-tracing! tracer-context)
-    (if (times-label-encountered-greater-than-threshold?)
+    (if (times-label-encountered-greater-than-threshold? tracer-context)
         (do-stop-tracing!)
         (do-continue-tracing)))
   
@@ -698,7 +698,7 @@
   (define (handle-splits-cf-annotation-reg tracer-context next-state)
     (execute/trace tracer-context
                    `(pop-continuation)
-                   `(push-splits-cf-id! tracer-context ,(inc-splits-cf-id!)))
+                   `(push-splits-cf-id! ,tracer-context ,(inc-splits-cf-id!)))
     (run-evaluator tracer-context next-state))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1109,8 +1109,8 @@
              (new-state (execute-label-trace-with-trace-node tracer-context label-trace-node)))
         (state-update-function! tracer-context)
         (run-evaluator tracer-context new-state)))
-    (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k))
-                                                        (list 'normal))))
+    (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k)
+                                                          (list 'normal)))))
                     (flush-label-traces-executing! tracer-context)
                     combined-state-answer)))
       (if (eq? (car answer) 'normal)
@@ -1119,7 +1119,7 @@
   
   (define (do-is-executing-trace-state tracer-context program-state)
     (do-trace-execution-state tracer-context program-state set-regular-interpreting-state!))
-  
+           
   (define (do-is-tracing-trace-execution-state tracer-context program-state)
     (do-trace-execution-state tracer-context program-state set-tracing-state!))
   
