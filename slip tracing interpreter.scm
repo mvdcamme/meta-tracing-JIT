@@ -58,6 +58,7 @@
            
            
            ;; Purely for benchmarking the implementation
+           GLOBAL_TRACER_CONTEXT
            set-pseudo-random-generator!)
   
   (require "dictionary.scm")
@@ -1178,6 +1179,8 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define GLOBAL_TRACER_CONTEXT #f)
+  
   ;
   ; Resetting evaluator
   ;
@@ -1203,6 +1206,7 @@
   
   (define (run s)
     (let ((tracer-context (new-tracer-context)))
+      (set! GLOBAL_TRACER_CONTEXT tracer-context)
       (reset! tracer-context)
       (run-evaluator tracer-context s)))
   
