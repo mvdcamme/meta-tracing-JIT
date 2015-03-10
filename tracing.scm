@@ -405,9 +405,9 @@
     (set-tracer-context-trace-key! tracer-context (make-label-trace-key label debug-info)))
   
   (define (start-tracing-mp-tail! tracer-context mp-id)
-    (clear-trace!)
-    (set-tracer-context-closing-function! tracer-context (make-stop-tracing-mp-tail-function mp-id))
-    (set-tracer-context-merges-cf-function! tracer-context (make-mp-tail-merges-cf-function mp-id))
+    (clear-trace! tracer-context)
+    (set-tracer-context-closing-function! tracer-context (make-stop-tracing-mp-tail-function tracer-context mp-id))
+    (set-tracer-context-merges-cf-function! tracer-context (make-mp-tail-merges-cf-function tracer-context mp-id))
     (set-tracing-state! tracer-context))
 
   ;
