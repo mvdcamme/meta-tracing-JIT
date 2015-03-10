@@ -1074,7 +1074,7 @@
       ;; guard-id.
       (define (switch-to-trace-guard! guard-id old-trace-key)
         (stop-tracing-abnormal! tracer-context)
-        (start-tracing-guard! guard-id old-trace-key))
+        (start-tracing-guard! tracer-context guard-id old-trace-key))
       (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
       (cond ((guard-trace-exists? tracer-context guard-id)
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
@@ -1083,7 +1083,7 @@
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
                ;; Trace-nodes executing stack will be flushed
-               (start-tracing-guard! guard-id trace-key-executing)
+               (start-tracing-guard! tracer-context guard-id trace-key-executing)
                (bootstrap-to-evaluator state)))
             (else
              ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
@@ -1097,6 +1097,7 @@
       (let* ((label-trace-node (top-label-trace-executing tracer-context))
              (label (trace-key-label (trace-node-trace-key label-trace-node)))
              (new-state (execute-label-trace-with-label tracer-context label)))
+        (set-regular-interpreting-state! tracer-context)
         (run-evaluator tracer-context new-state)))
     (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k))
                                                         (list 'normal))))
