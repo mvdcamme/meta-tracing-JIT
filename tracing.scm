@@ -47,6 +47,7 @@
            start-executing-label-trace!
            start-tracing-guard!
            start-tracing-label!
+           start-tracing-mp-tail!
            stop-tracing!
            stop-tracing-abnormal!
            stop-tracing-normal!
@@ -380,6 +381,11 @@
     (set-state! tracer-context TRACING_STATE)
     (set-tracer-context-trace-key! tracer-context (make-label-trace-key label debug-info)))
   
+  (define (start-tracing-mp-tail! tracer-context mp-id)
+    (clear-trace!)
+    (set-tracer-context-closing-function! tracer-context (make-stop-tracing-mp-tail-function mp-id))
+    (set-tracer-context-merges-cf-function! tracer-context (make-mp-tail-merges-cf-function mp-id)))
+
   ;
   ; Stop tracing
   ;

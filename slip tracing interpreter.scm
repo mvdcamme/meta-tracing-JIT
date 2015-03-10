@@ -678,10 +678,8 @@
                    (let ((new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
                      (step* tracer-context new-state)))
             (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                   (clear-trace! tracer-context)
-                   (set-tracer-context-closing-function! tracer-context (make-stop-tracing-mp-tail-function tracer-context mp-id))
-                   (set-tracer-context-merges-cf-function! tracer-context (make-mp-tail-merges-cf-function tracer-context mp-id))
-                   (step* tracer-context continuation))))))
+                       (start-tracing-mp-tail! tracer-context mp-id)
+                       (run-evaluator tracer-context continuation))))))
   
   ;;; Handles the (splits-control-flow) annotation and afterwards continues
   ;;; regular interpretation with the given state.
