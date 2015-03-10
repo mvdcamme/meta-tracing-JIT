@@ -1081,7 +1081,7 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   (define (do-trace-execution-state tracer-context program-state state-update-function!)
-    (define (guard-failed sentinel guard-id state)
+    (define (guard-failed guard-id state)
       ;; Stop tracing whatever is being traced and start tracing the guard associated with this
       ;; guard-id.
       (define (switch-to-trace-guard! guard-id old-trace-key)
