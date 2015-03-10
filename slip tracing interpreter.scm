@@ -613,7 +613,7 @@
     (cond ((label-trace-exists? tracer-context label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
            (let ((label-trace (get-label-trace tracer-context label)))
-             (start-executing-label-trace! tracer-context label-trace)
+             (execute-label-trace-next! tracer-context label-trace #f)
              (run-evaluator tracer-context next-state)))
           ;; We are not tracing anything at the moment, and we have determined that it
           ;; is worthwile to trace this label/loop, so start tracing.
