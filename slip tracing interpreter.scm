@@ -546,6 +546,7 @@
   ;;; regular interpretation with the given state.
   ;;; Used for benchmarking purposes.
   (define (handle-is-evaluating-annotation-reg tracer-context next-state)
+    (set-root-expression-if-uninitialised! v)
     (execute/trace tracer-context `(pop-continuation))
     (run-evaluator tracer-context next-state))
   
@@ -553,9 +554,7 @@
   ;;; regular interpretation with the given state.
   ;;; Used for benchmarking purposes.
   (define (handle-is-evaluating-annotation-tracing tracer-context next-state)
-    (set-root-expression-if-uninitialised! v)
-    (when (is-tracing? tracer-context)
-      (add-ast-node-traced! v))
+    (add-ast-node-traced! v)
     (handle-is-evaluating-annotation-reg tracer-context next-state))
   
   ;
@@ -1133,7 +1132,7 @@
       ;; Evaluate annotations in step* instead of step
       ;; Annotations might not lead to recursive call to step*
       ((ko (is-evaluatingk) (cons φ κ))
-       (handle-is-evaluating-annotation-reg tracer-context (ko φ κ)))
+       (handle-is-evaluating-annotation-tracing tracer-context (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
        (handle-splits-cf-annotation-reg tracer-context (ko φ κ)))
       ((ev `(merges-control-flow) (cons φ κ))
