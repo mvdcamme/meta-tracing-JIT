@@ -571,11 +571,11 @@
       (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
       (stop-tracing! tracer-context #t)
       (let ((new-state (execute-label-trace-with-label tracer-context label)))
-        (step* tracer-context new-state)))
+        (run-evaluator tracer-context new-state)))
     (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
       (execute/trace tracer-context `(pop-continuation))
-      (step* tracer-context state))
+      (run-evaluator tracer-context state))
     (inc-times-label-encountered-while-tracing! tracer-context)
     (if (times-label-encountered-greater-than-threshold?)
         (do-stop-tracing!)
@@ -640,7 +640,7 @@
              ;; Else, we ignore the existing trace and just inline everything.
              (if (label-trace-loops? label-trace)
                  (let ((new-state (execute-label-trace-with-label tracer-context label)))
-                   (step* tracer-context new-state))
+                   (run-evaluator tracer-context new-state))
                  (continue-with-state))))
           ;; We are already tracing and/or it is not worthwile to trace this label,
           ;; so continue regular interpretation. We do increase the counter for the number
@@ -676,7 +676,7 @@
             (begin (output "MP TAIL TRACE EXISTS") (output-newline)
                    (stop-tracing-normal! tracer-context)
                    (let ((new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
-                     (step* tracer-context new-state)))
+                     (run-evaluator tracer-context new-state)))
             (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
                        (start-tracing-mp-tail! tracer-context mp-id)
                        (run-evaluator tracer-context continuation))))))
