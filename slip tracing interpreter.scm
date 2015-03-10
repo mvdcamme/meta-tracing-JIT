@@ -1068,7 +1068,7 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  (define (do-is-executing-trace-state tracer-context program-state)
+  (define (do-trace-execution-state tracer-context program-state state-update-function)
     (define (guard-failed sentinel guard-id state)
       ;; Stop tracing whatever is being traced and start tracing the guard associated with this
       ;; guard-id.
@@ -1082,7 +1082,6 @@
             ((not (is-tracing?)) ;TODO (is-tracing? tracer-context)?
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
              (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
-               ;; Trace-nodes executing stack will be flushed
                (start-tracing-guard! tracer-context guard-id trace-key-executing)
                (run-evaluator tracer-context state)))
             (else
@@ -1097,7 +1096,7 @@
       (let* ((label-trace-node (top-label-trace-executing tracer-context))
              (label (trace-key-label (trace-node-trace-key label-trace-node)))
              (new-state (execute-label-trace-with-label tracer-context label)))
-        (set-regular-interpreting-state! tracer-context)
+        (state-update-function tracer-context)
         (run-evaluator tracer-context new-state)))
     (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k))
                                                         (list 'normal))))
@@ -1106,6 +1105,12 @@
       (if (eq? (car answer) 'normal)
           (do-trace-execution)
           (apply guard-failed (cdr answer)))))
+  
+  (define (do-is-executing-trace-state tracer-context program-state)
+    (do-trace-execution-state tracer-context program-state set-regular-interpreting-state!))
+  
+  (define (do-is-tracing-trace-execution-state tracer-context program-state)
+    (do-trace-execution-state tracer-context program-state set-tracing-state!))
   
   (define (do-is-tracing-state tracer-context program-state)
     (match program-state
@@ -1137,6 +1142,8 @@
            (step* tracer-context program-state))
           ((is-tracing? tracer-context)
            (do-is-tracing-state tracer-context program-state))
+          ((is-tracing-trace-execution? tracer-context)
+           (do-is-tracing-trace-execution-state tracer-context program-state))
           (else
            (error "Unknown tracer-context-state: " (tracer-context-state tracer-context)))))
   
