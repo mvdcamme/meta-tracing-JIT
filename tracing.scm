@@ -94,6 +94,7 @@
   (define EXECUTING_TRACE_STATE 'executing-trace)
   (define REGULAR_INTERPRETATION_STATE 'regular-interpretation)
   (define TRACING_STATE 'tracing)
+  (define TRACING_TRACE_EXECUTION_STATE 'tracing-trace-execution)
   
   (define (state-equals? tracer-context state)
     (eq? (tracer-context-state tracer-context) state))
@@ -107,6 +108,8 @@
   (define (is-tracing? tracer-context)
     (state-equals? tracer-context TRACING_STATE))
   
+  (define (is-tracing-trace-execution? tracer-context)
+    (state-equals? tracer-context TRACING_TRACE_EXECUTION_STATE))
   (define (set-state! tracer-context new-state)
     (set-tracer-context-state! tracer-context new-state))
   
