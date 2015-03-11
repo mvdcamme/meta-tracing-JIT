@@ -353,21 +353,21 @@
   ;;; Execute the merge-point-tail-trace associated with the given merge-point-id.
   (define (execute-mp-tail-trace tracer-context mp-id state)
     (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary tracer-context))
-           (mp-tail-trace (get-mp-tail-trace tracer-context mp-id))
-           (label (trace-key-label (trace-node-trace-key mp-tail-trace)))
-           (label-trace-node (get-label-trace tracer-context label)))
+           (mp-tail-trace (get-mp-tail-trace tracer-context mp-id)))
       ;; It might be that a call to this mp-tail-trace has been recorded before the actual tracing
       ;; of this mp-tail was completed. In that case, it could be that the trace was never finished
       ;; (e.g., because it reached the maximum trace length).
       ;; So we have to check whether this mp-tail-trace actually exists.
       ;; If it doesn't, we jump back to regular interpretation with the given state.
       (if mp-tail-trace
-          (begin (add-execution! mp-tail-trace)
-                 (push-label-trace-executing-if-not-on-top! tracer-context label-trace-node)
-                 (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
-                   ;; Pop this trace-node again
-                   (pop-label-trace-executing! tracer-context)
-                   (call-global-continuation (list 'regular-interpreting state))))
+          (let* ((label (trace-key-label (trace-node-trace-key mp-tail-trace)))
+                 (label-trace-node (get-label-trace tracer-context label)))
+            (add-execution! mp-tail-trace)
+            (push-label-trace-executing-if-not-on-top! tracer-context label-trace-node)
+            (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
+              ;; Pop this trace-node again
+              (pop-label-trace-executing! tracer-context)
+              (call-global-continuation (list 'regular-interpreting state))))
           (error "TODO: Not implemented yet!")))) ;TODO origineel: (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
