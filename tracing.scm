@@ -376,7 +376,7 @@
       (push! trace-nodes-executing trace-node)))
   
   (define (push-label-trace-executing-if-not-on-top! tracer-context trace-node)
-    (unless (and (is-executing-trace? tracer-context)
+    (unless (and (not (is-empty? (tracer-context-labels-executing tracer-context)))
                  (equal? (trace-key-label (get-label-trace-executing-trace-key tracer-context))
                          (trace-key-label (trace-node-trace-key trace-node))))
       (push-label-trace-executing! tracer-context trace-node)))
