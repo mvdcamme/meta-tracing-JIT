@@ -689,11 +689,12 @@
         (if (mp-tail-trace-exists? tracer-context mp-id)
             (begin (output "MP TAIL TRACE EXISTS") (output-newline)
                    (stop-tracing-normal! tracer-context)
+                   (set-executing-trace-state! tracer-context)
                    (let ((new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
                      (run-evaluator tracer-context new-state)))
             (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                       (start-tracing-mp-tail! tracer-context mp-id)
-                       (run-evaluator tracer-context continuation))))))
+                   (start-tracing-mp-tail! tracer-context mp-id)
+                   (run-evaluator tracer-context continuation))))))
   
   ;;; Handles the (splits-control-flow) annotation and afterwards continues
   ;;; regular interpretation with the given state.
