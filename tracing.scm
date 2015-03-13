@@ -144,7 +144,8 @@
   
   (define (handle-max-trace-length-reached tracer-context)
     (display "##### MAX TRACE LENGTH REACHED #####") (newline)
-    (stop-tracing-abnormal! tracer-context))
+    (stop-tracing-abnormal! tracer-context)
+    (set-regular-interpreting-state! tracer-context))
   
   (define (append-trace! tracer-context ms)
     (when τ
