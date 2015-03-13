@@ -527,7 +527,8 @@
   ;;; Executes the given instructions and records them into the trace, if the interpreter is
   ;;; currently tracing.
   (define (execute/trace tracer-context . ms)
-    (when (is-tracing? tracer-context)
+    (when (or (is-tracing? tracer-context)
+              (is-tracing-trace-execution? tracer-context))
       (append-trace! tracer-context ms))
     (eval-instructions ms))
   
