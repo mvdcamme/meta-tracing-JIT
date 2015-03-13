@@ -369,7 +369,7 @@
               ;; Pop this trace-node again
               (pop-label-trace-executing! tracer-context)
               (call-global-continuation (list 'regular-interpreting state))))
-          (error "TODO: Not implemented yet!")))) ;TODO origineel: (bootstrap-to-evaluator state))))
+          (call-global-continuation (list 'regular-interpreting state))))) ;TODO origineel: (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
