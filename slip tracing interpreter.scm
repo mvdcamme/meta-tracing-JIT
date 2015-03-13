@@ -327,7 +327,8 @@
   
   ;;; Executes the trace of the given label-trace-node.
   (define (execute-label-trace-with-trace-node tracer-context label-trace-node)
-    (let ((trace (trace-node-trace label-trace-node)))
+    (let ((trace (trace-node-trace label-trace-node))
+          (label (trace-key-label (trace-node-trace-key label-trace-node))))
       ;; Benchmarking: record the fact that this trace node will be executed
       (add-execution! label-trace-node)
       (execute/trace tracer-context
@@ -609,6 +610,7 @@
     ;; on how hot the corresponding loop is: how many times has this label been encountered yet?
     (define (can-start-tracing-label?)
       (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
+    (output "can-start-loop, label = ") (output label) (output-newline)
           ;; We are currently tracing this label: check if this label refers to a 'true' loop.
     (cond ((label-trace-exists? tracer-context label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
@@ -643,6 +645,7 @@
     ;; on how hot the corresponding loop is: how many times has this label been encountered yet?
     (define (can-start-tracing-label?)
       (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
+    (output "can-start-loop, label = ") (output label) (output-newline)
           ;; We are currently tracing this label: check if this label refers to a 'true' loop.
     (cond ((is-tracing-label? tracer-context label)
            (check-stop-tracing-label tracer-context label next-state))
@@ -671,7 +674,6 @@
   
   ;;; Handles the (merges-control-flow) annotation.
   (define (handle-merges-cf-annotation-reg tracer-context continuation)
-    (output "MERGES CONTROL FLOW") (output-newline)
     (execute/trace tracer-context
                    `(pop-continuation)
                    `(pop-splits-cf-id! ,tracer-context))
@@ -679,8 +681,8 @@
   
   ;;; Handles the (merges-control-flow) annotation.
   (define (handle-merges-cf-annotation-tracing tracer-context continuation)
-    (output "MERGES CONTROL FLOW") (output-newline)
     (let ((mp-id (top-splits-cf-id tracer-context)))
+      (output "MERGES CONTROL FLOW, MP ID = ") (output mp-id) (output-newline)
       (execute/trace tracer-context
                      `(pop-continuation)
                      `(pop-splits-cf-id! ,tracer-context))
