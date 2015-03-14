@@ -405,7 +405,7 @@
                                  (closing-function (make-stop-tracing-mp-tail-function mp-id))
                                  (merges-cf-function (make-mp-tail-merges-cf-function mp-id))
                                  (state TRACING_STATE))))
-      (clear-trace! tracer-context)))
+      (clear-trace! temp-tracer-context)))
 
   ;
   ; Stop tracing
@@ -822,30 +822,36 @@
     (transform-and-optimize-trace trace transform-trace-non-looping-plain))
   
   (define (make-guard-merges-cf-function guard-id)
-    (define (guard-merges-cf! tracer-context trace)
+    (define (guard-merges-cf! tracer-context trace mp-id continuation)
       (let* ((trace-key-to-trace (tracer-context-trace-key tracer-context))
              (label (trace-key-label trace-key-to-trace))
              (parent-id (get-parent-label-trace-id trace-key-to-trace))
              (transformed-trace (transform-merging-trace trace))
              (temp-tracer-context (tracer-context-copy  tracer-context
                                                         (closing-function (lambda (trace looping?) '()))
-                                                        (trace-key (make-mp-tail-trace-key label parent-id)))))
-        (add-guard-trace! temp-tracer-context label parent-id guard-id transformed-trace)))
+                                                        (trace-key (make-mp-tail-trace-key label parent-id))))
+             (new-tracer-context (add-guard-trace! temp-tracer-context label parent-id guard-id transformed-trace)))
+        (append-trace! new-tracer-context `((display "voor") (newline) (execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
+        new-tracer-context))
     guard-merges-cf!)
   
   (define (make-label-merges-cf-function)
-    (define (label-merges-cf! tracer-context trace)
-      (let ((trace-key (tracer-context-trace-key tracer-context))
-            (transformed-trace (transform-merging-trace trace)))
-        ;; At the moment a merges-annotation is found, we cannot know whether the label-trace will loop or not.
-        ;; TODO register some kind of callback to make sure that, when tracing finishes, the loops? field is updated with the correct value
-        (add-label-trace! tracer-context trace-key transformed-trace #f)))
+    (define (label-merges-cf! tracer-context trace mp-id continuation)
+      (let* ((trace-key (tracer-context-trace-key tracer-context))
+             (transformed-trace (transform-merging-trace trace))
+             ;; At the moment a merges-annotation is found, we cannot know whether the label-trace will loop or not.
+             ;; TODO register some kind of callback to make sure that, when tracing finishes, the loops? field is updated with the correct value
+             (new-tracer-context (add-label-trace! tracer-context trace-key transformed-trace #f)))
+        (append-trace! new-tracer-context `((display "voor") (newline) (execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
+        new-tracer-context))
     label-merges-cf!)
   
   (define (make-mp-tail-merges-cf-function mp-id)
-    (define (mp-tail-merges-cf! tracer-context trace)
+    (define (mp-tail-merges-cf! tracer-context trace mp-id continuation)
       (let* ((trace-key (tracer-context-trace-key tracer-context))
              (label (trace-key-label trace-key))
-             (transformed-trace (transform-merging-trace trace)))
-        (add-mp-tail-trace! tracer-context mp-id trace-key transformed-trace)))
+             (transformed-trace (transform-merging-trace trace))
+             (new-tracer-context (add-mp-tail-trace! tracer-context mp-id trace-key transformed-trace)))
+        (append-trace! new-tracer-context `((display "voor") (newline) (execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
+        new-tracer-context))
     mp-tail-merges-cf!))
