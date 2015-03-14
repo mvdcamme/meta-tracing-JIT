@@ -689,7 +689,7 @@
                      `(pop-splits-cf-id! ,tracer-context))
       (begin
         (append-trace! tracer-context `((execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
-        (let ((temp-tracer-context ((tracer-context-merges-cf-function tracer-context) (reverse τ))))
+        (let ((temp-tracer-context ((tracer-context-merges-cf-function tracer-context) tracer-context (reverse τ))))
           (if (mp-tail-trace-exists? temp-tracer-context mp-id)
               (begin (output "MP TAIL TRACE EXISTS") (output-newline)
                      (let ((temp-tracer-context

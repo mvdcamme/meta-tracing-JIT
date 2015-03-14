@@ -29,8 +29,6 @@
            is-tracing-guard?
            is-tracing-label?
            label-trace-exists?
-           make-mp-tail-merges-cf-function
-           make-stop-tracing-mp-tail-function
            mp-tail-trace-exists?
            new-tracer-context
            pop-splits-cf-id!
@@ -385,8 +383,8 @@
   (define (start-tracing-guard! tracer-context guard-id old-trace-key)
     (let* ((temp-tracer-context
             (tracer-context-copy tracer-context
-                                 (closing-function (make-stop-tracing-guard-function tracer-context guard-id))
-                                 (merges-cf-function (make-guard-merges-cf-function tracer-context guard-id))
+                                 (closing-function (make-stop-tracing-guard-function guard-id))
+                                 (merges-cf-function (make-guard-merges-cf-function guard-id))
                                  (trace-key (make-guard-trace-key (trace-key-label old-trace-key)
                                                                   (get-parent-label-trace-id old-trace-key)))
                                  (state TRACING_STATE))))
@@ -395,8 +393,8 @@
   (define (start-tracing-label! tracer-context label debug-info)
     (let* ((temp-tracer-context
             (tracer-context-copy tracer-context
-                                 (closing-function (make-stop-tracing-label-function tracer-context))
-                                 (merges-cf-function (make-label-merges-cf-function tracer-context))
+                                 (closing-function (make-stop-tracing-label-function))
+                                 (merges-cf-function (make-label-merges-cf-function))
                                  (state TRACING_STATE)
                                  (trace-key (make-label-trace-key label debug-info)))))
       (clear-trace! temp-tracer-context)))
@@ -404,8 +402,8 @@
   (define (start-tracing-mp-tail! tracer-context mp-id)
     (let* ((temp-tracer-context
             (tracer-context-copy tracer-context
-                                 (closing-function (make-stop-tracing-mp-tail-function tracer-context mp-id))
-                                 (merges-cf-function (make-mp-tail-merges-cf-function tracer-context mp-id))
+                                 (closing-function (make-stop-tracing-mp-tail-function mp-id))
+                                 (merges-cf-function (make-mp-tail-merges-cf-function mp-id))
                                  (state TRACING_STATE))))
       (clear-trace! tracer-context)))
 
@@ -413,8 +411,8 @@
   ; Stop tracing
   ;
   
-  (define (make-stop-tracing-guard-function tracer-context guard-id)
-    (define (stop-tracing-guard! trace looping?)
+  (define (make-stop-tracing-guard-function guard-id)
+    (define (stop-tracing-guard! tracer-context trace looping?)
       (let* ((trace-key (tracer-context-trace-key tracer-context))
              (label (trace-key-label trace-key))
              (parent-id (get-parent-label-trace-id trace-key))
@@ -422,15 +420,15 @@
         (add-guard-trace! tracer-context label parent-id guard-id transformed-trace)))
     stop-tracing-guard!)
   
-  (define (make-stop-tracing-label-function tracer-context)
-    (define (stop-tracing-label! trace looping?)
+  (define (make-stop-tracing-label-function)
+    (define (stop-tracing-label! tracer-context trace looping?)
       (let* ((trace-key (tracer-context-trace-key tracer-context))
              (transformed-trace (transform-and-optimize-trace trace (make-transform-label-trace-function looping?))))
         (add-label-trace! tracer-context trace-key transformed-trace looping?)))
     stop-tracing-label!)
   
-  (define (make-stop-tracing-mp-tail-function tracer-context mp-id)
-    (define (stop-tracing-mp-tail! mp-tail looping?)
+  (define (make-stop-tracing-mp-tail-function mp-id)
+    (define (stop-tracing-mp-tail! tracer-context mp-tail looping?)
       (let* ((trace-key (tracer-context-trace-key tracer-context))
              (parent-id (get-parent-label-trace-id trace-key))
              (label (trace-key-label trace-key))
@@ -458,7 +456,7 @@
   
   (define (stop-tracing! tracer-context looping?)
     (let ((stop-tracing-function (tracer-context-closing-function tracer-context)))
-      (stop-tracing-normal! (stop-tracing-function (reverse τ) looping?))))
+      (stop-tracing-normal! (stop-tracing-function tracer-context (reverse τ) looping?))))
   
   ;
   ; Finding traces
@@ -823,8 +821,8 @@
     ;; in the mp-tail-trace to which this trace links.
     (transform-and-optimize-trace trace transform-trace-non-looping-plain))
   
-  (define (make-guard-merges-cf-function tracer-context guard-id)
-    (define (guard-merges-cf! trace)
+  (define (make-guard-merges-cf-function guard-id)
+    (define (guard-merges-cf! tracer-context trace)
       (let* ((trace-key-to-trace (tracer-context-trace-key tracer-context))
              (label (trace-key-label trace-key-to-trace))
              (parent-id (get-parent-label-trace-id trace-key-to-trace))
@@ -835,8 +833,8 @@
         (add-guard-trace! temp-tracer-context label parent-id guard-id transformed-trace)))
     guard-merges-cf!)
   
-  (define (make-label-merges-cf-function tracer-context)
-    (define (label-merges-cf! trace)
+  (define (make-label-merges-cf-function)
+    (define (label-merges-cf! tracer-context trace)
       (let ((trace-key (tracer-context-trace-key tracer-context))
             (transformed-trace (transform-merging-trace trace)))
         ;; At the moment a merges-annotation is found, we cannot know whether the label-trace will loop or not.
@@ -844,8 +842,8 @@
         (add-label-trace! tracer-context trace-key transformed-trace #f)))
     label-merges-cf!)
   
-  (define (make-mp-tail-merges-cf-function tracer-context mp-id)
-    (define (mp-tail-merges-cf! trace)
+  (define (make-mp-tail-merges-cf-function mp-id)
+    (define (mp-tail-merges-cf! tracer-context trace)
       (let* ((trace-key (tracer-context-trace-key tracer-context))
              (label (trace-key-label trace-key))
              (transformed-trace (transform-merging-trace trace)))
