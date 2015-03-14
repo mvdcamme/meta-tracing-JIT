@@ -276,10 +276,10 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   (define (execute-label-trace-next! tracer-context label-trace-node still-tracing?)
+    (push-label-trace-executing! tracer-context label-trace-node)
     (if still-tracing?
         (set-tracing-trace-execution-state! tracer-context)
-        (set-executing-trace-state! tracer-context))
-    (push-label-trace-executing! tracer-context label-trace-node))
+        (set-executing-trace-state! tracer-context)))
   
   ;;; Recall that a trace is constructed in the form of a letrec-expression, e.g.,
   ;;; (letrec ((loop (lambda ()
@@ -574,35 +574,36 @@
   ;;; evaluation with the given state.
   (define (handle-can-close-loop-annotation-tracing tracer-context label next-state)
     (output "closing annotation: tracing loop ") (output label) (output-newline)
-    (when (is-tracing-label? tracer-context label)
-      (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-      (stop-tracing! tracer-context #f)
-      (set-regular-interpreting-state! tracer-context))
-    (execute/trace tracer-context `(pop-continuation))
-    (run-evaluator tracer-context next-state))
+    (let ((temp-tracer-context 
+           (if (is-tracing-label? tracer-context label)
+               (begin (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
+                      (set-regular-interpreting-state! (stop-tracing! tracer-context #f)))
+               tracer-context)))
+      (execute/trace temp-tracer-context `(pop-continuation))
+      (run-evaluator temp-tracer-context next-state)))
   
   (define (check-stop-tracing-label tracer-context label next-state)
-    (define (do-stop-tracing!)
+    (define (do-stop-tracing! tracer-context)
       (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-      (stop-tracing! tracer-context #t)
-      (let ((label-trace (get-label-trace tracer-context label)))
-        (execute-label-trace-next! tracer-context label-trace #f)
-        (run-evaluator tracer-context next-state)))
-      (define (do-continue-tracing)
+      (let* ((temp-tracer-context (stop-tracing! tracer-context #t))
+             (label-trace (get-label-trace temp-tracer-context label))
+             (new-tracer-context (execute-label-trace-next! temp-tracer-context label-trace #f)))
+        (run-evaluator new-tracer-context next-state)))
+    (define (do-continue-tracing tracer-context)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
       (execute/trace tracer-context `(pop-continuation))
       (run-evaluator tracer-context next-state))
-    (inc-times-label-encountered-while-tracing! tracer-context)
-    (if (times-label-encountered-greater-than-threshold? tracer-context)
-        (do-stop-tracing!)
-        (do-continue-tracing)))
+    (let ((temp-tracer-context (inc-times-label-encountered-while-tracing! tracer-context)))
+      (if (times-label-encountered-greater-than-threshold? temp-tracer-context)
+          (do-stop-tracing! temp-tracer-context)
+          (do-continue-tracing temp-tracer-context))))
   
   ;;; Handles the (can-start-loop label debug-info) annotation. If it is decided not to
   ;;; start executing the trace belonging to this label, regular interpretation continues
   ;;; with the given state.
   (define (handle-can-start-loop-annotation-reg tracer-context label debug-info next-state)
     ;; Continue evaluation with the given state.
-    (define (continue-with-state)
+    (define (continue-with-state tracer-context)
       (execute/trace tracer-context `(pop-continuation))
       (run-evaluator tracer-context next-state))
     ;; Check whether it is worthwile to start tracing this label.
@@ -614,30 +615,30 @@
           ;; We are currently tracing this label: check if this label refers to a 'true' loop.
     (cond ((label-trace-exists? tracer-context label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
-           (let ((label-trace (get-label-trace tracer-context label)))
-             (execute-label-trace-next! tracer-context label-trace #f)
-             (run-evaluator tracer-context next-state)))
+           (let* ((label-trace (get-label-trace tracer-context label))
+                  (temp-tracer-context (execute-label-trace-next! tracer-context label-trace #f)))
+             (run-evaluator temp-tracer-context next-state)))
           ;; We are not tracing anything at the moment, and we have determined that it
           ;; is worthwile to trace this label/loop, so start tracing.
           ((can-start-tracing-label?)
            (output "----------- STARTED TRACING -----------") (output-newline)
-           (start-tracing-label! tracer-context label debug-info)
-           (continue-with-state))
+           (let ((temp-tracer-context (start-tracing-label! tracer-context label debug-info)))
+             (continue-with-state temp-tracer-context)))
           ;; We are already tracing and/or it is not worthwile to trace this label,
           ;; so continue regular interpretation. We do increase the counter for the number
           ;; of times this label has been encountered (i.e., we raise the 'hotness' of this loop).
           (else
-           (inc-times-label-encountered! tracer-context label)
-           (when (is-tracing? tracer-context)
-             (output "----------- LABEL NOT HOT YET -----------") (output-newline))
-           (continue-with-state))))
+           (let ((temp-tracer-context (inc-times-label-encountered! tracer-context label)))
+             (when (is-tracing? temp-tracer-context)
+               (output "----------- LABEL NOT HOT YET -----------") (output-newline))
+             (continue-with-state temp-tracer-context)))))
   
   ;;; Handles the (can-start-loop label debug-info) annotation. If it is decided not to
   ;;; start executing the trace belonging to this label, regular interpretation continues
   ;;; with the given state.
   (define (handle-can-start-loop-annotation-tracing tracer-context label debug-info next-state)
     ;; Continue evaluation with the given state.
-    (define (continue-with-state)
+    (define (continue-with-state tracer-context)
       (execute/trace tracer-context `(pop-continuation))
       (run-evaluator tracer-context next-state))
     ;; Check whether it is worthwile to start tracing this label.
@@ -646,7 +647,7 @@
     (define (can-start-tracing-label?)
       (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
     (output "can-start-loop, label = ") (output label) (output-newline)
-          ;; We are currently tracing this label: check if this label refers to a 'true' loop.
+    ;; We are currently tracing this label: check if this label refers to a 'true' loop.
     (cond ((is-tracing-label? tracer-context label)
            (check-stop-tracing-label tracer-context label next-state))
           ;; A trace for this label already exists, so start executing that trace?
@@ -657,16 +658,16 @@
              ;; a jump to this already existing trace.
              ;; Else, we ignore the existing trace and just inline everything.
              (if (label-trace-loops? label-trace)
-                 (begin (execute-label-trace-next! tracer-context label-trace #t)
-                        (run-evaluator tracer-context next-state))
-                 (continue-with-state))))
+                 (let ((temp-tracer-context (execute-label-trace-next! tracer-context label-trace #t)))
+                   (run-evaluator temp-tracer-context next-state))
+                 (continue-with-state tracer-context))))
           ;; We are already tracing and/or it is not worthwile to trace this label,
           ;; so continue regular interpretation. We do increase the counter for the number
           ;; of times this label has been encountered (i.e., we raise the 'hotness' of this loop).
           (else
-           (inc-times-label-encountered! tracer-context label)
-           (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
-           (continue-with-state))))
+           (let ((temp-tracer-context (inc-times-label-encountered! tracer-context label)))
+             (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
+             (continue-with-state temp-tracer-context)))))
   
   ;
   ; Trace merging
@@ -688,16 +689,16 @@
                      `(pop-splits-cf-id! ,tracer-context))
       (begin
         (append-trace! tracer-context `((execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
-        ((tracer-context-merges-cf-function tracer-context) (reverse τ))
-        (if (mp-tail-trace-exists? tracer-context mp-id)
-            (begin (output "MP TAIL TRACE EXISTS") (output-newline)
-                   (stop-tracing-normal! tracer-context)
-                   (set-executing-trace-state! tracer-context)
-                   (let ((new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
-                     (run-evaluator tracer-context new-state)))
-            (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                   (start-tracing-mp-tail! tracer-context mp-id)
-                   (run-evaluator tracer-context continuation))))))
+        (let ((temp-tracer-context ((tracer-context-merges-cf-function tracer-context) (reverse τ))))
+          (if (mp-tail-trace-exists? temp-tracer-context mp-id)
+              (begin (output "MP TAIL TRACE EXISTS") (output-newline)
+                     (let ((temp-tracer-context
+                            (set-executing-trace-state! (stop-tracing-normal! temp-tracer-context)))
+                           (new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
+                       (run-evaluator temp-tracer-context new-state)))
+              (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
+                     (start-tracing-mp-tail! tracer-context mp-id)
+                     (run-evaluator tracer-context continuation)))))))
   
   ;;; Handles the (splits-control-flow) annotation and afterwards continues
   ;;; regular interpretation with the given state.
@@ -1091,32 +1092,29 @@
       ;; Stop tracing whatever is being traced and start tracing the guard associated with this
       ;; guard-id.
       (define (switch-to-trace-guard! guard-id old-trace-key)
-        (stop-tracing-abnormal! tracer-context)
-        (start-tracing-guard! tracer-context guard-id old-trace-key))
+        (let ((temp-tracer-context (stop-tracing-abnormal! tracer-context)))
+          (start-tracing-guard! temp-tracer-context guard-id old-trace-key)))
       (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
       (cond ((guard-trace-exists? tracer-context guard-id)
              (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
              (execute-guard-trace tracer-context guard-id))
             ((not (is-tracing-trace-execution? tracer-context))
              (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-             (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
-               (start-tracing-guard! tracer-context guard-id trace-key-executing)
-               (flush-label-traces-executing! tracer-context)
-               (run-evaluator tracer-context state)))
+             (let* ((trace-key-executing (get-label-trace-executing-trace-key tracer-context))
+                    (temp-tracer-context (start-tracing-guard! tracer-context guard-id trace-key-executing)))
+               (run-evaluator (flush-label-traces-executing! temp-tracer-context) state)))
             (else
              ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
              ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
              ;; tracing from this new guard-failure.
              (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
-             (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
-               (switch-to-trace-guard! guard-id trace-key-executing)
-               (flush-label-traces-executing! tracer-context)
-               (run-evaluator tracer-context state)))))
+             (let* ((trace-key-executing (get-label-trace-executing-trace-key tracer-context))
+                    (temp-tracer-context (switch-to-trace-guard! guard-id trace-key-executing)))
+               (run-evaluator (flush-label-traces-executing! temp-tracer-context) state)))))
     (define (do-trace-execution)
       (let* ((label-trace-node (top-label-trace-executing tracer-context))
              (new-state (execute-label-trace-with-trace-node tracer-context label-trace-node)))
-        (state-update-function! tracer-context)
-        (run-evaluator tracer-context new-state)))
+        (run-evaluator (state-update-function! tracer-context) new-state)))
     (define (do-bootstrap-regular-interpreter state)
       (cond ((is-executing-trace? tracer-context) (set-regular-interpreting-state! tracer-context))
             ((is-tracing-trace-execution? tracer-context) (set-tracing-state! tracer-context))
