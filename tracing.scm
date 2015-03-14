@@ -153,7 +153,8 @@
   
   (define (clear-trace! tracer-context)
     (set-tracer-context-current-trace-length! tracer-context 0)
-    (set! τ '()))
+    (set! τ '())
+    tracer-context)
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -308,7 +309,7 @@
            (pair (massoc label (tracer-context-labels-encountered tracer-context))))
       (define (add-new-label-encountered)
         (tracer-context-copy tracer-context 
-                             (cons (mcons label 1) labels-encountered)))
+                             (labels-encountered (cons (mcons label 1) labels-encountered))))
       (if pair
           (begin (set-mcdr! pair (+ (mcdr pair) 1))
                  tracer-context)
@@ -394,17 +395,18 @@
   (define (start-tracing-label! tracer-context label debug-info)
     (let* ((temp-tracer-context
             (tracer-context-copy tracer-context
-                                 (closing-function tracer-context (make-stop-tracing-label-function tracer-context))
-                                 (merges-cf-function tracer-context (make-label-merges-cf-function tracer-context))
+                                 (closing-function (make-stop-tracing-label-function tracer-context))
+                                 (merges-cf-function (make-label-merges-cf-function tracer-context))
                                  (state TRACING_STATE)
-                                 (trace-key tracer-context (make-label-trace-key label debug-info)))))
+                                 (trace-key (make-label-trace-key label debug-info)))))
       (clear-trace! temp-tracer-context)))
   
   (define (start-tracing-mp-tail! tracer-context mp-id)
-    (let* ((temp-tracer-context tracer-context
-                                (closing-function tracer-context (make-stop-tracing-mp-tail-function tracer-context mp-id))
-                                (merges-cf-function tracer-context (make-mp-tail-merges-cf-function tracer-context mp-id))
-                                (state TRACING_STATE)))
+    (let* ((temp-tracer-context
+            (tracer-context-copy tracer-context
+                                 (closing-function (make-stop-tracing-mp-tail-function tracer-context mp-id))
+                                 (merges-cf-function (make-mp-tail-merges-cf-function tracer-context mp-id))
+                                 (state TRACING_STATE))))
       (clear-trace! tracer-context)))
 
   ;
@@ -440,9 +442,10 @@
     (let* ((temp-tracer-context
             (tracer-context-copy  tracer-context
                                   (trace-key #f)
-                                  (closing-function tracer-context #f)
-                                  (times-label-encountered-while-tracing tracer-context 0))))
-      (clear-trace! temp-tracer-context)))
+                                  (closing-function #f)
+                                  (times-label-encountered-while-tracing 0))))
+      (clear-trace! temp-tracer-context)
+      temp-tracer-context))
   
   (define (stop-tracing-abnormal! tracer-context)
     (flush-ast-nodes-traced!)
@@ -455,8 +458,7 @@
   
   (define (stop-tracing! tracer-context looping?)
     (let ((stop-tracing-function (tracer-context-closing-function tracer-context)))
-      (stop-tracing-function (reverse τ) looping?)
-      (stop-tracing-normal! tracer-context)))
+      (stop-tracing-normal! (stop-tracing-function (reverse τ) looping?))))
   
   ;
   ; Finding traces
@@ -507,7 +509,8 @@
            (guard-traces-dictionary (tracer-context-guards-dictionary tracer-context))
            (guard-trace (make-guard-trace new-guard-trace-key trace)))
       (write-guard-trace guard-id trace)
-      (insert! guard-traces-dictionary guard-id guard-trace)))
+      (insert! guard-traces-dictionary guard-id guard-trace)
+      tracer-context))
   
   (define (add-label-trace! tracer-context trace-key transformed-trace loops?)
     (let* ((label (trace-key-label trace-key))
@@ -526,7 +529,8 @@
     (write-mp-tail-trace mp-id transformed-trace)
     (let ((mp-tail-traces-dictionary (tracer-context-mp-tails-dictionary tracer-context))
           (mp-tail-trace (make-mp-tail-trace trace-key transformed-trace)))
-      (insert! mp-tail-traces-dictionary mp-id mp-tail-trace)))
+      (insert! mp-tail-traces-dictionary mp-id mp-tail-trace)
+      tracer-context))
   
   ;
   ; Trace exists
