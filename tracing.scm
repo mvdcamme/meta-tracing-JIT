@@ -229,7 +229,7 @@
                           times-label-encountered-while-tracing
                           (current-trace-length #:mutable) ;TODO mutable houden voorlopig
                           labels-encountered
-                          trace-nodes
+                          (trace-nodes #:mutable)
                           trace-nodes-dictionary
                           labels-executing
                           splits-cf-id-stack
@@ -521,7 +521,8 @@
       (insert! label-traces-dictionary
                trace-id
                label-trace)
-      (tracer-context-copy tracer-context (trace-nodes (cons label-trace trace-nodes-list)))))
+      (set-tracer-context-trace-nodes! tracer-context (cons label-trace trace-nodes-list))
+      tracer-context))
   
   (define (add-mp-tail-trace! tracer-context mp-id trace-key transformed-trace)
     (write-mp-tail-trace mp-id transformed-trace)
@@ -831,7 +832,6 @@
                                                         (closing-function (lambda (trace looping?) '()))
                                                         (trace-key (make-mp-tail-trace-key label parent-id))))
              (new-tracer-context (add-guard-trace! temp-tracer-context label parent-id guard-id transformed-trace)))
-        (append-trace! new-tracer-context `((display "voor") (newline) (execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
         new-tracer-context))
     guard-merges-cf!)
   
@@ -842,7 +842,6 @@
              ;; At the moment a merges-annotation is found, we cannot know whether the label-trace will loop or not.
              ;; TODO register some kind of callback to make sure that, when tracing finishes, the loops? field is updated with the correct value
              (new-tracer-context (add-label-trace! tracer-context trace-key transformed-trace #f)))
-        (append-trace! new-tracer-context `((display "voor") (newline) (execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
         new-tracer-context))
     label-merges-cf!)
   
@@ -852,6 +851,5 @@
              (label (trace-key-label trace-key))
              (transformed-trace (transform-merging-trace trace))
              (new-tracer-context (add-mp-tail-trace! tracer-context mp-id trace-key transformed-trace)))
-        (append-trace! new-tracer-context `((display "voor") (newline) (execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
         new-tracer-context))
     mp-tail-merges-cf!))

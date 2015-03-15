@@ -311,8 +311,9 @@
               ((eq? (get-operator (car instructions)) 'loop) (execute-trace s-expression))
               ((eq? (get-operator (car instructions)) 'non-loop) (execute-letrec-body (cdr instructions) last-result))
               (else (execute-letrec-body (cdr instructions) (eval (car instructions))))))
-      (for-each execute-instruction actual-trace)
-      (execute-letrec-body letrec-body '())))
+      (let ((last-value (for/last ((instruction actual-trace))
+                          (execute-instruction instruction))))
+        (execute-letrec-body letrec-body last-value))))
   
   ;;; Executes the guard-trace associated with the given guard-id.
   (define (execute-guard-trace tracer-context guard-id)
@@ -688,6 +689,7 @@
                      `(pop-continuation)
                      `(pop-splits-cf-id! ,tracer-context))
       (begin
+        (append-trace! tracer-context `((execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
         (let ((temp-tracer-context ((tracer-context-merges-cf-function tracer-context) tracer-context (reverse τ) mp-id continuation)))
           (if (mp-tail-trace-exists? temp-tracer-context mp-id)
               (begin (output "MP TAIL TRACE EXISTS") (output-newline)
