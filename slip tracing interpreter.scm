@@ -1059,12 +1059,12 @@
                       `(pop-continuation))
        (ko φ κ))))
   
-  (define (step* tracer-context s)
+  (define (do-regular-interpretation tracer-context s)
     (match s
       ((ko (haltk) _)
        v)
-      ;; Evaluate annotations in step* instead of step
-      ;; Annotations might not lead to recursive call to step*
+      ;; Evaluate annotations in do-regular-interpretation instead of step
+      ;; Annotations might not lead to recursive call to do-regular-interpretation
       ((ko (is-evaluatingk) (cons φ κ))
        (handle-is-evaluating-annotation-reg tracer-context (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
@@ -1139,8 +1139,8 @@
     (match program-state
       ((ko (haltk) _)
        v)
-      ;; Evaluate annotations in step* instead of step
-      ;; Annotations might not lead to recursive call to step*
+      ;; Evaluate annotations in do-is-tracing-state instead of step
+      ;; Annotations might not lead to recursive call to do-is-tracing-state
       ((ko (is-evaluatingk) (cons φ κ))
        (handle-is-evaluating-annotation-tracing tracer-context (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
@@ -1162,7 +1162,7 @@
     (cond ((is-executing-trace? tracer-context)
            (do-is-executing-trace-state tracer-context program-state))
           ((is-regular-interpreting? tracer-context)
-           (step* tracer-context program-state))
+           (do-regular-interpretation tracer-context program-state))
           ((is-tracing? tracer-context)
            (do-is-tracing-state tracer-context program-state))
           ((is-tracing-trace-execution? tracer-context)
