@@ -690,16 +690,16 @@
                      `(pop-splits-cf-id! ,tracer-context))
       (begin
         (append-trace! tracer-context `((execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
-        (let ((temp-tracer-context ((tracer-context-merges-cf-function tracer-context) tracer-context (reverse τ) mp-id continuation)))
+        (let ((temp-tracer-context ((tracer-context-merges-cf-function tracer-context) tracer-context (reverse τ))))
           (if (mp-tail-trace-exists? temp-tracer-context mp-id)
               (begin (output "MP TAIL TRACE EXISTS") (output-newline)
-                     (let ((temp-tracer-context
+                     (let ((new-tracer-context
                             (set-executing-trace-state! (stop-tracing-normal! temp-tracer-context)))
-                           (new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
-                       (run-evaluator temp-tracer-context new-state)))
+                           (new-state (eval `(execute-mp-tail-trace ,temp-tracer-context ,mp-id ,continuation))))
+                       (run-evaluator new-tracer-context new-state)))
               (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                     (let ((temp-tracer-context (start-tracing-mp-tail! temp-tracer-context mp-id)))
-                       (run-evaluator temp-tracer-context continuation))))))))
+                     (let ((new-tracer-context (start-tracing-mp-tail! temp-tracer-context mp-id)))
+                       (run-evaluator new-tracer-context continuation))))))))
   
   ;;; Handles the (splits-control-flow) annotation and afterwards continues
   ;;; regular interpretation with the given state.
