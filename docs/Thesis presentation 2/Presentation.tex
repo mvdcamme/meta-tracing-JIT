@@ -1,0 +1,194 @@
+\documentclass{beamer}
+
+\usepackage{graphicx,multicol}
+%\usepackage{xcolor}
+\usepackage{textcomp}
+\usepackage{beamerouterthememiniframes, beamercolorthemeann,srcltx,hyperref}
+\usepackage{dashrule}
+\usepackage{listings}
+\usepackage {mathpartir}
+\usepackage{pstricks}
+
+\setbeamercolor{normal text}{fg=black!70}
+\setbeamertemplate{navigation symbols}{}%geen navigatie
+\setbeamertemplate{blocks}[rounded][shadow=true]
+\setbeamertemplate{footline}{%
+\hspace*{-0.5cm} \raisebox{5pt}{\makebox[\paperwidth]{\hfill\makebox[10pt]{\scriptsize\insertframenumber}}}}
+ 
+\setbeamertemplate{caption}{\raggedright\insertcaption\par}
+
+\title{The essence of meta-tracing JIT compilers}
+\author{Maarten Vandercammen \\
+		Advisors: Theo D'Hondt, Coen De Roover, \\
+				  Joeri De Koster, Stefan Marr and Jens Nicolay}
+\date{}
+
+\lstset{
+  language=Scheme
+}
+
+\definecolor{faded_green}{rgb}{0.56, 0.5, 0.62}
+
+\begin{document}
+
+\begin{frame}[plain]
+\includegraphics[width=0.4\paperwidth]{VUB_logo.jpg}
+\vspace{2cm}
+\titlepage
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}[fragile]{What is tracing JIT compilation?}
+
+\hspace{0.45cm}
+\begin{columns}[c]
+\column{0.45 \textwidth}
+	\begin{lstlisting}[basicstyle=\footnotesize]
+	(define (fac x)
+ 	 (if (< x 2)
+ 	   1
+  	  (* x
+   	    (fac (- x 1))))) 
+	\end{lstlisting}
+	
+\column{0.2 \textwidth}
+\includegraphics[scale=0.35]{blue_arrow}
+
+\column{0.4 \textwidth}
+	\begin{lstlisting}[basicstyle = \scriptsize\ttfamily, escapechar = £]
+	(label 'fac-loop)
+(literal-value 2)
+(save-val)
+(lookup-var 'x)
+(save-val)
+(lookup-var '<)
+(apply-native 2)
+£\scriptsize{\ttfamily{{\color<2>{red}{(guard-false)}}}}£
+(literal-value 1)
+(save-val)
+(lookup-var 'x)
+(save-val)
+(lookup-var '-)
+(apply-native 2)
+...
+(goto 'fac-loop)
+	\end{lstlisting}
+\end{columns}
+
+\pause
+Traces are always linear! \\
+Use guards to protect against changes in control-flow
+
+\end{frame}
+
+\begin{frame}{Meta-tracing}
+\centering
+\includegraphics[scale = 0.5]{interpreters_tower}
+\end{frame}
+
+\begin{frame}[fragile]{Meta-tracing}
+\begin{itemize}
+
+\item Advantage: language implementer can get tracing for free
+
+\pause
+%\item Place annotations inside interpreter, e.g. to signal user-loops
+
+\begin{lstlisting}[basicstyle = \scriptsize\ttfamily, escapechar = £]
+	(define (close parameters expressions)
+      (define lexical-environment environment)
+      (define (closure . arguments)
+        (define dynamic-environment environment)
+        £\scriptsize\ttfamily{\color{red}(can-start-loop expressions)}£
+        (set! environment lexical-environment)
+        (bind-parameters parameters arguments)
+        (let* ((value (evaluate-sequence expressions)))
+          (set! environment dynamic-environment)
+          value))
+      closure)
+\end{lstlisting}
+
+\pause
+\item PyPy and RPython project \only<3->\footnote{\tiny{Bolz, C. F. (2012)}}
+
+\end{itemize}
+\end{frame}
+
+\section{Problem statement}
+
+\begin{frame}{Goal}
+\centering
+\vspace{1cm}
+\Large Construct minimalistic meta-tracing JIT\\
+\vspace{1cm}
+\includegraphics[scale = 0.35]{interaction_original}
+\end{frame}
+
+\begin{frame}{Goal}
+\centering
+\vspace{1cm}
+\Large Grow meta-tracing JIT\\
+\vspace{1cm}
+\includegraphics[scale = 0.35]{interaction}
+\end{frame}
+
+%\begin{frame}{Specify formal semantics}
+%Tracing framework
+%$\downarrow$
+%\begin{mathpar}
+% \inferrule*
+%  { cesk $\rightarrow$ <cesk', $tau_{2}$> }
+%  { <$x_{1}$, $x_{2}$, ..., $\tau_{1}$, cesk> $\rightarrow$ <$x_{1}$, $x_{2}$, ..., $\tau_{1}tau_{2}$, cesk'> }
+%\end{mathpar}
+%\end{frame}
+
+\begin{frame}{Tracing JIT as state-machine}
+\includegraphics[scale = 0.5]{high_level_state_diagram}
+\end{frame}
+
+\begin{frame}{Specify formal semantics}
+\centering
+\Large Tracing framework \\
+\vspace{0.5cm}
+\includegraphics[scale=0.38]{blue_arrow_down.png} 
+\begin{mathpar}
+ \inferrule*
+  { CESK \rightarrow {\tt <}CESK', \tau_{2}{\tt >} }
+  { {\tt <}x_{1}, x_{2}, ..., \tau_{1}, CESK{\tt >} \rightarrow {\tt <}x_{1}, x_{2}, ..., \tau_{1}\tau_{2}, CESK'{\tt >} }
+\end{mathpar}
+\end{frame}
+
+\section{Roadmap}
+
+\begin{frame}{Roadmap}
+\begin{itemize}
+\item Literature study {\color{green} \checkmark}
+\item Tracing core {\color{green} \checkmark}
+\item Additional features
+	\begin{itemize}
+	\item Trace jumping {\color{green} \checkmark}
+	\item Trace merging {\color{faded_green} \checkmark}
+	\item True vs. false loops {\color{faded_green} \checkmark}
+	\end{itemize}
+\end{itemize}
+\end{frame}
+
+%\begin{frame}{Refactor again}
+%\pspicture(8cm,5cm)
+%        \rput(5cm,2cm){\includegraphics[scale = 0.3]{interaction_todo}}
+%        \pause
+%        \rput(9cm,2cm)%
+%        {\fbow{\parbox{6cm}{\bf Specify formal semantics}}}
+%        \endpspicture
+%\end{frame}
+
+\begin{frame}{Roadmap}
+\begin{itemize}
+\item Transform state-machine into working operational semantics
+\item Specify formal semantics
+\item Write thesis
+\end{itemize}
+\end{frame}
+
+\end{document}
