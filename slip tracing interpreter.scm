@@ -324,7 +324,7 @@
       (execute/trace tracer-context
                      `(let ()
                         (let* ((state (execute-trace ',trace))) ; Actually execute the trace
-                          (call-global-continuation (list 'regular-interpreting state)))))))
+                          (call-global-continuation (list 'regular-interpreting state #f)))))))
   
   ;;; Executes the trace of the given label-trace-node.
   (define (execute-label-trace-with-trace-node tracer-context label-trace-node)
@@ -362,15 +362,16 @@
       ;; So we have to check whether this mp-tail-trace actually exists.
       ;; If it doesn't, we jump back to regular interpretation with the given state.
       (if mp-tail-trace
-          (let* ((label (trace-key-label (trace-node-trace-key mp-tail-trace)))
+          (let* ((trace-key (trace-node-trace-key mp-tail-trace))
+                 (label (trace-key-label trace-key))
                  (label-trace-node (get-label-trace tracer-context label)))
             (add-execution! mp-tail-trace)
             (push-label-trace-executing-if-not-on-top! tracer-context label-trace-node)
             (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
               ;; Pop this trace-node again
               (pop-label-trace-executing! tracer-context)
-              (call-global-continuation (list 'regular-interpreting state))))
-          (call-global-continuation (list 'regular-interpreting state))))) ;TODO origineel: (bootstrap-to-evaluator state))))
+              (call-global-continuation (list 'regular-interpreting state trace-key))))
+          (call-global-continuation (list 'regular-interpreting state #f))))) ;TODO origineel: (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -1116,17 +1117,19 @@
       (let* ((label-trace-node (top-label-trace-executing tracer-context))
              (new-state (execute-label-trace-with-trace-node tracer-context label-trace-node)))
         (run-evaluator (state-update-function! tracer-context) new-state)))
-    (define (do-bootstrap-regular-interpreter state)
+    (define (do-bootstrap-regular-interpreter state trace-key)
       (let ((new-tracer-context 
              (cond ((is-executing-trace? tracer-context) (set-regular-interpreting-state! tracer-context))
-                   ((is-tracing-trace-execution? tracer-context) (set-tracing-state! tracer-context))
+                   ((is-tracing-trace-execution? tracer-context) (if trace-key
+                                                                     (tracer-context-copy (set-tracing-state! tracer-context) (trace-key trace-key))
+                                                                     (set-tracing-state! tracer-context)))
                    (else (error "Shouldn't happen! Trace execution finished with unexpected tracing state!" (tracer-context-state tracer-context))))))
       (run-evaluator new-tracer-context state)))
     (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k)
                                                           (list 'trace-execution)))))
                     combined-state-answer)))
       (cond ((eq? (car answer) 'trace-execution) (do-trace-execution))
-            ((eq? (car answer) 'regular-interpreting) (do-bootstrap-regular-interpreter (cadr answer)))
+            ((eq? (car answer) 'regular-interpreting) (do-bootstrap-regular-interpreter (cadr answer) (caddr answer)))
             (else (apply guard-failed (cdr answer))))))
   
   (define (do-is-executing-trace-state tracer-context program-state)

@@ -48,6 +48,7 @@
            times-label-encountered-greater-than-threshold?
            top-splits-cf-id
            top-label-trace-executing
+           tracer-context-copy
            
            ;; State
            is-executing-trace?
