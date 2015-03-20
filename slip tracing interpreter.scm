@@ -275,6 +275,12 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define (execute-label-trace-next! tracer-context label-trace-node still-tracing?)
+    (if still-tracing?
+        (set-tracing-trace-execution-state! tracer-context)
+        (set-executing-trace-state! tracer-context))
+    (push-label-trace-executing! tracer-context label-trace-node))
+  
   ;;; Recall that a trace is constructed in the form of a letrec-expression, e.g.,
   ;;; (letrec ((loop (lambda ()
   ;;;                  ...)))
@@ -309,58 +315,61 @@
       (execute-letrec-body letrec-body '())))
   
   ;;; Executes the guard-trace associated with the given guard-id.
-  (define (execute-guard-trace guard-id)
-    (let* ((guard-trace (get-guard-trace guard-id))
+  (define (execute-guard-trace tracer-context guard-id)
+    (let* ((guard-trace (get-guard-trace tracer-context guard-id))
            (trace (trace-node-trace guard-trace)))
       ;; Benchmarking: record the fact that this trace node will be executed
       (add-execution! guard-trace)
-      (execute/trace `(let ()
+      (execute/trace tracer-context
+                     `(let ()
                         (let* ((state (execute-trace ',trace))) ; Actually execute the trace
-                          state)))))
+                          (call-global-continuation (list 'regular-interpreting state)))))))
   
   ;;; Executes the trace of the given label-trace-node.
-  (define (execute-label-trace-with-trace-node label-trace-node)
-    (let ((trace (trace-node-trace label-trace-node)))
+  (define (execute-label-trace-with-trace-node tracer-context label-trace-node)
+    (let ((trace (trace-node-trace label-trace-node))
+          (label (trace-key-label (trace-node-trace-key label-trace-node))))
       ;; Benchmarking: record the fact that this trace node will be executed
       (add-execution! label-trace-node)
-      (execute/trace `(let ()
+      (execute/trace tracer-context
+                     `(let ()
                         ;; Push this trace-node on the stack of label-traces being executed
-                        (push-label-trace-executing! ,label-trace-node)
+                        (push-label-trace-executing! ,tracer-context ,label-trace-node)
                         (let ((state (execute-trace ',trace))) ; Actually execute the trace
                           ;; Pop this trace-node again
-                          (pop-label-trace-executing!)
+                          (pop-label-trace-executing! ,tracer-context)
                           ;; Return the CK state
                           state)))))
   
   ;;; Execute the label-trace associated with the given id.
-  (define (execute-label-trace-with-id label-trace-id)
-    (let ((label-trace-node (find (tracer-context-trace-nodes-dictionary GLOBAL_TRACER_CONTEXT) label-trace-id)))
-      (execute-label-trace-with-trace-node label-trace-node)))
+  (define (execute-label-trace-with-id tracer-context label-trace-id)
+    (let ((label-trace-node (find (tracer-context-trace-nodes-dictionary tracer-context) label-trace-id)))
+      (execute-label-trace-with-trace-node tracer-context label-trace-node)))
   
   ;;; Execute the label-trace associated with the given label.
-  (define (execute-label-trace-with-label label)
-    (let ((label-trace-node (get-label-trace label)))
-      (execute-label-trace-with-trace-node label-trace-node)))
+  (define (execute-label-trace-with-label tracer-context label)
+    (let ((label-trace-node (get-label-trace tracer-context label)))
+      (execute-label-trace-with-trace-node tracer-context label-trace-node)))
   
   ;;; Execute the merge-point-tail-trace associated with the given merge-point-id.
-  (define (execute-mp-tail-trace mp-id state)
-    (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary GLOBAL_TRACER_CONTEXT))
-           (mp-tail-trace (get-mp-tail-trace mp-id))
-           (label (trace-key-label (trace-node-trace-key mp-tail-trace)))
-           (label-trace-node (get-label-trace label)))
+  (define (execute-mp-tail-trace tracer-context mp-id state)
+    (let* ((mp-tails-dictionary (tracer-context-mp-tails-dictionary tracer-context))
+           (mp-tail-trace (get-mp-tail-trace tracer-context mp-id)))
       ;; It might be that a call to this mp-tail-trace has been recorded before the actual tracing
       ;; of this mp-tail was completed. In that case, it could be that the trace was never finished
       ;; (e.g., because it reached the maximum trace length).
       ;; So we have to check whether this mp-tail-trace actually exists.
       ;; If it doesn't, we jump back to regular interpretation with the given state.
       (if mp-tail-trace
-          (begin (add-execution! mp-tail-trace)
-                 (push-label-trace-executing-if-not-on-top! label-trace-node)
-                 (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
-                   ;; Pop this trace-node again
-                   (pop-label-trace-executing!)
-                   state))
-          (bootstrap-to-evaluator state))))
+          (let* ((label (trace-key-label (trace-node-trace-key mp-tail-trace)))
+                 (label-trace-node (get-label-trace tracer-context label)))
+            (add-execution! mp-tail-trace)
+            (push-label-trace-executing-if-not-on-top! tracer-context label-trace-node)
+            (let ((state (execute-trace (trace-node-trace mp-tail-trace))))
+              ;; Pop this trace-node again
+              (pop-label-trace-executing! tracer-context)
+              (call-global-continuation (list 'regular-interpreting state))))
+          (call-global-continuation (list 'regular-interpreting state))))) ;TODO origineel: (bootstrap-to-evaluator state))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -518,9 +527,10 @@
   
   ;;; Executes the given instructions and records them into the trace, if the interpreter is
   ;;; currently tracing.
-  (define (execute/trace . ms)
-    (when (is-tracing?)
-      (append-trace! ms))
+  (define (execute/trace tracer-context . ms)
+    (when (or (is-tracing? tracer-context)
+              (is-tracing-trace-execution? tracer-context))
+      (append-trace! tracer-context ms))
     (eval-instructions ms))
   
   
@@ -537,82 +547,125 @@
   ;;; Handles the (is-evaluating expression) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   ;;; Used for benchmarking purposes.
-  (define (handle-is-evaluating-annotation state)
-    (execute/trace `(pop-continuation))
+  (define (handle-is-evaluating-annotation-reg tracer-context next-state)
     (set-root-expression-if-uninitialised! v)
-    (when (is-tracing?)
-      (add-ast-node-traced! v))
-    (step* state))
+    (execute/trace tracer-context `(pop-continuation))
+    (run-evaluator tracer-context next-state))
+  
+  ;;; Handles the (is-evaluating expression) annotation and afterwards continues
+  ;;; regular interpretation with the given state.
+  ;;; Used for benchmarking purposes.
+  (define (handle-is-evaluating-annotation-tracing tracer-context next-state)
+    (add-ast-node-traced! v)
+    (handle-is-evaluating-annotation-reg tracer-context next-state))
   
   ;
   ; Starting/ending trace recording
   ;
   
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
-  ;;; regular interpretation with the given state.
-  (define (handle-can-close-loop-annotation label state)
+  ;;; evaluation with the given state.
+  (define (handle-can-close-loop-annotation-reg tracer-context label next-state)
     (output "closing annotation: tracing loop ") (output label) (output-newline)
-    (when (is-tracing-label? label)
-      (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
-      (stop-tracing! #f))
-    (execute/trace `(pop-continuation))
-    (step* state))
+    (execute/trace tracer-context `(pop-continuation))
+    (run-evaluator tracer-context next-state))
   
-  (define (check-stop-tracing-label label state)
+  ;;; Handles the (can-close-loop label) annotation and afterwards continues
+  ;;; evaluation with the given state.
+  (define (handle-can-close-loop-annotation-tracing tracer-context label next-state)
+    (output "closing annotation: tracing loop ") (output label) (output-newline)
+    (when (is-tracing-label? tracer-context label)
+      (output "----------- CLOSING ANNOTATION FOUND; TRACING FINISHED -----------") (output-newline)
+      (stop-tracing! tracer-context #f)
+      (set-regular-interpreting-state! tracer-context))
+    (execute/trace tracer-context `(pop-continuation))
+    (run-evaluator tracer-context next-state))
+  
+  (define (check-stop-tracing-label tracer-context label next-state)
     (define (do-stop-tracing!)
       (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-      (stop-tracing! #t)
-      (let ((new-state (execute-label-trace-with-label label)))
-        (step* new-state)))
-    (define (do-continue-tracing)
+      (stop-tracing! tracer-context #t)
+      (let ((label-trace (get-label-trace tracer-context label)))
+        (execute-label-trace-next! tracer-context label-trace #f)
+        (run-evaluator tracer-context next-state)))
+      (define (do-continue-tracing)
       (output "----------- CONTINUING TRACING -----------") (output-newline)
-      (execute/trace `(pop-continuation))
-      (step* state))
-    (inc-times-label-encountered-while-tracing!)
-    (if (times-label-encountered-greater-than-threshold?)
+      (execute/trace tracer-context `(pop-continuation))
+      (run-evaluator tracer-context next-state))
+    (inc-times-label-encountered-while-tracing! tracer-context)
+    (if (times-label-encountered-greater-than-threshold? tracer-context)
         (do-stop-tracing!)
         (do-continue-tracing)))
   
   ;;; Handles the (can-start-loop label debug-info) annotation. If it is decided not to
   ;;; start executing the trace belonging to this label, regular interpretation continues
   ;;; with the given state.
-  (define (handle-can-start-loop-annotation label debug-info state)
-    ;; Continue regular interpretation with the given state.
+  (define (handle-can-start-loop-annotation-reg tracer-context label debug-info next-state)
+    ;; Continue evaluation with the given state.
     (define (continue-with-state)
-      (execute/trace `(pop-continuation))
-      (step* state))
+      (execute/trace tracer-context `(pop-continuation))
+      (run-evaluator tracer-context next-state))
     ;; Check whether it is worthwile to start tracing this label.
     ;; In this implementation, whether it is worthwile to trace a label only depends
     ;; on how hot the corresponding loop is: how many times has this label been encountered yet?
     (define (can-start-tracing-label?)
-      (>= (get-times-label-encountered label) TRACING_THRESHOLD))
+      (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
+    (output "can-start-loop, label = ") (output label) (output-newline)
           ;; We are currently tracing this label: check if this label refers to a 'true' loop.
-    (cond ((is-tracing-label? label)
-           (check-stop-tracing-label label state))
-          ;; A trace for this label already exists, so start executing that trace?
-          ((label-trace-exists? label)
+    (cond ((label-trace-exists? tracer-context label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
-           (let ((label-trace (get-label-trace label)))
-             ;; If we are already tracing, and this trace is a 'true' loop, we record
-             ;; a jump to this already existing trace.
-             ;; Else, we ignore the existing trace and just inline everything.
-             (if (or (not (is-tracing?)) (label-trace-loops? label-trace))
-                 (let ((new-state (execute-label-trace-with-label label)))
-                   (step* new-state))
-                 (continue-with-state))))
+           (let ((label-trace (get-label-trace tracer-context label)))
+             (execute-label-trace-next! tracer-context label-trace #f)
+             (run-evaluator tracer-context next-state)))
           ;; We are not tracing anything at the moment, and we have determined that it
           ;; is worthwile to trace this label/loop, so start tracing.
-          ((and (not (is-tracing?)) (can-start-tracing-label?))
+          ((can-start-tracing-label?)
            (output "----------- STARTED TRACING -----------") (output-newline)
-           (start-tracing-label! label debug-info)
+           (start-tracing-label! tracer-context label debug-info)
            (continue-with-state))
           ;; We are already tracing and/or it is not worthwile to trace this label,
           ;; so continue regular interpretation. We do increase the counter for the number
           ;; of times this label has been encountered (i.e., we raise the 'hotness' of this loop).
           (else
-           (inc-times-label-encountered! label)
-           (when (is-tracing?)
-             (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline))
+           (inc-times-label-encountered! tracer-context label)
+           (when (is-tracing? tracer-context)
+             (output "----------- LABEL NOT HOT YET -----------") (output-newline))
+           (continue-with-state))))
+  
+  ;;; Handles the (can-start-loop label debug-info) annotation. If it is decided not to
+  ;;; start executing the trace belonging to this label, regular interpretation continues
+  ;;; with the given state.
+  (define (handle-can-start-loop-annotation-tracing tracer-context label debug-info next-state)
+    ;; Continue evaluation with the given state.
+    (define (continue-with-state)
+      (execute/trace tracer-context `(pop-continuation))
+      (run-evaluator tracer-context next-state))
+    ;; Check whether it is worthwile to start tracing this label.
+    ;; In this implementation, whether it is worthwile to trace a label only depends
+    ;; on how hot the corresponding loop is: how many times has this label been encountered yet?
+    (define (can-start-tracing-label?)
+      (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
+    (output "can-start-loop, label = ") (output label) (output-newline)
+          ;; We are currently tracing this label: check if this label refers to a 'true' loop.
+    (cond ((is-tracing-label? tracer-context label)
+           (check-stop-tracing-label tracer-context label next-state))
+          ;; A trace for this label already exists, so start executing that trace?
+          ((label-trace-exists? tracer-context label)
+           (output "----------- EXECUTING TRACE -----------") (output-newline)
+           (let ((label-trace (get-label-trace tracer-context label)))
+             ;; If we are already tracing, and this trace is a 'true' loop, we record
+             ;; a jump to this already existing trace.
+             ;; Else, we ignore the existing trace and just inline everything.
+             (if (label-trace-loops? label-trace)
+                 (begin (execute-label-trace-next! tracer-context label-trace #t)
+                        (run-evaluator tracer-context next-state))
+                 (continue-with-state))))
+          ;; We are already tracing and/or it is not worthwile to trace this label,
+          ;; so continue regular interpretation. We do increase the counter for the number
+          ;; of times this label has been encountered (i.e., we raise the 'hotness' of this loop).
+          (else
+           (inc-times-label-encountered! tracer-context label)
+           (output "----------- ALREADY TRACING ANOTHER LABEL -----------") (output-newline)
            (continue-with-state))))
   
   ;
@@ -620,31 +673,39 @@
   ;
   
   ;;; Handles the (merges-control-flow) annotation.
-  (define (handle-merges-cf-annotation continuation)
-    (output "MERGES CONTROL FLOW") (output-newline)
-    (let ((mp-id (top-splits-cf-id)))
-      (execute/trace `(pop-continuation)
-                     `(pop-splits-cf-id!))
-      (if (is-tracing?)
-          (begin
-            (append-trace! `((execute-mp-tail-trace ,mp-id ,continuation)))
-            ((tracer-context-merges-cf-function GLOBAL_TRACER_CONTEXT) (reverse τ))
-            (if (mp-tail-trace-exists? mp-id)
-                (begin (output "MP TAIL TRACE EXISTS") (output-newline)
-                       (stop-tracing-normal!)
-                       (let ((new-state (eval `(execute-mp-tail-trace ,mp-id ,continuation))))
-                         (step* new-state)))
-                (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
-                       (start-tracing-mp-tail! mp-id)
-                       (step* continuation))))
-          (step* continuation))))
+  (define (handle-merges-cf-annotation-reg tracer-context continuation)
+    (execute/trace tracer-context
+                   `(pop-continuation)
+                   `(pop-splits-cf-id! ,tracer-context))
+    (run-evaluator tracer-context continuation))
+  
+  ;;; Handles the (merges-control-flow) annotation.
+  (define (handle-merges-cf-annotation-tracing tracer-context continuation)
+    (let ((mp-id (top-splits-cf-id tracer-context)))
+      (output "MERGES CONTROL FLOW, MP ID = ") (output mp-id) (output-newline)
+      (execute/trace tracer-context
+                     `(pop-continuation)
+                     `(pop-splits-cf-id! ,tracer-context))
+      (begin
+        (append-trace! tracer-context `((execute-mp-tail-trace ,tracer-context ,mp-id ,continuation)))
+        ((tracer-context-merges-cf-function tracer-context) (reverse τ))
+        (if (mp-tail-trace-exists? tracer-context mp-id)
+            (begin (output "MP TAIL TRACE EXISTS") (output-newline)
+                   (stop-tracing-normal! tracer-context)
+                   (set-executing-trace-state! tracer-context)
+                   (let ((new-state (eval `(execute-mp-tail-trace ,tracer-context ,mp-id ,continuation))))
+                     (run-evaluator tracer-context new-state)))
+            (begin (output "MP TAIL TRACE DOES NOT EXIST") (output-newline)
+                   (start-tracing-mp-tail! tracer-context mp-id)
+                   (run-evaluator tracer-context continuation))))))
   
   ;;; Handles the (splits-control-flow) annotation and afterwards continues
   ;;; regular interpretation with the given state.
-  (define (handle-splits-cf-annotation state)
-    (execute/trace `(pop-continuation)
-                   `(push-splits-cf-id! ,(inc-splits-cf-id!)))
-    (step* state))
+  (define (handle-splits-cf-annotation-reg tracer-context next-state)
+    (execute/trace tracer-context
+                   `(pop-continuation)
+                   `(push-splits-cf-id! ,tracer-context ,(inc-splits-cf-id!)))
+    (run-evaluator tracer-context next-state))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -655,306 +716,459 @@
   (define (bootstrap-to-evaluator state)
     (call-global-continuation state))
   
-  (define (eval-seq es κ)
+  (define (eval-seq tracer-context es κ)
     (match es
       ('()
-       (execute/trace `(literal-value '())
+       (execute/trace tracer-context
+                      `(literal-value '())
                       `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((list e)
        (ev e κ))
       ((cons e es)
-       (execute/trace `(save-env)
-                `(push-continuation ,(seqk es)))
+       (execute/trace tracer-context
+                      `(save-env)
+                      `(push-continuation ,(seqk es)))
        (ev e (cons (seqk es) κ)))))
   
-  (define (do-function-call i κ)
+  (define (do-function-call tracer-context i κ)
     (match v
       ((clo (lam x es) ρ)
-       (execute/trace `(prepare-function-call ,i))
+       (execute/trace tracer-context
+                      `(prepare-function-call ,i))
        (let loop ((i i) (x x))
          (match x
            ('()
             (unless (= i 0)
               (error "Incorrect number of args: " (lam x es) ", i = " i))
-            (execute/trace `(push-continuation ,(applicationk (lam x es))))
-            (eval-seq es (cons (applicationk (lam x es)) κ)))
+            (execute/trace tracer-context
+                           `(push-continuation ,(applicationk (lam x es))))
+            (eval-seq tracer-context es (cons (applicationk (lam x es)) κ)))
            ((cons x xs)
             (when (< i 0)
               (error "Incorrect number of args: " (lam x es) ", i = " i ", args left = " (cons x xs)))
-            (execute/trace `(restore-val)
+            (execute/trace tracer-context
+                           `(restore-val)
                            `(alloc-var ',x))
             (loop (- i 1) xs))
            ((? symbol? x)
             (when (< i 0)
               (error "Incorrect number of args: " (lam x es) "case 3"))
-            (execute/trace `(restore-vals ,i)
+            (execute/trace tracer-context
+                           `(restore-vals ,i)
                            `(alloc-var ',x)
                            `(push-continuation ,(applicationk (lam x es))))
-            (eval-seq es (cons (applicationk (lam x es)) κ))))))
+            (eval-seq tracer-context es (cons (applicationk (lam x es)) κ))))))
       (_
-       (execute/trace `(apply-native ,i)
+       (execute/trace tracer-context
+                      `(apply-native ,i)
                       `(pop-continuation))
        (ko (car κ) (cdr κ)))))
   
-  (define (step state)
+  (define (step tracer-context state)
     (match state
       ((ev `(and ,e . ,es) κ)
-       (execute/trace `(push-continuation ,(andk es)))
+       (execute/trace tracer-context
+                      `(push-continuation ,(andk es)))
        (ev e (cons (andk es) κ)))
       ((ev `(apply ,rator ,args) κ)
-       (execute/trace `(push-continuation ,(applyk rator)))
+       (execute/trace tracer-context
+                      `(push-continuation ,(applyk rator)))
        (ev args (cons (applyk rator) κ)))
       ((ev (? symbol? x) (cons φ κ))
-       (execute/trace `(lookup-var ',x)
+       (execute/trace tracer-context
+                      `(lookup-var ',x)
                       `(pop-continuation))
        (ko φ κ))
       ((ev `(begin ,es ...) κ)
-       (eval-seq es κ))
+       (eval-seq tracer-context es κ))
       ((ev `(can-close-loop ,e) κ)
-       (execute/trace `(push-continuation ,(can-close-loopk)))
+       (execute/trace tracer-context
+                      `(push-continuation ,(can-close-loopk)))
        (ev e (cons (can-close-loopk) κ)))
       ((ev `(can-start-loop ,e ,debug-info) κ)
-       (execute/trace `(push-continuation ,(can-start-loopk e '())))
+       (execute/trace tracer-context
+                      `(push-continuation ,(can-start-loopk e '())))
        (ev debug-info (cons (can-start-loopk e '()) κ)))
       ((ev `(cond) (cons φ κ))
-       (execute/trace `(literal-value ())
+       (execute/trace tracer-context
+                      `(literal-value ())
                       `(pop-continuation))
        (ko φ κ))      
       ((ev `(cond (else . ,es)) κ)
-       (eval-seq es κ))
+       (eval-seq tracer-context es κ))
       ((ev `(cond (,pred . ,pes) . ,es) κ)
-       (execute/trace `(save-env)
+       (execute/trace tracer-context
+                      `(save-env)
                       `(push-continuation ,(condk pes es)))
        (ev pred (cons (condk pes es) κ)))
       ((ev `(define ,pattern . ,expressions) κ)
        (if (symbol? pattern)
-           (begin (execute/trace `(save-env)
+           (begin (execute/trace tracer-context
+                                 `(save-env)
                                  `(push-continuation ,(definevk pattern)))
                   (ev (car expressions) (cons (definevk pattern) κ)))
-           (begin (execute/trace `(alloc-var ',(car pattern))
+           (begin (execute/trace tracer-context
+                                 `(alloc-var ',(car pattern))
                                  `(create-closure ',(cdr pattern) ',expressions)
                                  `(set-var ',(car pattern))
                                  `(pop-continuation))
                   (match κ
                     ((cons φ κ) (ko φ κ))))))
       ((ev `(if ,e ,e1 . ,e2) κ)
-       (execute/trace `(save-env)
+       (execute/trace tracer-context
+                      `(save-env)
                       `(push-continuation ,(ifk e1 e2)))
        (ev e (cons (ifk e1 e2) κ)))
       ((ev `(is-evaluating ,e) κ)
-       (execute/trace `(push-continuation ,(is-evaluatingk)))
+       (execute/trace tracer-context
+                      `(push-continuation ,(is-evaluatingk)))
        (ev e (cons (is-evaluatingk) κ)))
       ((ev `(lambda ,x ,es ...) (cons φ κ))
-       (execute/trace `(create-closure ',x ',es)
+       (execute/trace tracer-context
+                      `(create-closure ',x ',es)
                       `(pop-continuation))
        (ko φ κ))
       ((ev `(let () . ,expressions)  κ)
-       (eval-seq expressions κ))
+       (eval-seq tracer-context expressions κ))
       ((ev `(let ((,var ,val) . ,bds) . ,es) κ)
        (unless (null? bds)
          (error "Syntax error: let used with more than one binding: " bds))
-       (execute/trace `(save-env)
+       (execute/trace tracer-context
+                      `(save-env)
                       `(push-continuation ,(letk var es)))
        (ev val (cons (letk var es) κ)))
       ((ev `(let* () . ,expressions) κ)
-       (eval-seq expressions κ))
+       (eval-seq tracer-context expressions κ))
       ((ev `(let* ((,var ,val) . ,bds) . ,es) κ)
-       (execute/trace `(save-env)
+       (execute/trace tracer-context
+                      `(save-env)
                       `(push-continuation ,(let*k var bds es)))
        (ev val (cons (let*k var bds es) κ)))
       ((ev `(letrec ((,x ,e) . ,bds) . ,es) κ)
-       (execute/trace `(literal-value '())
+       (execute/trace tracer-context
+                      `(literal-value '())
                       `(alloc-var ',x)
                       `(save-env)
                       `(push-continuation ,(letreck x bds es)))
        (ev e (cons (letreck x bds es) κ)))
       ((ev `(or ,e . ,es) κ)
-       (execute/trace `(push-continuation ,(ork es)))
+       (execute/trace tracer-context
+                      `(push-continuation ,(ork es)))
        (ev e (cons (ork es) κ)))
       ((ev `(quote ,e) (cons φ κ))
-       (execute/trace `(quote-value ',e)
+       (execute/trace tracer-context
+                      `(quote-value ',e)
                       `(pop-continuation))
        (ko φ κ))
       ((ev `(set! ,x ,e) κ)
-       (execute/trace `(save-env)
+       (execute/trace tracer-context
+                      `(save-env)
                       `(push-continuation  ,(setk x)))
        (ev e (cons (setk x) κ)))
       ((ev `(,rator) κ)
-       (execute/trace `(save-env)
+       (execute/trace tracer-context
+                      `(save-env)
                       `(push-continuation ,(ratork 0 'regular-nulary)))
        (ev rator (cons (ratork 0 'regular-nulary) κ)))
       ((ev `(,rator . ,rands) κ)
-       (execute/trace `(save-env))
+       (execute/trace tracer-context
+                      `(save-env))
        (let ((rrands (reverse rands)))
-         (execute/trace `(push-continuation ,(randk rator (cdr rrands) 1)))
+         (execute/trace tracer-context
+                        `(push-continuation ,(randk rator (cdr rrands) 1)))
          (ev (car rrands) (cons (randk rator (cdr rrands) 1) κ))))
       ((ev e (cons φ κ))
-       (execute/trace `(literal-value ,e)
+       (execute/trace tracer-context
+                      `(literal-value ,e)
                       `(pop-continuation))
        (ko φ κ))
       ((ko (andk '()) κ)
-       (execute/trace `(pop-continuation))
+       (execute/trace tracer-context
+                      `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((ko (andk '()) (cons φ κ))
-       (execute/trace `(pop-continuation))
+       (execute/trace tracer-context
+                      `(pop-continuation))
        (ko φ κ))
       ((ko (andk es) κ)
        (if v
-           (begin (execute/trace `(push-continuation  ,(andk (cdr es))))
+           (begin (execute/trace tracer-context
+                                 `(push-continuation  ,(andk (cdr es))))
                   (ev (car es) (cons (andk (cdr es)) κ)))
-           (begin (execute/trace `(pop-continuation))
+           (begin (execute/trace tracer-context
+                                 `(pop-continuation))
                   (ko (car κ) (cdr κ)))))
       ((ko (applicationk debug) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((ko (apply-failedk rator i) κ)
-       (execute/trace `(save-all-vals)
+       (execute/trace tracer-context
+                      `(save-all-vals)
                       `(save-env)
                       `(push-continuation ,(ratork i 'apply)))
        (ev rator (cons (ratork i 'apply) κ)))
       ((ko (applyk rator) κ)
        (let ((i (length v)))
-         (execute/trace `(guard-same-nr-of-args ,i ',rator ,(inc-guard-id!))
+         (execute/trace tracer-context
+                        `(guard-same-nr-of-args ,i ',rator ,(inc-guard-id!))
                         `(save-all-vals)
                         `(save-env)
                         `(push-continuation ,(ratork i 'apply)))
          (ev rator (cons (ratork i 'apply) κ))))
       ((ko (closure-guard-failedk i) κ)
-       (do-function-call i κ))
+       (do-function-call tracer-context i κ))
       ((ko (condk pes '()) κ)
-       (execute/trace `(restore-env))
+       (execute/trace tracer-context
+                      `(restore-env))
        (if v
-           (begin (execute/trace `(guard-true ,(inc-guard-id!) '()))
-                  (eval-seq pes κ))
-           (begin (execute/trace `(guard-false ,(inc-guard-id!) ',`(begin ,@pes))
+           (begin (execute/trace tracer-context
+                                 `(guard-true ,(inc-guard-id!) '()))
+                  (eval-seq tracer-context pes κ))
+           (begin (execute/trace tracer-context
+                                 `(guard-false ,(inc-guard-id!) ',`(begin ,@pes))
                                  `(literal-value '())
                                  `(pop-continuation))
                   (ko (car κ) (cdr κ)))))
       ((ko (condk pes `((else . ,else-es))) κ)
-       (execute/trace `(restore-env))
+       (execute/trace tracer-context
+                      `(restore-env))
        (if v
-           (begin (execute/trace `(guard-true ,(inc-guard-id!) ',`(begin ,@else-es)))
-                  (eval-seq pes κ))
-           (begin (execute/trace `(guard-false ,(inc-guard-id!) ',`(begin ,@pes)))
-                  (eval-seq else-es κ))))
+           (begin (execute/trace tracer-context
+                                 `(guard-true ,(inc-guard-id!) ',`(begin ,@else-es)))
+                  (eval-seq tracer-context pes κ))
+           (begin (execute/trace tracer-context
+                                 `(guard-false ,(inc-guard-id!) ',`(begin ,@pes)))
+                  (eval-seq tracer-context else-es κ))))
       ((ko (condk pes `((,pred . ,pred-es) . ,es)) κ)
-       (execute/trace `(restore-env))
+       (execute/trace tracer-context
+                      `(restore-env))
        (if v
-           (begin (execute/trace `(guard-true ,(inc-guard-id!) ',`(cond ,@es)))
-                  (eval-seq pes κ))
-           (begin (execute/trace `(guard-false ,(inc-guard-id!) ',`(begin ,@pes))
+           (begin (execute/trace tracer-context
+                                 `(guard-true ,(inc-guard-id!) ',`(cond ,@es)))
+                  (eval-seq tracer-context pes κ))
+           (begin (execute/trace tracer-context
+                                 `(guard-false ,(inc-guard-id!) ',`(begin ,@pes))
                                  `(save-env)
                                  `(push-continuation ,(condk pred-es es)))
                   (ev pred (cons (condk pred-es es) κ)))))
       ((ko (definevk x) (cons φ κ))
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(alloc-var ',x)
                       `(pop-continuation))
        (ko φ κ))
       ((ko (haltk) _)
        #f) 
       ((ko (ifk e1 e2) κ)
-       (execute/trace `(restore-env))
+       (execute/trace tracer-context
+                      `(restore-env))
        (let ((new-guard-id (inc-guard-id!)))
          (if v
-             (begin (execute/trace `(guard-true ,new-guard-id ',(if (null? e2)
+             (begin (execute/trace tracer-context
+                                   `(guard-true ,new-guard-id ',(if (null? e2)
                                                                     '()
                                                                     ;; If the guard fails, the predicate was false, so e2 should be evaluated
                                                                     (car e2)))) 
                     (ev e1 κ))
              ;; If the guard fails, the predicate was true, so e1 should be evaluated
-             (begin (execute/trace `(guard-false ,new-guard-id ',e1)) 
+             (begin (execute/trace tracer-context
+                                   `(guard-false ,new-guard-id ',e1)) 
                     (if (null? e2)
-                        (begin (execute/trace `(pop-continuation)
+                        (begin (execute/trace tracer-context
+                                              `(pop-continuation)
                                               `(literal-value '()))
                                (ko (car κ) (cdr κ)))
                         (ev (car e2) κ))))))
       ((ko (letk x es) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(alloc-var ',x))
-       (eval-seq es κ))
+       (eval-seq tracer-context es κ))
       ((ko (let*k x '() es) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(alloc-var ',x))
-       (eval-seq es κ))
+       (eval-seq tracer-context es κ))
       ((ko (let*k x `((,var ,val) . ,bds) es) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(alloc-var ',x)
                       `(save-env)
                       `(push-continuation ,(let*k var bds es)))
        (ev val (cons (let*k var bds es) κ)))
       ((ko (letreck x '() es) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(set-var ',x))
-       (eval-seq es κ))
+       (eval-seq tracer-context es κ))
       ((ko (letreck x `((,var ,val) . ,bds) es) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(set-var ',x)
                       `(alloc-var ',var)
                       `(save-env)
                       `(push-continuation ,(letreck var bds es)))
        (ev val (cons (letreck var bds es) κ)))
       ((ko (ork '()) κ)
-       (execute/trace `(pop-continuation))
+       (execute/trace tracer-context
+                      `(pop-continuation))
        (ko (car κ) (cdr κ)))
       ((ko (ork es) κ)
        (if v
-           (begin (execute/trace `(pop-continuation))
+           (begin (execute/trace tracer-context
+                                 `(pop-continuation))
                   (ko (car κ) (cdr κ)))
            (ev `(or ,@es) κ)))
       ((ko (randk rator '() i) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(save-val)
                       `(save-env)
                       `(push-continuation ,(ratork i 'regular)))
        (ev rator (cons (ratork i 'regular) κ)))
       ((ko (randk rator rands i) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(save-val)
                       `(save-env)
                       `(push-continuation ,(randk rator (cdr rands) (+ i 1))))
        (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ)))
       ((ko (ratork i debug) κ)
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(guard-same-closure ,v ,i  ,(inc-guard-id!)))
-       (do-function-call i κ))
+       (do-function-call tracer-context i κ))
       ((ko (seqk '()) (cons φ κ)) ; No tailcall optimization!
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(pop-continuation))
        (ko φ κ))
       ((ko (seqk (cons e exps)) κ)
-       (execute/trace `(push-continuation ,(seqk exps)))
+       (execute/trace tracer-context
+                      `(push-continuation ,(seqk exps)))
        (ev e (cons (seqk exps) κ)))
       ((ko (setk x) (cons φ κ))
-       (execute/trace `(restore-env)
+       (execute/trace tracer-context
+                      `(restore-env)
                       `(set-var ',x)
                       `(pop-continuation))
        (ko φ κ))))
   
-  (define (step* s)
+  (define (step* tracer-context s)
     (match s
       ((ko (haltk) _)
        v)
       ;; Evaluate annotations in step* instead of step
       ;; Annotations might not lead to recursive call to step*
       ((ko (is-evaluatingk) (cons φ κ))
-       (handle-is-evaluating-annotation (ko φ κ)))
+       (handle-is-evaluating-annotation-reg tracer-context (ko φ κ)))
       ((ev `(splits-control-flow) (cons φ κ))
-       (handle-splits-cf-annotation (ko φ κ)))
+       (handle-splits-cf-annotation-reg tracer-context (ko φ κ)))
       ((ev `(merges-control-flow) (cons φ κ))
-       (handle-merges-cf-annotation (ko φ κ)))
+       (handle-merges-cf-annotation-reg tracer-context (ko φ κ)))
       ((ko (can-close-loopk) (cons φ κ))
-       (handle-can-close-loop-annotation v (ko φ κ)))
+       (handle-can-close-loop-annotation-reg tracer-context v (ko φ κ)))
       ((ko (can-start-loopk label '()) κ)
-       (execute/trace `(push-continuation ,(can-start-loopk '() v)))
-       (step* (ev label (cons (can-start-loopk '() v) κ))))
+       (execute/trace tracer-context `(push-continuation ,(can-start-loopk '() v)))
+       (run-evaluator tracer-context (ev label (cons (can-start-loopk '() v) κ))))
       ((ko (can-start-loopk '() debug-info) (cons φ κ))
-       (handle-can-start-loop-annotation v debug-info (ko φ κ)))
+       (handle-can-start-loop-annotation-reg tracer-context v debug-info (ko φ κ)))
       (_
-       (let ((new-state (step s)))
-         (step* new-state)))))
+       (let ((new-state (step tracer-context s)))
+         (run-evaluator tracer-context new-state)))))
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                     Running tracing interpreter                                      ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  (define (do-trace-execution-state tracer-context program-state state-update-function!)
+    (define (guard-failed guard-id state)
+      ;; Stop tracing whatever is being traced and start tracing the guard associated with this
+      ;; guard-id.
+      (define (switch-to-trace-guard! guard-id old-trace-key)
+        (stop-tracing-abnormal! tracer-context)
+        (start-tracing-guard! tracer-context guard-id old-trace-key))
+      (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
+      (cond ((guard-trace-exists? tracer-context guard-id)
+             (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
+             (execute-guard-trace tracer-context guard-id))
+            ((not (is-tracing-trace-execution? tracer-context))
+             (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
+             (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
+               (start-tracing-guard! tracer-context guard-id trace-key-executing)
+               (flush-label-traces-executing! tracer-context)
+               (run-evaluator tracer-context state)))
+            (else
+             ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
+             ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
+             ;; tracing from this new guard-failure.
+             (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
+             (let ((trace-key-executing (get-label-trace-executing-trace-key tracer-context)))
+               (switch-to-trace-guard! guard-id trace-key-executing)
+               (flush-label-traces-executing! tracer-context)
+               (run-evaluator tracer-context state)))))
+    (define (do-trace-execution)
+      (let* ((label-trace-node (top-label-trace-executing tracer-context))
+             (new-state (execute-label-trace-with-trace-node tracer-context label-trace-node)))
+        (state-update-function! tracer-context)
+        (run-evaluator tracer-context new-state)))
+    (define (do-bootstrap-regular-interpreter state)
+      (cond ((is-executing-trace? tracer-context) (set-regular-interpreting-state! tracer-context))
+            ((is-tracing-trace-execution? tracer-context) (set-tracing-state! tracer-context))
+            (else (error "Shouldn't happen! Trace execution finished with unexpected tracing state!" (tracer-context-state tracer-context))))
+      (run-evaluator tracer-context state))
+    (let ((answer (let ((combined-state-answer (call/cc (lambda (k) (set-global-continuation! k)
+                                                          (list 'trace-execution)))))
+                    combined-state-answer)))
+      (cond ((eq? (car answer) 'trace-execution) (do-trace-execution))
+            ((eq? (car answer) 'regular-interpreting) (do-bootstrap-regular-interpreter (cadr answer)))
+            (else (apply guard-failed (cdr answer))))))
+  
+  (define (do-is-executing-trace-state tracer-context program-state)
+    (do-trace-execution-state tracer-context program-state set-regular-interpreting-state!))
+           
+  (define (do-is-tracing-trace-execution-state tracer-context program-state)
+    (do-trace-execution-state tracer-context program-state set-tracing-state!))
+  
+  (define (do-is-tracing-state tracer-context program-state)
+    (match program-state
+      ((ko (haltk) _)
+       v)
+      ;; Evaluate annotations in step* instead of step
+      ;; Annotations might not lead to recursive call to step*
+      ((ko (is-evaluatingk) (cons φ κ))
+       (handle-is-evaluating-annotation-tracing tracer-context (ko φ κ)))
+      ((ev `(splits-control-flow) (cons φ κ))
+       (handle-splits-cf-annotation-reg tracer-context (ko φ κ)))
+      ((ev `(merges-control-flow) (cons φ κ))
+       (handle-merges-cf-annotation-tracing tracer-context (ko φ κ)))
+      ((ko (can-close-loopk) (cons φ κ))
+       (handle-can-close-loop-annotation-tracing tracer-context v (ko φ κ)))
+      ((ko (can-start-loopk label '()) κ)
+       (execute/trace tracer-context `(push-continuation ,(can-start-loopk '() v)))
+       (run-evaluator tracer-context (ev label (cons (can-start-loopk '() v) κ))))
+      ((ko (can-start-loopk '() debug-info) (cons φ κ))
+       (handle-can-start-loop-annotation-tracing tracer-context v debug-info (ko φ κ)))
+      (_
+       (let ((new-state (step tracer-context program-state)))
+         (run-evaluator tracer-context new-state)))))
+  
+  (define (run-evaluator tracer-context program-state)
+    (cond ((is-executing-trace? tracer-context)
+           (do-is-executing-trace-state tracer-context program-state))
+          ((is-regular-interpreting? tracer-context)
+           (step* tracer-context program-state))
+          ((is-tracing? tracer-context)
+           (do-is-tracing-state tracer-context program-state))
+          ((is-tracing-trace-execution? tracer-context)
+           (do-is-tracing-trace-execution-state tracer-context program-state))
+          (else
+           (error "Unknown tracer-context-state: " (tracer-context-state tracer-context)))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -962,36 +1176,11 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  (define (guard-failed guard-id state)
-    ;; Stop tracing whatever is being traced and start tracing the guard associated with this
-    ;; guard-id.
-    (define (switch-to-trace-guard! guard-id old-trace-key)
-      (stop-tracing-abnormal!)
-      (start-tracing-guard! guard-id old-trace-key))
-    (output "------ BOOTSTRAP: GUARD-ID: ") (output guard-id) (output " ------") (output-newline)
-    (cond ((guard-trace-exists? guard-id)
-           (output "----------- STARTING FROM GUARD ") (output guard-id) (output " -----------") (output-newline)
-           (execute-guard-trace guard-id))
-          ((not (is-tracing?))
-           (output "----------- STARTED TRACING GUARD ") (output guard-id) (output " -----------") (output-newline)
-           (let ((trace-key-executing (get-label-trace-executing-trace-key)))
-             ;; Trace-nodes executing stack will be flushed
-             (start-tracing-guard! guard-id trace-key-executing)
-             (bootstrap-to-evaluator state)))
-          (else
-           ;; Interpreter is tracing, has traced a jump to an existing (inner) trace and in this
-           ;; inner trace a guard-failure has now occurred. Abandon the existing trace and start
-           ;; tracing from this new guard-failure.
-           (output "----------- ABANDONING CURRENT TRACE; SWITCHING TO TRACE GUARD: ") (output guard-id) (output-newline)
-           (let ((trace-key-executing (get-label-trace-executing-trace-key)))
-             (switch-to-trace-guard! guard-id trace-key-executing)
-             (bootstrap-to-evaluator state)))))
-  
   (define (guard-failed-with-ev guard-id e)
-    (guard-failed guard-id (ev e τ-κ)))
+    (call-global-continuation (list 'guard-failure guard-id (ev e τ-κ))))
   
   (define (guard-failed-with-ko guard-id φ)
-    (guard-failed guard-id (ko φ τ-κ)))
+    (call-global-continuation (list 'guard-failure guard-id (ko φ τ-κ))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -999,18 +1188,19 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define GLOBAL_TRACER_CONTEXT #f)
+  
   ;
   ; Resetting evaluator
   ;
   
   ;;; Resets all bookkeeping behind the tracing interpreter.
-  (define (reset!)
+  (define (reset! tracer-context)
     (set! ρ (make-new-env))
     (set! σ (new-store))
     (set! θ '())
     (set! τ-κ `(,(haltk)))
-    (reset-global-tracer-context!)
-    (clear-trace!)
+    (clear-trace! tracer-context)
     (reset-metrics!)
     (reset-random-generator!)
     (reset-trace-outputting!))
@@ -1024,12 +1214,10 @@
     (ev e `(,(haltk))))
   
   (define (run s)
-    (reset!)
-    (apply step* (list (let ((v (call/cc (lambda (k)
-                                           (set-global-continuation! k)
-                                           s))))
-                         (flush-label-traces-executing!)
-                         v))))
+    (let ((tracer-context (new-tracer-context)))
+      (set! GLOBAL_TRACER_CONTEXT tracer-context)
+      (reset! tracer-context)
+      (run-evaluator tracer-context s)))
   
   ;;; Reads an s-expression from the console and runs the evaluator on it.
   (define (start)

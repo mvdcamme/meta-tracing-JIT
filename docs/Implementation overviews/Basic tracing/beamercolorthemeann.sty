@@ -1,0 +1,63 @@
+\mode<presentation>
+\definecolor{VUBGroen}{rgb}{0.67,0.69,0.007} % color of the background of top navigation items at web page
+%groen uit de stijlboek gepakt en getal gedeeld door 255
+\setbeamercolor{structure}{fg=VUBGroen}
+
+\definecolor{DebianRed}{rgb}{0.78,0.01,0.21} % color of the logo
+\definecolor{VUBGrijsMidden}{rgb}{0.52,0.53,0.5} % color of the background of left navigation items web page
+
+\colorlet{GoalColor}{VUBGroen}
+%% Coloring links does not seem to work this way
+%\colorlet{LinkColor}{VUBGroen}
+\colorlet{ResultColor}{VUBGroen} \colorlet{SorryColor}{VUBGroen}
+\colorlet{ImportantColor}{DebianRed}
+
+% use text color of navigation bar on Debian homepage
+\definecolor{VarColor}{rgb}{0,0,1} %
+
+\definecolor{LinkColor}{rgb}{0.95, 0.95, 1}
+
+%%% Adopted from "whale"
+\setbeamercolor*{palette primary}{use=structure,fg=white,bg=structure.fg}
+%\setbeamercolor*{palette secondary}{use=structure,fg=white,bg=structure.fg!75!black}
+\setbeamercolor*{palette secondary}{use=structure,bg=VUBGroen}
+\setbeamercolor*{palette
+tertiary}{use=structure,fg=white,bg=structure.fg!50!black}
+\setbeamercolor*{palette quaternary}{fg=white,bg=black}
+
+\setbeamercolor*{sidebar}{use=structure,bg=structure.fg}
+
+\setbeamercolor*{palette sidebar primary}{use=structure,fg=structure.fg!10}
+\setbeamercolor*{palette sidebar secondary}{fg=white}
+\setbeamercolor*{palette sidebar tertiary}{use=structure,fg=structure.fg!50}
+\setbeamercolor*{palette sidebar quaternary}{fg=white}
+
+\setbeamercolor*{titlelike}{parent=palette primary}
+
+\setbeamercolor*{separation line}{}
+\setbeamercolor*{fine separation line}{}
+
+%%% Adopted from "orchid"
+
+\setbeamercolor{block title}{use=structure,fg=white,bg=VUBGroen}
+%\setbeamercolor{block title}{use=structure,fg=white,bg=structure.fg!75!black}
+\setbeamercolor{block title alerted}{use=alerted
+text,fg=white,bg=VUBGroen}
+%\setbeamercolor{block title alerted}{use=alerted text,fg=white,bg=alerted text.fg!75!black}
+\setbeamercolor{block title example}{use=example
+text,fg=white,bg=example text.fg!75!black}
+
+%\setbeamercolor{block body}{parent=normal text,use=block
+%title,bg=VUBGrijsMidden}%alternatief voor hieronder
+\setbeamercolor{block body}{parent=normal text,use=block
+title,bg=block title.bg!20!bg}
+%\setbeamercolor{block body
+%alerted}{parent=normal text,use=block title alerted,bg=block title
+%alerted.bg!10!bg}
+\setbeamercolor{block body alerted}{parent=normal text,use=block
+title alerted,fg=white, bg=VUBGroen} \setbeamercolor{block body
+example}{parent=normal text,use=block title example,bg=block title
+example.bg!10!bg}
+
+\mode
+<all>
