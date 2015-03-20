@@ -75,32 +75,8 @@
   ; Constants
   ;
   
-  ;;; Determines whether all 'output'-statements effectively print their argument to the console
-  ;;; or not.
-  (define ENABLE_OUTPUT #f)
-  
-  ;;; Has the following effects:
-  ;;;  - Provided the meta-traced interpreter uses the 'random' function defined on this level
-  ;;;    (the tracing interpreter) when calling 'random' in the user-program, the random number
-  ;;;    that is generated will be created based on a fixed, hardcoded pseudo-random generator state.
-  ;;;    This means that the random numbers that are generated are always the same between program executions.
-  (define IS_DEBUGGING #t)
-  
   ;;; The amount of times a label needs to be encountered before it is considered 'hot'.
   (define TRACING_THRESHOLD 5)
-  
-  ;
-  ; Outputting
-  ;
-  
-  ;;; Prints the given argument to the console, if ENABLE_OUTPUT is set to #t.
-  (define (output s)
-    (when ENABLE_OUTPUT
-      (display s)))
-  
-  ;;; Prints a newline to the console, if ENABLE_OUTPUT is set to #t.
-  (define (output-newline)
-    (output #\newline))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -109,60 +85,12 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   ;
-  ; CK wrappers
-  ;
-  
-  ;;; Represents the state of a program when evaluating an expression.
-  ;;; It consists of an expression to be evaluated (e), and a list of continuations to be followed
-  ;;; once the evaluation is complete (κ).
-  (struct ev (e κ) #:transparent)
-  
-  ;;; Represents the state of a program when following a continuation.
-  ;;; It consists of the continuation to be followed immediately (φ) and a list of continuations
-  ;;; to be followed afterwards (κ).
-  (struct ko (φ κ) #:transparent)
-  
-  ;
   ; Registers
   ;
-  
-  ;;; Stores the environment during program execution.
-  (define ρ #f) ; env
-  
-  ;;; Stores the store during program execution.
-  (define σ #f) ; store
-  
-  ;;; Stores the stack during program execution.
-  (define θ #f) ; non-kont stack
-  
-  ;;; The general-purpose register used during program execution.
-  (define v #f) ; value
   
   ;;; Stores the continuation stack during program execution.
   ;;; This stack is needed to switch back from trace execution to regular program interpretation.
   (define τ-κ #f) ;continuation stack
-  
-  ;
-  ; Continuations
-  ;
-  
-  (struct andk (es) #:transparent)
-  (struct apply-failedk (rator i) #:transparent)
-  (struct applicationk (debug) #:transparent)
-  (struct applyk (rator) #:transparent)
-  (struct closure-guard-failedk (i) #:transparent)
-  (struct condk (pes es) #:transparent)
-  (struct definevk (x) #:transparent)
-  (struct haltk () #:transparent)
-  (struct ifk (e1 e2) #:transparent)
-  (struct letk (x es) #:transparent)
-  (struct let*k (x bds es) #:transparent)
-  (struct letreck (x bds es) #:transparent)
-  (struct ork (es) #:transparent)
-  (struct randk (e es i) #:transparent)
-  (struct ratork (i debug) #:transparent)
-  (struct seqk (es) #:transparent)
-  (struct setk (x) #:transparent)
   
   
   ;;; A counter used to generate id's for newly allocated variables.
@@ -179,95 +107,6 @@
       (insert! dict meta-random-address meta-random)
       (insert! dict pseudo-random-generator-address PSEUDO_RANDOM_GENERATOR)
       dict))
-  
-  ;
-  ; Tracing annotations continuations
-  ;
-  
-  ;;; The continuation to be followed after encountering a can-close-loop annotation.
-  (struct can-close-loopk () #:transparent)
-  
-  ;;; The continuation to be followed after encountering a can-start-loop annotation.
-  (struct can-start-loopk (label debug-info) #:transparent)
-  
-  ;;; The continuation to be followed after encountering a is-evaluating annotation.
-  (struct is-evaluatingk () #:transparent)
-  
-  ;
-  ; Closures
-  ;
-  
-  (struct clo (λ ρ) #:transparent)
-  (struct lam (x es) #:transparent)
-  
-  ;;; Checks whether two closures are equal.
-  (define (clo-equal? clo1 clo2)
-    (or (eq? clo1 clo2)
-        (and (clo? clo1)
-             (clo? clo2)
-             (equal? (lam-x (clo-λ clo1)) (lam-x (clo-λ clo2)))
-             (equal? (lam-es (clo-λ clo1)) (lam-es (clo-λ clo2))))))
-  
-  ;
-  ; Environment
-  ;
-  
-  ;;; Represents the environment used by the tracing interpreter.
-  (struct env (lst) #:transparent)
-  
-  ;;; Creates a new environment 
-  (define (make-new-env)
-    (env `((random . ,meta-random-address))))
-  
-  (define (add-var-to-env old-env var adr)
-    (let ((old-lst (env-lst old-env)))
-      (env (cons (cons var adr) old-lst))))
-  
-  (define (contains-env? lst)
-    (cond ((null? lst) #f)
-          ((env? (car lst)) #t)
-          (else (contains-env? (cdr lst)))))
-  
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;                                                                                                      ;
-  ;                                       Predefined functions                                           ;
-  ;                                                                                                      ;
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  ;;; Programs evaluated by the tracing interpreter do not start out with an empty environment.
-  ;;; The environment is initiated with a number of predefined functions.
-  
-  ;
-  ; Random
-  ;
-  
-  (define PSEUDO_RANDOM_GENERATOR_STATE '#(2816165110 2738388292 45348490 3966956132 40780214 47365848))
-  
-  (define (create-random-generator)
-    (vector->pseudo-random-generator PSEUDO_RANDOM_GENERATOR_STATE))
-  
-  (define PSEUDO_RANDOM_GENERATOR (create-random-generator))
-  
-  (define meta-random-address 0)
-  (define pseudo-random-generator-address 1)
-  
-  (define pseudo-random (clo (lam '(max)
-                                  `((random max pseudo-random-generator)))
-                             (env `((pseudo-random-generator . ,pseudo-random-generator-address)))))
-  (define regular-random (clo (lam '(max)
-                                   '((random max)))
-                              (env '())))
-  
-  (define meta-random (if IS_DEBUGGING
-                          pseudo-random
-                          regular-random))
-  
-  (define (reset-random-generator!)
-    (set! PSEUDO_RANDOM_GENERATOR (create-random-generator)))
-  
-  (define (set-pseudo-random-generator! new-pseudo-random-generator)
-    (set! PSEUDO_RANDOM_GENERATOR new-pseudo-random-generator)
-    (set! PSEUDO_RANDOM_GENERATOR_STATE (pseudo-random-generator->vector new-pseudo-random-generator)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
