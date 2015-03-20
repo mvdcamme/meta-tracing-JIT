@@ -1,11 +1,6 @@
 (module interaction racket
   
-  (provide (struct-out ck)
-           (struct-out program-state)
-           
-           (struct-out can-close-loop-encountered)
-           (struct-out can-start-loop-encountered)
-           (struct-out is-evaluating-encountered))
+  (provide (all-defined-out))
   
   ;
   ; CK wrappers
@@ -31,6 +26,11 @@
                          θ ; non-kont stack
                          v ; value returned
                          ) #:transparent)
+  
+  (define-syntax program-state-copy
+    (syntax-rules ()
+      ((_ a-program-state ...)
+       (struct-copy program-state a-program-state ...))))
   
   ;
   ; Signaling annotations
