@@ -40,4 +40,18 @@
   (struct can-start-loop-encountered (label debug-info) #:transparent)
   (struct is-evaluating-encountered (expression) #:transparent)
   
+  ;
+  ; Signaling guard failure
+  ;
+  
+  (struct guard-failed-with-ev (guard-id ev) #:transparent)
+  (struct guard-failed-with-ko (guard-id ko) #:transparent)
+  
+  ;
+  ; Return types
+  ;
+  
+  (struct error-return (signal) #:transparent)
+  (struct normal-return (program-state) #:transparent)
+  
   )
