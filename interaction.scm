@@ -54,4 +54,10 @@
   (struct error-return (signal) #:transparent)
   (struct normal-return (program-state) #:transparent)
   
+  ;
+  ; Cesk return
+  ;
+  
+  (struct cesk-return (program-state tracing-signal))
+  
   )
