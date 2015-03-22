@@ -182,7 +182,7 @@
       (define (run-tracing-interpreter)
         (run-interpreter (lambda () (run (inject s-exp))) tracing-interpreter-name))
       (define (run-rec-slip-interpreter-normal)
-        (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
+        (run-interpreter (lambda () (run (inject rec-interpreter-direct-exp))) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-normal-meta-interpreted)
         (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-traced-meta-interpreted)
