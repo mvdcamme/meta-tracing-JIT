@@ -268,17 +268,6 @@
           (add-new-label-encountered))))
   
   ;
-  ; Guard counter
-  ;
-  
-  (define guard-id 0)
-  
-  (define (inc-guard-id!)
-    (let ((temp guard-id))
-      (set! guard-id (+ guard-id 1))
-      temp))
-  
-  ;
   ; Splits-cf counter
   ;
   
