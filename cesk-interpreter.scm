@@ -41,8 +41,8 @@
                       '()))
       ((cons e es)
        (execute/trace program-state
-                      (save-env)
                       (ev e (cons (seqk es) κ))
+                      (save-env)
                       (push-continuation (seqk es))))))
   
   (define (do-function-call program-state i κ)
@@ -87,7 +87,8 @@
     (define (loop program-state instructions)
       (cond ((null? instructions) (cesk-normal-return (program-state-copy program-state
                                                                           (ck new-ck-state))
-                                                      ms))
+                                                      ms
+                                                      #f))
                         ;; Assumes that no abnormal actions can take place during
                         ;; regular program interpretation.
                         ;; TODO This should be reasonable but check nonetheless
@@ -111,7 +112,7 @@
   ;
   
   (define (step program-state)
-    (match program-state
+    (match (program-state-ck program-state)
       ((ev `(and ,e . ,es) κ)
        (execute/trace program-state
                       (ev e (cons (andk es) κ))
