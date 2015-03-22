@@ -84,7 +84,7 @@
   
   (define (execute/trace program-state new-ck-state . ms)
     ;; Similar to the (e.g., Haskell) state monad with the program-state as its state.
-    (define (loop program-state instructions)
+    (define (>>= program-state instructions)
       (cond ((null? instructions) (cesk-normal-return (program-state-copy program-state
                                                                           (ck new-ck-state))
                                                       ms
@@ -92,9 +92,12 @@
                         ;; Assumes that no abnormal actions can take place during
                         ;; regular program interpretation.
                         ;; TODO This should be reasonable but check nonetheless
-            (else (loop (normal-return-program-state ((car instructions) program-state))
-                        (cdr instructions)))))
-    (loop program-state ms))
+            (else (display (car instructions)) (newline)
+                  (>>= (normal-return-program-state ((car instructions) program-state))
+                       (cdr instructions)))))
+    (>>= program-state (if (or (null? ms) (not (list? (car ms))))
+                           ms
+                           (car ms))))
   
   ;
   ; Guard counter
