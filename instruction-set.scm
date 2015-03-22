@@ -214,6 +214,16 @@
         (return-normal (program-state-copy program-state
                                            (θ (drop θ i))
                                            (v (apply v rands)))))))
+  (define (>>= program-state instructions)
+    (cond ((null? instructions) ;(display "end-prepare-function-call") (newline)
+                                (return-normal program-state))
+          ;; Assumes that no abnormal actions can take place during
+          ;; regular program interpretation.
+          ;; TODO This should be reasonable but check nonetheless
+          (else ;(display "prepare-function-call") (newline)
+                ;(display (car instructions)) (newline)
+                (>>= (normal-return-program-state ((car instructions) program-state))
+                     (cdr instructions)))))
   
   ;;; Prepares for an application of the closure currently stored in the register v
   ;;; by saving the current environment, popping the first i elements from the stack θ
@@ -221,10 +231,11 @@
   (define (prepare-function-call i)
     (lambda (program-state)
       (let ((clo (program-state-v program-state)))
-        ((restore-vals i) program-state)
-        ((save-env) program-state)
-        ((save-vals i) program-state)
-        ((set-env (clo-ρ clo)) program-state))))
+        (>>= program-state
+             (list (restore-vals i)
+                   (save-env)
+                   (save-vals i)
+                   (set-env (clo-ρ clo)))))))
   
   ;;; Push the continuation φ to the continuation stack τ-κ.
   (define (push-continuation φ)
