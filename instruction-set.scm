@@ -213,4 +213,29 @@
           (error "Apply-native: rands contains an environment"))
         (return-normal (program-state-copy program-state
                                            (θ (drop θ i))
-                                           (v (apply v rands))))))))
+                                           (v (apply v rands)))))))
+  
+  ;;; Prepares for an application of the closure currently stored in the register v
+  ;;; by saving the current environment, popping the first i elements from the stack θ
+  ;;; and switching to the lexical environment of the closure to be called.
+  (define (prepare-function-call i)
+    (lambda (program-state)
+      (let ((clo (program-state-v program-state)))
+        ((restore-vals i) program-state)
+        ((save-env) program-state)
+        ((save-vals i) program-state)
+        ((set-env (clo-ρ clo)) program-state))))
+  
+  ;;; Push the continuation φ to the continuation stack τ-κ.
+  (define (push-continuation φ)
+    (lambda (program-state)
+      (let ((τ-κ (program-state-τ-κ program-state)))
+        (program-state-copy program-state
+                            (τ-κ (cons φ τ-κ))))))
+  
+  ;;; Pop the first continuation from the continuation stack τ-κ.
+  (define (pop-continuation)
+    (lambda (program-state)
+      (let ((τ-κ (program-state-τ-κ program-state)))
+        (program-state-copy program-state
+                            (τ-κ (cdr τ-κ)))))))

@@ -192,24 +192,6 @@
                    (bootstrap-to-evaluator state)))
           (bootstrap-to-evaluator state))))
   
-  ;;; Push the continuation φ to the continuation stack τ-κ.
-  (define (push-continuation φ)
-    (set! τ-κ (cons φ τ-κ)))
-  
-  ;;; Pop the first continuation from the continuation stack τ-κ.
-  (define (pop-continuation)
-    (set! τ-κ (cdr τ-κ)))
-  
-  ;;; Prepares for an application of the closure currently stored in the register v
-  ;;; by saving the current environment, popping the first i elements from the stack θ
-  ;;; and switching to the lexical environment of the closure to be called.
-  (define (prepare-function-call i)
-    (let ((clo v))
-      (restore-vals i)
-      (save-env)
-      (save-vals i)
-      (set-env (clo-ρ clo))))
-  
   ;;; Executes the given instructions by calling the Racket native 'eval' function on them and
   ;;; returns the last value that was evaluated.
   (define (eval-instructions ms)

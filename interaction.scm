@@ -20,11 +20,15 @@
   ; Program state
   ;
   
+  ;;; The continuation stack is needed to switch back from trace execution
+  ;;; to regular program interpretation.
+  
   (struct program-state (ck
-                         ρ ; env
-                         σ ; store
-                         θ ; non-kont stack
-                         v ; value returned
+                         ρ   ; env
+                         σ   ; store
+                         θ   ; non-kont stack
+                         v   ; value returned
+                         τ-κ ;continuation stack
                          ) #:transparent)
   
   (define-syntax program-state-copy
