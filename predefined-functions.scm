@@ -4,7 +4,8 @@
            "constants.scm"
            "environment.scm")
   
-  (provide )
+  (provide add-functions-to-environment
+           add-functions-to-store)
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -46,5 +47,14 @@
   (define (set-pseudo-random-generator! new-pseudo-random-generator)
     (set! PSEUDO_RANDOM_GENERATOR new-pseudo-random-generator)
     (set! PSEUDO_RANDOM_GENERATOR_STATE (pseudo-random-generator->vector new-pseudo-random-generator)))
+  
+  (define (add-functions-to-environment environment)
+    (env (append `((random . ,meta-random-address))
+                 (env-lst environment))))
+  
+  (define (add-functions-to-store store)
+    (append (list (cons meta-random-address meta-random)
+                  (cons pseudo-random-generator-address PSEUDO_RANDOM_GENERATOR))
+            store))
   
   )
