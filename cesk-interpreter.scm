@@ -248,8 +248,8 @@
                                  (pop-continuation)))))
       ((ko (applicationk debug) κ)
        (execute/trace program-state
-                      (restore-env)
                       (ko (car κ) (cdr κ))
+                      (restore-env)
                       (pop-continuation)))
       ((ko (apply-failedk rator i) κ)
        (execute/trace program-state
@@ -321,7 +321,6 @@
       ((ko (haltk) _)
        (cesk-abnormal-return (cesk-stopped)))
       ((ko (ifk e1 e2) κ)
-       (execute/trace (restore-env))
        (let ((new-guard-id (inc-guard-id!)))
          (if (program-state-v program-state)
              (begin (execute/trace program-state
