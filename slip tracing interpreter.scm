@@ -337,29 +337,6 @@
   (define (bootstrap-to-evaluator state)
     (call-global-continuation state))
   
-  (define (step* s)
-    (match s
-      ((ko (haltk) _)
-       v)
-      ;; Evaluate annotations in step* instead of step
-      ;; Annotations might not lead to recursive call to step*
-      ((ko (is-evaluatingk) (cons φ κ))
-       (handle-is-evaluating-annotation (ko φ κ)))
-      ((ev `(splits-control-flow) (cons φ κ))
-       (handle-splits-cf-annotation (ko φ κ)))
-      ((ev `(merges-control-flow) (cons φ κ))
-       (handle-merges-cf-annotation (ko φ κ)))
-      ((ko (can-close-loopk) (cons φ κ))
-       (handle-can-close-loop-annotation v (ko φ κ)))
-      ((ko (can-start-loopk label '()) κ)
-       (execute/trace `(push-continuation ,(can-start-loopk '() v)))
-       (step* (ev label (cons (can-start-loopk '() v) κ))))
-      ((ko (can-start-loopk '() debug-info) (cons φ κ))
-       (handle-can-start-loop-annotation v debug-info (ko φ κ)))
-      (_
-       (let ((new-state (step s)))
-         (step* new-state)))))
-  
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
   ;                                           Guard failure                                              ;
