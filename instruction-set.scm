@@ -178,7 +178,7 @@
         (let ((binding (assoc x (env-lst ρ))))
           (match binding
             ((cons _ a) (return-normal (program-state-copy program-state
-                                                           (v (cdr (assoc σ a))))))
+                                                           (v (cdr (assoc a σ))))))
             (_ (return-normal (program-state-copy program-state
                                                   (v (eval x))))))))))
   
@@ -230,12 +230,12 @@
   (define (push-continuation φ)
     (lambda (program-state)
       (let ((τ-κ (program-state-τ-κ program-state)))
-        (program-state-copy program-state
-                            (τ-κ (cons φ τ-κ))))))
+        (return-normal (program-state-copy program-state
+                                           (τ-κ (cons φ τ-κ)))))))
   
   ;;; Pop the first continuation from the continuation stack τ-κ.
   (define (pop-continuation)
     (lambda (program-state)
       (let ((τ-κ (program-state-τ-κ program-state)))
-        (program-state-copy program-state
-                            (τ-κ (cdr τ-κ)))))))
+        (return-normal (program-state-copy program-state
+                                           (τ-κ (cdr τ-κ))))))))
