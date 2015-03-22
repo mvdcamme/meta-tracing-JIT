@@ -92,8 +92,7 @@
                         ;; Assumes that no abnormal actions can take place during
                         ;; regular program interpretation.
                         ;; TODO This should be reasonable but check nonetheless
-            (else (display (car instructions)) (newline)
-                  (>>= (normal-return-program-state ((car instructions) program-state))
+            (else (>>= (normal-return-program-state ((car instructions) program-state))
                        (cdr instructions)))))
     (>>= program-state (if (or (null? ms) (not (list? (car ms))))
                            ms
