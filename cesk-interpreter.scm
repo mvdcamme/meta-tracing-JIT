@@ -74,10 +74,14 @@
   
   (define (execute/trace program-state new-ck-state . ms)
     (define (loop program-state instructions)
-      (cond ((null? instructions) (cesk-return (program-state-copy program-state
-                                                                   (ck new-ck-state))
-                                               ms))
-            (else (loop ((car instructions) program-state) (cdr instructions)))))
+      (cond ((null? instructions) (cesk-normal-return (program-state-copy program-state
+                                                                          (ck new-ck-state))
+                                                      ms))
+                        ;; Assumes that no abnormal actions can take place during
+                        ;; regular program interpretation.
+                        ;; TODO This should be reasonable but check nonetheless
+            (else (loop (normal-return-program-state ((car instructions) program-state))
+                        (cdr instructions)))))
     (loop program-state ms))
   
   ;

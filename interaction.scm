@@ -62,6 +62,13 @@
   ; Cesk return
   ;
   
-  (struct cesk-return (program-state tracing-signal))
+  (struct cesk-normal-return (program-state tracing-signal) #:transparent)
+  (struct cesk-abnormal-return (signal) #:transparent)
+  
+  ;
+  ; Cesk abnormal return signals
+  ;
+  
+  (struct cesk-stopped ())
   
   )
