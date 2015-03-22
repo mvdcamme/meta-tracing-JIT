@@ -15,6 +15,16 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
   ;
+  ; Special returns
+  ;
+  
+  (define (return-annotation program-state new-ck-state annotation-signal)
+    (cesk-normal-return (program-state-copy program-state
+                                            (ck new-ck-state))
+                        '()
+                        annotation-signal))
+  
+  ;
   ; Auxiliary functions
   ;
   
@@ -73,6 +83,7 @@
   ;
   
   (define (execute/trace program-state new-ck-state . ms)
+    ;; Similar to the (e.g., Haskell) state monad with the program-state as its state.
     (define (loop program-state instructions)
       (cond ((null? instructions) (cesk-normal-return (program-state-copy program-state
                                                                           (ck new-ck-state))
@@ -250,8 +261,19 @@
                         (save-all-vals)
                         (save-env)
                         (push-continuation (ratork i 'apply)))))
+      ((ko (can-close-loopk) (cons φ κ))
+       (return-annotation program-state (ko φ κ)
+                          (can-close-loop-encountered (program-state-v program-state))))
+      ((ko (can-start-loopk label '()) κ)
+       (execute/trace program-state
+                      (ev label (cons (can-start-loopk '() (program-state-v program-state)) κ))
+                      (push-continuation (can-start-loopk '() (program-state-v program-state)))))
+      ((ko (can-start-loopk '() debug-info) (cons φ κ))
+       (return-annotation program-state (ko φ κ)
+                          (can-start-loop-encountered (program-state-v program-state)
+                                                      debug-info)))
       ((ko (closure-guard-failedk i) κ)
-       (do-function-call program-state i κ)) ;TODO
+       (do-function-call program-state i κ))
       ((ko (condk pes '()) κ)
        (if (program-state-v program-state)
            (begin (execute/trace program-state
@@ -293,7 +315,7 @@
                       (alloc-var x)
                       (pop-continuation)))
       ((ko (haltk) _)
-       #f) ;TODO
+       (cesk-abnormal-return (cesk-stopped)))
       ((ko (ifk e1 e2) κ)
        (execute/trace (restore-env))
        (let ((new-guard-id (inc-guard-id!)))
@@ -317,6 +339,10 @@
                                 (ev (car e2) κ)
                                 (restore-env)
                                 (guard-false new-guard-id e1))))))
+      ;; Evaluate annotations in step* instead of step
+      ;; Annotations might not lead to recursive call to step*
+      ((ko (is-evaluatingk) (cons φ κ))
+       (return-annotation program-state (ko φ κ) (is-evaluating-encountered)))
       ((ko (letk x es) κ)
        (execute/trace program-state
                       (ev `(begin ,@es) κ)
@@ -424,6 +450,5 @@
                       (restore-env)
                       (set-var x)
                       (pop-continuation)))))
-    
   
   )
