@@ -6,6 +6,9 @@
            "interaction.scm"
            "predefined-functions.scm")
   
+  (provide inject
+           run)
+  
   ;
   ; Starting evaluator
   ;
