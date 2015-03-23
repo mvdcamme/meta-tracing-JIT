@@ -280,7 +280,7 @@
                       (ev label (cons (can-start-loopk '() (program-state-v program-state)) κ))
                       (push-continuation (can-start-loopk '() (program-state-v program-state)))))
       ((ko (can-start-loopk '() debug-info) (cons φ κ))
-       (return-annotation program-state (ko φ κ)
+       (return-annotation program-state (ko φ κ) ; TODO geen execute/trace-with-annotation?
                           (can-start-loop-encountered (program-state-v program-state)
                                                       debug-info)))
       ((ko (closure-guard-failedk i) κ)
@@ -352,7 +352,10 @@
       ;; Evaluate annotations in step* instead of step
       ;; Annotations might not lead to recursive call to step*
       ((ko (is-evaluatingk) (cons φ κ))
-       (return-annotation program-state (ko φ κ) (is-evaluating-encountered)))
+       (execute/trace-with-annotation program-state
+                                      (ko φ κ)
+                                      (is-evaluating-encountered)
+                                      (pop-continuation)))
       ((ko (letk x es) κ)
        (execute/trace program-state
                       (ev `(begin ,@es) κ)
