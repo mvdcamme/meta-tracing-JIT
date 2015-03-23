@@ -18,36 +18,37 @@
            
            ;; Times label encountered
            get-times-label-encountered
-           inc-times-label-encountered!
+           inc-times-label-encountered
            
            ;; Start tracing
-           start-tracing-label!
+           start-tracing-label
            
            ;;Stop tracing
-           stop-tracing!
+           stop-tracing
            
            ;; Finding traces
            label-trace-exists?
            get-label-trace
            
            ;; Adding traces
-           add-label-trace!
+           add-label-trace
            
            ;; Handling state
            is-executing-trace?
-           set-executing-trace-state!
+           set-executing-trace-state
            is-regular-interpreting?
-           set-regular-interpreting-state!
+           set-regular-interpreting-state
            is-tracing?
-           set-tracing-state!
+           set-tracing-state
            
            ;; Recording trace
-           append-trace!
-           clear-trace!)
+           append-trace
+           clear-trace)
   
-  (require "dictionary.scm")
-  (require "stack.scm")
-  (require "trace-outputting.scm")
+  (require "dictionary.scm"
+           "interaction.scm"
+           "stack.scm"
+           "trace-outputting.scm")
   
   ;
   ; tracer-context-copy
@@ -72,19 +73,19 @@
   (define (is-executing-trace? tracer-context)
     (state-equals? tracer-context EXECUTING_TRACE_STATE))
   
-  (define (set-executing-trace-state! tracer-context)
+  (define (set-executing-trace-state tracer-context)
     (set-state tracer-context EXECUTING_TRACE_STATE))
   
   (define (is-regular-interpreting? tracer-context)
     (state-equals? tracer-context REGULAR_INTERPRETATION_STATE))
   
-  (define (set-regular-interpreting-state! tracer-context)
+  (define (set-regular-interpreting-state tracer-context)
     (set-state tracer-context REGULAR_INTERPRETATION_STATE))
   
   (define (is-tracing? tracer-context)
     (state-equals? tracer-context TRACING_STATE))
   
-  (define (set-tracing-state! tracer-context)
+  (define (set-tracing-state tracer-context)
     (set-state tracer-context TRACING_STATE))
   
   (define (set-state tracer-context new-state)
@@ -94,16 +95,13 @@
   ; Trace register
   ;
   
-  (define (append-trace! tracer-context ms)
-    (when τ
-      (let ((new-instructions-length (length ms)))
-        (set! τ (append (reverse ms) τ))
-        (add-trace-length! tracer-context new-instructions-length))))
+  (define (append-trace tracer-context ms)
+    (tracer-context-copy tracer-context
+                         (τ (append (tracer-context-τ tracer-context) ms))))
   
-  (define (clear-trace! tracer-context)
-    (set-tracer-context-current-trace-length! tracer-context 0)
-    (set! τ '())
-    tracer-context)
+  (define (clear-trace tracer-context)
+    (tracer-context-copy tracer-context
+                         (τ 0)))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -118,7 +116,7 @@
   (struct trace-key (label debug-info) #:transparent)
   
   (define (make-label-trace-key label debug-info)
-    (label-trace-key label (new-trace-id!) debug-info))
+    (trace-key label debug-info))
   
   ;
   ; Trace nodes
@@ -166,70 +164,74 @@
   ; Loop hotness
   ;
   
-  (define (massoc el lst)
-    (cond ((null? lst) #f)
-          ((eq? el (mcar (car lst))) (car lst))
-          (else (massoc el (cdr lst)))))
-  
   (define (get-times-label-encountered tracer-context label)
-    (let ((pair (massoc label (tracer-context-labels-encountered tracer-context))))
+    (let ((pair (assoc label (tracer-context-labels-encountered tracer-context))))
       (if pair
-          (mcdr pair)
+          (cdr pair)
           0)))
   
-  (define (inc-times-label-encountered! tracer-context label)
+  (define (inc-times-label-encountered tracer-context label)
     (let* ((labels-encountered (tracer-context-labels-encountered tracer-context))
-           (pair (massoc label (tracer-context-labels-encountered tracer-context))))
-      (define (add-new-label-encountered)
+           (pair (assoc label (tracer-context-labels-encountered tracer-context))))
+      (define (find-label-function assoc)
+        (equal? (car assoc) label))
+      (define (add-new-label-encountered tracer-context label)
         (tracer-context-copy tracer-context 
-                             (labels-encountered (cons (mcons label 1) labels-encountered))))
+                             (labels-encountered (cons (cons label 1) labels-encountered))))
+      (define (replace-times-label-encountered)
+        (let* ((old-counter (cdr (findf find-label-function (tracer-context-labels-encountered tracer-context))))
+               (filtered-times-labels-encountered-list (filter find-label-function (tracer-context-labels-encountered tracer-context)))
+               (new-times-labels-encountered-list (cons (cons label (+ old-counter 1)) filtered-times-labels-encountered-list)))
+          (tracer-context-copy tracer-context
+                               (labels-encountered new-times-labels-encountered-list))))
       (if pair
-          (begin (set-mcdr! pair (+ (mcdr pair) 1))
-                 tracer-context)
+          (replace-times-label-encountered)
           (add-new-label-encountered))))
   
   ;
   ; Start tracing
   ;
   
-  (define (start-tracing-label! tracer-context label debug-info)
-    (let* ((temp-tracer-context
-            (tracer-context-copy tracer-context
-                                 (closing-function (make-stop-tracing-label-function))
-                                 (merges-cf-function (make-label-merges-cf-function))
-                                 (state TRACING_STATE)
-                                 (trace-key (make-label-trace-key label debug-info)))))
-      (clear-trace! temp-tracer-context)))
-
+  (define (start-tracing-label tracer-context label debug-info)
+    (let ((temp-tracer-context
+           (tracer-context-copy tracer-context
+                                (trace-key (make-label-trace-key label debug-info)))))
+      (set-tracing-state (clear-trace temp-tracer-context))))
+  
   ;
   ; Stop tracing
   ;
   
-  (define (stop-tracing-bookkeeping! tracer-context)
+  (define (loop-trace-instruction)
+    (lambda (program-state)
+      (error-return (trace-loops))))
+  
+  (define (add-loop-trace-instruction trace)
+    (append trace (list (loop-trace-instruction))))
+  
+  (define (stop-tracing-bookkeeping tracer-context)
     (let* ((temp-tracer-context
-            (tracer-context-copy  tracer-context
-                                  (trace-key #f)
-                                  (closing-function #f)
-                                  (times-label-encountered-while-tracing 0))))
-      (clear-trace! temp-tracer-context)
-      temp-tracer-context))
+           (tracer-context-copy  tracer-context
+                                 (trace-key #f))))
+      (clear-trace temp-tracer-context)))
   
-  (define (stop-tracing-normal! tracer-context)
-    (let ((current-trace-key-id (trace-key-id (tracer-context-trace-key tracer-context))))
-      (do-ast-nodes-traced! current-trace-key-id)
-      (stop-tracing-bookkeeping! tracer-context)))
+  (define (stop-tracing-normal tracer-context)
+    (stop-tracing-bookkeeping tracer-context))
   
-  (define (stop-tracing! tracer-context looping?)
-    (let ((stop-tracing-function (tracer-context-closing-function tracer-context)))
-      (stop-tracing-normal! (stop-tracing-function tracer-context (reverse τ) looping?))))
+  (define (stop-tracing tracer-context looping?)
+    (let* ((trace (tracer-context-τ tracer-context))
+           (full-trace (if looping?
+                           (add-loop-trace-instruction trace)
+                           trace))
+           (temp-tracer-context (tracer-context-copy tracer-context
+                                                     (τ full-trace)))
+           ; TODO Actually add the trace...
+           (new-tracer-context temp-tracer-context))
+      (stop-tracing-normal new-tracer-context)))
   
   ;
   ; Finding traces
   ;
-  
-  (define (get-label-trace-executing-trace-key tracer-context)
-    (let ((top-label-trace (top-label-trace-executing tracer-context)))
-      (trace-node-trace-key top-label-trace)))
   
   (define (return-if-existing trace . errormessage)
     (if trace
@@ -251,19 +253,14 @@
   ; Adding traces
   ;
   
-  (define (add-label-trace! tracer-context trace-key transformed-trace loops?)
+  (define (add-label-trace tracer-context trace-key transformed-trace)
     (let* ((label (trace-key-label trace-key))
-           (debug-info (label-trace-key-debug-info trace-key))
-           (trace-id (trace-key-id trace-key))
-           (label-trace (make-label-trace trace-key transformed-trace loops?))
-           (label-traces-dictionary (tracer-context-trace-nodes-dictionary tracer-context))
+           (debug-info (trace-key-debug-info trace-key))
+           (label-trace (make-label-trace trace-key transformed-trace))
            (trace-nodes-list (tracer-context-trace-nodes tracer-context)))
-      (write-label-trace label trace-id transformed-trace debug-info)
-      (insert! label-traces-dictionary
-               trace-id
-               label-trace)
-      (set-tracer-context-trace-nodes! tracer-context (cons label-trace trace-nodes-list))
-      tracer-context))
+      (write-label-trace label (gensym) transformed-trace debug-info)
+      (tracer-context-copy tracer-context
+                           (trace-nodes (cons label-trace trace-nodes-list)))))
   
   ;
   ; Trace exists
