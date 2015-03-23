@@ -14,8 +14,6 @@
            new-tracer-context
            tracer-context-copy
            
-           is-tracing-label?
-           
            ;; Times label encountered
            get-times-label-encountered
            inc-times-label-encountered
@@ -43,7 +41,8 @@
            
            ;; Recording trace
            append-trace
-           clear-trace)
+           clear-trace
+           is-tracing-label?)
   
   (require "dictionary.scm"
            "interaction.scm"
