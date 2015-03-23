@@ -82,13 +82,13 @@
   ; Execute/trace
   ;
   
-  (define (execute/trace program-state new-ck-state . ms)
+  (define (execute/trace-aux program-state new-ck-state annotation-signal ms)
     ;; Similar to the (e.g., Haskell) state monad with the program-state as its state.
     (define (>>= program-state instructions)
       (cond ((null? instructions) (cesk-normal-return (program-state-copy program-state
                                                                           (ck new-ck-state))
                                                       ms
-                                                      #f))
+                                                      annotation-signal))
                         ;; Assumes that no abnormal actions can take place during
                         ;; regular program interpretation.
                         ;; TODO This should be reasonable but check nonetheless
@@ -97,6 +97,12 @@
     (>>= program-state (if (or (null? ms) (not (list? (car ms))))
                            ms
                            (car ms))))
+  
+  (define (execute/trace program-state new-ck-state . ms)
+    (execute/trace-aux program-state new-ck-state #f ms))
+  
+  (define (execute/trace-with-annotation program-state new-ck-state annotation-signal . ms)
+    (execute/trace-aux program-state new-ck-state annotation-signal ms))
   
   ;
   ; Guard counter
@@ -265,8 +271,10 @@
                         (save-env)
                         (push-continuation (ratork i 'apply)))))
       ((ko (can-close-loopk) (cons φ κ))
-       (return-annotation program-state (ko φ κ)
-                          (can-close-loop-encountered (program-state-v program-state))))
+       (execute/trace-with-annotation program-state
+                                      (ko φ κ)
+                                      (pop-continuation)
+                                      (can-close-loop-encountered (program-state-v program-state))))
       ((ko (can-start-loopk label '()) κ)
        (execute/trace program-state
                       (ev label (cons (can-start-loopk '() (program-state-v program-state)) κ))
