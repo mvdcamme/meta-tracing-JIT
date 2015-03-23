@@ -3,13 +3,6 @@
            inject
            run
            
-           ;; Structs
-           (struct-out ev)
-           (struct-out ko)
-           
-           ;; Registers
-           τ-κ
-           
            ;; Trace instructions
            alloc-var
            apply-native
@@ -372,46 +365,4 @@
     (guard-failed guard-id (ev e τ-κ)))
   
   (define (guard-failed-with-ko guard-id φ)
-    (guard-failed guard-id (ko φ τ-κ)))
-  
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;                                                                                                      ;
-  ;                                         Starting evaluator                                           ;
-  ;                                                                                                      ;
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  
-  ;
-  ; Resetting evaluator
-  ;
-  
-  ;;; Resets all bookkeeping behind the tracing interpreter.
-  (define (reset!)
-    (set! ρ (make-new-env))
-    (set! σ (new-store))
-    (set! θ '())
-    (set! τ-κ `(,(haltk)))
-    (reset-global-tracer-context!)
-    (clear-trace!)
-    (reset-metrics!)
-    (reset-random-generator!)
-    (reset-trace-outputting!))
-  
-  ;
-  ; Starting evaluator
-  ;
-  
-  ;;; Transforms the given expression into a CK state, so that it can be used by the evaluator.
-  (define (inject e)
-    (ev e `(,(haltk))))
-  
-  (define (run s)
-    (reset!)
-    (apply step* (list (let ((v (call/cc (lambda (k)
-                                           (set-global-continuation! k)
-                                           s))))
-                         (flush-label-traces-executing!)
-                         v))))
-  
-  ;;; Reads an s-expression from the console and runs the evaluator on it.
-  (define (start)
-    (run (inject (read)))))
+    (guard-failed guard-id (ko φ τ-κ))))
