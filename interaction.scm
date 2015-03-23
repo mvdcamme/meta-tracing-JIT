@@ -45,13 +45,6 @@
   (struct is-evaluating-encountered (expression) #:transparent)
   
   ;
-  ; Signaling guard failure
-  ;
-  
-  (struct guard-failed-with-ev (guard-id ev) #:transparent)
-  (struct guard-failed-with-ko (guard-id ko) #:transparent)
-  
-  ;
   ; Return types
   ;
   
@@ -73,5 +66,24 @@
   
   (struct cesk-stopped ())
   (struct trace (instructions) #:transparent)
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;                                                                                                      ;
+  ;                                         Error return signals                                         ;
+  ;                                                                                                      ;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  ;
+  ; Signaling guard failure
+  ;
+  
+  (struct guard-failed-with-ev (guard-id ev) #:transparent)
+  (struct guard-failed-with-ko (guard-id ko) #:transparent)
+  
+  ;
+  ; Signaling loops
+  ;
+  
+  (struct trace-loops ())
   
   )
