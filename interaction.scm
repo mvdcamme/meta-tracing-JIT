@@ -77,8 +77,8 @@
   ; Signaling guard failure
   ;
   
-  (struct guard-failed-with-ev (guard-id ev) #:transparent)
-  (struct guard-failed-with-ko (guard-id ko) #:transparent)
+  (struct guard-failed-with-ev (guard-id e) #:transparent)
+  (struct guard-failed-with-ko (guard-id φ) #:transparent)
   
   ;
   ; Signaling loops
