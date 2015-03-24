@@ -37,8 +37,7 @@
                       (pop-continuation)))
       ((list e)
        (execute/trace program-state
-                      (ev e κ)
-                      '()))
+                      (ev e κ)))
       ((cons e es)
        (execute/trace program-state
                       (ev e (cons (seqk es) κ))
@@ -53,10 +52,11 @@
            ('()
             (unless (= i 0)
               (error "Incorrect number of args: " (lam x es) ", i = " i))
-            (execute/trace program-state
-                              (ev `(begin ,@es) (cons (applicationk (lam x es)) κ))
-                              (append instructions
-                                      (list (push-continuation (applicationk (lam x es)))))))
+            (apply execute/trace
+                   (append (list program-state
+                                 (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                           instructions
+                           (list (push-continuation (applicationk (lam x es)))))))
            ((cons x xs)
             (when (< i 0)
               (error "Incorrect number of args: " (lam x es) ", i = " i ", args left = " (cons x xs)))
@@ -66,12 +66,13 @@
            ((? symbol? x)
             (when (< i 0)
               (error "Incorrect number of args: " (lam x es) "case 3"))
-            (execute/trace program-state
-                              (ev `(begin ,@es) (cons (applicationk (lam x es)) κ))
-                              (append instructions
-                                      (list (restore-vals i)
-                                            (alloc-var x)
-                                            (push-continuation (applicationk (lam x es))))))))))
+            (apply execute/trace
+                   (append (list program-state
+                                 (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                           instructions
+                           (list (restore-vals i)
+                                 (alloc-var x)
+                                 (push-continuation (applicationk (lam x es))))))))))
       (_
        (execute/trace program-state
                          (ko (car κ) (cdr κ))
@@ -94,9 +95,7 @@
                         ;; TODO This should be reasonable but check nonetheless
             (else (>>= (normal-return-program-state ((car instructions) program-state))
                        (cdr instructions)))))
-    (>>= program-state (if (or (null? ms) (not (list? (car ms))))
-                           ms
-                           (car ms))))
+    (>>= program-state ms))
   
   (define (execute/trace program-state new-ck-state . ms)
     (execute/trace-aux program-state new-ck-state #f ms))
@@ -273,16 +272,18 @@
       ((ko (can-close-loopk) (cons φ κ))
        (execute/trace-with-annotation program-state
                                       (ko φ κ)
-                                      (pop-continuation)
-                                      (can-close-loop-encountered (program-state-v program-state))))
+                                      (can-close-loop-encountered (program-state-v program-state))
+                                      (pop-continuation)))
       ((ko (can-start-loopk label '()) κ)
        (execute/trace program-state
                       (ev label (cons (can-start-loopk '() (program-state-v program-state)) κ))
                       (push-continuation (can-start-loopk '() (program-state-v program-state)))))
       ((ko (can-start-loopk '() debug-info) (cons φ κ))
-       (return-annotation program-state (ko φ κ) ; TODO geen execute/trace-with-annotation?
-                          (can-start-loop-encountered (program-state-v program-state)
-                                                      debug-info)))
+       (execute/trace-with-annotation program-state
+                                      (ko φ κ)
+                                      (can-start-loop-encountered (program-state-v program-state)
+                                                                  debug-info)
+                                      (pop-continuation)))
       ((ko (closure-guard-failedk i) κ)
        (do-function-call program-state i κ))
       ((ko (condk pes '()) κ)
@@ -396,8 +397,7 @@
                                  (ko (car κ) (cdr κ))
                                  (pop-continuation)))
            (execute/trace program-state
-                          (ev `(or ,@es) κ)
-                          '())))
+                          (ev `(or ,@es) κ))))
       ((ko (randk rator '() i) κ)
        (execute/trace program-state
                       (ev rator (cons (ratork i 'regular) κ))
@@ -422,10 +422,11 @@
               ('()
                (unless (= i 0)
                  (error "Incorrect number of args: " (lam x es) ", i = " i))
-               (execute/trace program-state
-                              (ev `(begin ,@es) (cons (applicationk (lam x es)) κ))
-                              (append instructions
-                                      (list (push-continuation (applicationk (lam x es)))))))
+               (apply execute/trace
+                      (append (list program-state
+                                    (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                              instructions
+                              (list (push-continuation (applicationk (lam x es)))))))
               ((cons x xs)
                (when (< i 0)
                  (error "Incorrect number of args: " (lam x es) ", i = " i ", args left = " (cons x xs)))
@@ -435,12 +436,13 @@
               ((? symbol? x)
                (when (< i 0)
                  (error "Incorrect number of args: " (lam x es) "case 3"))
-               (execute/trace program-state
-                              (ev `(begin ,@es) (cons (applicationk (lam x es)) κ))
-                              (append instructions
-                                      (list (restore-vals i)
-                                            (alloc-var x)
-                                            (push-continuation (applicationk (lam x es))))))))))
+               (apply execute/trace
+                      (append (list program-state
+                                    (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                              instructions
+                              (list (restore-vals i)
+                                    (alloc-var x)
+                                    (push-continuation (applicationk (lam x es))))))))))
          (_
           (execute/trace program-state
                          (ko (car κ) (cdr κ))
