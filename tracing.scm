@@ -222,10 +222,8 @@
            (full-trace (if looping?
                            (add-loop-trace-instruction trace)
                            trace))
-           (temp-tracer-context (tracer-context-copy tracer-context
-                                                     (τ full-trace)))
-           ; TODO Actually add the trace...
-           (new-tracer-context temp-tracer-context))
+           (trace-key (tracer-context-trace-key tracer-context))
+           (new-tracer-context (add-label-trace tracer-context trace-key full-trace)))
       (stop-tracing-normal new-tracer-context)))
   
   ;
