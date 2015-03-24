@@ -2,7 +2,7 @@
   
   (provide ;; Trace-key
            (struct-out trace-key)
-           make-label-trace
+           make-label-trace-key
            
            ;; Trace-node
            (struct-out trace-node)
@@ -100,7 +100,7 @@
   
   (define (clear-trace tracer-context)
     (tracer-context-copy tracer-context
-                         (τ 0)))
+                         (τ '())))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
@@ -125,8 +125,8 @@
                       trace
                       (executions #:mutable)))
   
-  (define (make-label-trace trace-key trace loops?)
-    (trace-node trace-key trace))
+  (define (make-label-trace trace-key trace)
+    (trace-node trace-key trace '()))
   
   ;;; Used for benchmarking purposes
   (define (add-execution! trace-node)
@@ -149,7 +149,7 @@
                     #f
                     '()
                     '()
-                    #f))
+                    '()))
   
   ;
   ; Tracing label
@@ -174,7 +174,7 @@
            (pair (assoc label (tracer-context-labels-encountered tracer-context))))
       (define (find-label-function assoc)
         (equal? (car assoc) label))
-      (define (add-new-label-encountered tracer-context label)
+      (define (add-new-label-encountered)
         (tracer-context-copy tracer-context 
                              (labels-encountered (cons (cons label 1) labels-encountered))))
       (define (replace-times-label-encountered)
