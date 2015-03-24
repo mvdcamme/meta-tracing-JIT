@@ -102,11 +102,49 @@
     (define (do-cesk-interpreter-step)
       (cesk-step (evaluator-state-program-state evaluator-state)))
     (define (do-trace-executing-step)
-      ; TODO
-      #f)
-    (define (handle-response-executing new-program-state signal)
-      ; TODO
-      #f)
+      ; TODO check of trace null
+      (let* ((trace-assoc (evaluator-state-struct-trace-executing evaluator-state))
+             (trace (trace-assoc-trace trace-assoc))
+             (label (trace-assoc-label trace-assoc)))
+        (if (null? trace)
+            (evaluator-state-copy evaluator-state
+                                  (tracer-context (set-regular-interpreting-state (evaluator-state-struct-tracer-context evaluator-state)))
+                                  (trace-executing #f))
+            (let* ((instruction (car trace))
+                   (program-state ;(begin (display "### HERE: ") (display instruction) (newline)
+                    (evaluator-state-struct-program-state evaluator-state)))
+              (handle-response-executing (instruction program-state))))))
+    (define (handle-response-executing response)
+      (let* ((tracer-context (evaluator-state-struct-tracer-context evaluator-state))
+             (trace-executing (evaluator-state-struct-trace-executing evaluator-state))
+             (trace (trace-assoc-trace trace-executing))
+             (old-program-state (evaluator-state-struct-program-state evaluator-state)))
+        (define (guard-failed ck-constructor)
+          (let* ((temp-tracer-context (set-regular-interpreting-state tracer-context))
+                 (τ-κ (program-state-τ-κ old-program-state))
+                 (new-ck (ck-constructor τ-κ))
+                 (new-program-state (program-state-copy old-program-state
+                                                        (ck new-ck))))
+            (evaluator-state-struct temp-tracer-context
+                                    new-program-state
+                                    #f)))
+        (match response
+          ((normal-return new-program-state)
+           (evaluator-state-copy evaluator-state
+                                 (program-state new-program-state)
+                                 (trace-executing (trace-assoc-copy (evaluator-state-struct-trace-executing evaluator-state)
+                                                                    (trace (cdr trace))))))
+          ((error-return (guard-failed-with-ev guard-id e))
+           (guard-failed (lambda (τ-κ) (ev e τ-κ))))
+          ((error-return (guard-failed-with-ko guard-id φ))
+           (guard-failed (lambda (τ-κ) (ko φ τ-κ))))
+          ((error-return (trace-loops))
+           (let* ((old-trace-assoc (evaluator-state-struct-trace-executing evaluator-state))
+                  (label (trace-assoc-label old-trace-assoc))
+                  (full-trace-executing (trace-node-trace (get-label-trace tracer-context label)))
+                  (full-trace-executing-assoc (trace-assoc label full-trace-executing)))
+             (evaluator-state-copy evaluator-state
+                                   (trace-executing full-trace-executing-assoc)))))))
     (define (handle-annotation-signal-regular new-program-state trace annotation-signal)
       (match annotation-signal
         ((is-evaluating-encountered _)
