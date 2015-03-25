@@ -68,7 +68,7 @@
     (cond ((label-trace-exists? tracer-context label)
            (output "----------- EXECUTING TRACE -----------") (output-newline)
            (evaluator-state-struct (set-executing-trace-state tracer-context)
-                                   program-state
+                                   new-program-state
                                    (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
           ((can-start-tracing-label?)
