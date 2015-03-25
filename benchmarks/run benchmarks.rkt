@@ -24,7 +24,7 @@
   ;
   ; Interpreters
   ;
-  (define rec-interpreter-direct-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter.scm"))
+  (define rec-interpreter-direct-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter direct.scm"))
   (define rec-interpreter-traced-merging-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced merging.scm"))
   (define rec-interpreter-traced-merging-duplication-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced merging duplication.scm"))
   (define rec-interpreter-traced-no-merging-path (string-append SLIP_INTERPRETERS_FOLDER "Rec interpreter traced no merging.scm"))
@@ -182,7 +182,7 @@
       (define (run-tracing-interpreter)
         (run-interpreter (lambda () (run (inject s-exp))) tracing-interpreter-name))
       (define (run-rec-slip-interpreter-normal)
-        (run-interpreter (lambda () (run (inject rec-interpreter-direct-exp))) rec-slip-interpreter-normal-name))
+        (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-normal-meta-interpreted)
         (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-traced-meta-interpreted)
@@ -192,13 +192,13 @@
       
       (output-benchmark-start)
       
-      ;(run-tracing-interpreter)
+      (run-tracing-interpreter)
       (run-rec-slip-interpreter-normal)
       
       ;(run-rec-slip-interpreter-traced-meta-interpreted)
       ;(run-trace-metrics)
       
-      ;(run-rec-slip-interpreter-traced-no-merging-meta-interpreted)
+      (run-rec-slip-interpreter-traced-no-merging-meta-interpreted)
       ;(run-trace-metrics)
       
       (output-benchmark-end)))
