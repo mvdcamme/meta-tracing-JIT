@@ -355,7 +355,7 @@
       ((ko (is-evaluatingk) (cons φ κ))
        (execute/trace-with-annotation program-state
                                       (ko φ κ)
-                                      (is-evaluating-encountered)
+                                      (is-evaluating-encountered (program-state-v program-state))
                                       (pop-continuation)))
       ((ko (letk x es) κ)
        (execute/trace program-state
