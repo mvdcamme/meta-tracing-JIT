@@ -166,9 +166,9 @@
          ;; TODO Just ignore for the moment
          (continue-with-program-state-tracing new-program-state trace))
         ((can-start-loop-encountered label debug-info)
-         (evaluate (step-can-start-loop-encountered-tracing label debug-info new-program-state (evaluator-state-struct-tracer-context evaluator-state))))
+         (evaluate (step-can-start-loop-encountered-tracing label debug-info new-program-state (append-trace (evaluator-state-struct-tracer-context evaluator-state) trace))))
         ((can-close-loop-encountered label)
-         (evaluate (step-can-close-loop-encountered-tracing label new-program-state (evaluator-state-struct-tracer-context evaluator-state))))))
+         (evaluate (step-can-close-loop-encountered-tracing label new-program-state (append-trace (evaluator-state-struct-tracer-context evaluator-state) trace))))))
     (define (handle-response-abnormal response)
       (match response
         ((cesk-abnormal-return (cesk-stopped))
