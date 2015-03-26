@@ -240,13 +240,13 @@
   ;;; Push the continuation φ to the continuation stack τ-κ.
   (define (push-continuation φ)
     (lambda (program-state)
-      (let ((τ-κ (program-state-τ-κ program-state)))
+      (let ((κ (program-state-κ program-state)))
         (return-normal (program-state-copy program-state
-                                           (τ-κ (cons φ τ-κ)))))))
+                                           (κ (cons φ κ)))))))
   
   ;;; Pop the first continuation from the continuation stack τ-κ.
   (define (pop-continuation)
     (lambda (program-state)
-      (let ((τ-κ (program-state-τ-κ program-state)))
+      (let ((κ (program-state-κ program-state)))
         (return-normal (program-state-copy program-state
-                                           (τ-κ (cdr τ-κ))))))))
+                                           (κ (cdr κ))))))))
