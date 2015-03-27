@@ -209,11 +209,11 @@
     '())
   
   ;;; Transforms the given expression into a CK state, so that it can be used by the evaluator.
-  (define (inject-ck e)
-    (ev e `(,(haltk))))
+  (define (inject-c e)
+    (ev e))
   
   (define (inject-program-state e)
-    (program-state (inject-ck e)
+    (program-state (inject-c e)
                    (add-functions-to-environment (make-new-env))
                    (add-functions-to-store (make-new-store))
                    '()
