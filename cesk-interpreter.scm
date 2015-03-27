@@ -18,9 +18,9 @@
   ; Special returns
   ;
   
-  (define (return-annotation program-state new-ck-state annotation-signal)
+  (define (return-annotation program-state new-c annotation-signal)
     (cesk-normal-return (program-state-copy program-state
-                                            (ck new-ck-state))
+                                            (c new-c))
                         '()
                         annotation-signal))
   
@@ -32,15 +32,15 @@
     (match es
       ('()
        (execute/trace program-state
-                      (ko (car κ) (cdr κ))
+                      (ko (car κ))
                       (literal-value '())
                       (pop-continuation)))
       ((list e)
        (execute/trace program-state
-                      (ev e κ)))
+                      (ev e)))
       ((cons e es)
        (execute/trace program-state
-                      (ev e (cons (seqk es) κ))
+                      (ev e)
                       (save-env)
                       (push-continuation (seqk es))))))
   
@@ -54,7 +54,7 @@
               (error "Incorrect number of args: " (lam x es) ", i = " i))
             (apply execute/trace
                    (append (list program-state
-                                 (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                                 (ev `(begin ,@es)))
                            instructions
                            (list (push-continuation (applicationk (lam x es)))))))
            ((cons x xs)
@@ -68,14 +68,14 @@
               (error "Incorrect number of args: " (lam x es) "case 3"))
             (apply execute/trace
                    (append (list program-state
-                                 (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                                 (ev `(begin ,@es)))
                            instructions
                            (list (restore-vals i)
                                  (alloc-var x)
                                  (push-continuation (applicationk (lam x es))))))))))
       (_
        (execute/trace program-state
-                         (ko (car κ) (cdr κ))
+                         (ko (car κ))
                          (apply-native i)
                          (pop-continuation)))))
   
@@ -83,11 +83,11 @@
   ; Execute/trace
   ;
   
-  (define (execute/trace-aux program-state new-ck-state annotation-signal ms)
+  (define (execute/trace-aux program-state new-c annotation-signal ms)
     ;; Similar to the (e.g., Haskell) state monad with the program-state as its state.
     (define (>>= program-state instructions)
       (cond ((null? instructions) (cesk-normal-return (program-state-copy program-state
-                                                                          (ck new-ck-state))
+                                                                          (c new-c))
                                                       ms
                                                       annotation-signal))
                         ;; Assumes that no abnormal actions can take place during
@@ -118,221 +118,225 @@
   ; Step
   ;
   
+  (define (make-ck program-state)
+    (ck (program-state-c program-state)
+        (program-state-κ program-state)))
+  
   (define (step program-state)
-    (match (program-state-ck program-state)
-      ((ev `(and ,e . ,es) κ)
+    (match (make-ck program-state)
+      ((ck (ev `(and ,e . ,es)) κ)
        (execute/trace program-state
-                      (ev e (cons (andk es) κ))
+                      (ev e)
                       (push-continuation (andk es))))
-      ((ev `(apply ,rator ,args) κ)
+      ((ck (ev `(apply ,rator ,args)) κ)
        (execute/trace program-state
-                      (ev args (cons (applyk rator) κ))
+                      (ev args)
                       (push-continuation (applyk rator))))
-      ((ev (? symbol? x) (cons φ κ))
+      ((ck (ev (? symbol? x)) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (lookup-var x)
                       (pop-continuation)))
-      ((ev `(begin ,es ...) κ)
+      ((ck (ev `(begin ,es ...)) κ)
        (eval-seq program-state es κ))
-      ((ev `(can-close-loop ,e) κ)
+      ((ck (ev `(can-close-loop ,e)) κ)
        (execute/trace program-state
-                      (ev e (cons (can-close-loopk) κ))
+                      (ev e)
                       (push-continuation (can-close-loopk))))
-      ((ev `(can-start-loop ,e ,debug-info) κ)
+      ((ck (ev `(can-start-loop ,e ,debug-info)) κ)
        (execute/trace program-state
-                      (ev debug-info (cons (can-start-loopk e '()) κ))
+                      (ev debug-info)
                       (push-continuation (can-start-loopk e '()))))
-      ((ev `(cond) (cons φ κ))
+      ((ck (ev `(cond)) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (literal-value '())
                       (pop-continuation)))
-      ((ev `(cond (else . ,es)) κ)
+      ((ck (ev `(cond (else . ,es))) κ)
        (eval-seq program-state es κ))
-      ((ev `(cond (,pred . ,pes) . ,es) κ)
+      ((ck (ev `(cond (,pred . ,pes) . ,es)) κ)
        (execute/trace program-state
-                      (ev pred (cons (condk pes es) κ))
+                      (ev pred)
                       (save-env)
                       (push-continuation (condk pes es))))
-      ((ev `(define ,pattern . ,expressions) κ)
+      ((ck (ev `(define ,pattern . ,expressions)) κ)
        (if (symbol? pattern)
            (begin (execute/trace program-state
-                                 (ev (car expressions) (cons (definevk pattern) κ))
+                                 (ev (car expressions))
                                  (save-env)
                                  (push-continuation (definevk pattern))))
            (begin (execute/trace program-state
-                                 (ko (car κ) (cdr κ))
+                                 (ko (car κ))
                                  (alloc-var (car pattern))
                                  (create-closure (cdr pattern) expressions)
                                  (set-var (car pattern))
                                  (pop-continuation)))))
-      ((ev `(if ,e ,e1 . ,e2) κ)
+      ((ck (ev `(if ,e ,e1 . ,e2)) κ)
        (execute/trace program-state
-                      (ev e (cons (ifk e1 e2) κ))
+                      (ev e)
                       (save-env)
                       (push-continuation (ifk e1 e2))))
-      ((ev `(is-evaluating ,e) κ)
+      ((ck (ev `(is-evaluating ,e)) κ)
        (execute/trace program-state
-                      (ev e (cons (is-evaluatingk) κ))
+                      (ev e)
                       (push-continuation (is-evaluatingk))))
-      ((ev `(lambda ,x ,es ...) (cons φ κ))
+      ((ck (ev `(lambda ,x ,es ...)) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (create-closure x es)
                       (pop-continuation)))
-      ((ev `(let () . ,expressions)  κ)
+      ((ck (ev `(let () . ,expressions))  κ)
        (eval-seq program-state expressions κ))
-      ((ev `(let ((,var ,val) . ,bds) . ,es) κ)
+      ((ck (ev `(let ((,var ,val) . ,bds) . ,es)) κ)
        (unless (null? bds)
          (error "Syntax error: let used with more than one binding: " bds))
        (execute/trace program-state
-                      (ev val (cons (letk var es) κ))
+                      (ev val)
                       (save-env)
                       (push-continuation (letk var es))))
-      ((ev `(let* () . ,expressions) κ)
+      ((ck (ev `(let* () . ,expressions)) κ)
        (eval-seq program-state expressions κ))
-      ((ev `(let* ((,var ,val) . ,bds) . ,es) κ)
+      ((ck (ev `(let* ((,var ,val) . ,bds) . ,es)) κ)
        (execute/trace program-state
-                      (ev val (cons (let*k var bds es) κ))
+                      (ev val)
                       (save-env)
                       (push-continuation (let*k var bds es))))
-      ((ev `(letrec ((,x ,e) . ,bds) . ,es) κ)
+      ((ck (ev `(letrec ((,x ,e) . ,bds) . ,es)) κ)
        (execute/trace program-state
-                      (ev e (cons (letreck x bds es) κ))
+                      (ev e)
                       (literal-value '())
                       (alloc-var x)
                       (save-env)
                       (push-continuation (letreck x bds es))))
-      ((ev `(or ,e . ,es) κ)
+      ((ck (ev `(or ,e . ,es)) κ)
        (execute/trace program-state
-                      (ev e (cons (ork es) κ))
+                      (ev e)
                       (push-continuation (ork es))))
-      ((ev `(quote ,e) (cons φ κ))
+      ((ck (ev `(quote ,e)) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (quote-value e)
                       (pop-continuation)))
-      ((ev `(set! ,x ,e) κ)
+      ((ck (ev `(set! ,x ,e)) κ)
        (execute/trace program-state
-                      (ev e (cons (setk x) κ))
+                      (ev e)
                       (save-env)
                       (push-continuation  (setk x))))
-      ((ev `(,rator) κ)
+      ((ck (ev `(,rator)) κ)
        (execute/trace program-state
-                      (ev rator (cons (ratork 0 'regular-nulary) κ))
+                      (ev rator)
                       (save-env)
                       (push-continuation (ratork 0 'regular-nulary))))
-      ((ev `(,rator . ,rands) κ)
+      ((ck (ev `(,rator . ,rands)) κ)
        (let ((rrands (reverse rands)))
          (execute/trace program-state
-                        (ev (car rrands) (cons (randk rator (cdr rrands) 1) κ))
+                        (ev (car rrands))
                         (save-env)
                         (push-continuation (randk rator (cdr rrands) 1)))))
-      ((ev e (cons φ κ))
+      ((ck (ev e) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (literal-value e)
                       (pop-continuation)))
-      ((ko (andk '()) κ)
+      ((ck (ko (andk '())) κ)
        (execute/trace program-state
-                      (ko (car κ) (cdr κ))
+                      (ko (car κ))
                       (pop-continuation)))
-      ((ko (andk '()) (cons φ κ))
+      ((ck (ko (andk '())) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (pop-continuation)))
-      ((ko (andk es) κ)
+      ((ck (ko (andk es)) κ)
        (if (program-state-v program-state)
            (begin (execute/trace program-state
-                                 (ev (car es) (cons (andk (cdr es)) κ))
+                                 (ev (car es))
                                  (push-continuation  (andk (cdr es)))))
            (begin (execute/trace program-state
-                                 (ko (car κ) (cdr κ))
+                                 (ko (car κ))
                                  (pop-continuation)))))
-      ((ko (applicationk debug) κ)
+      ((ck (ko (applicationk debug)) κ)
        (execute/trace program-state
-                      (ko (car κ) (cdr κ))
+                      (ko (car κ))
                       (restore-env)
                       (pop-continuation)))
-      ((ko (apply-failedk rator i) κ)
+      ((ck (ko (apply-failedk rator i)) κ)
        (execute/trace program-state
-                      (ev rator (cons (ratork i 'apply) κ))
+                      (ev rator)
                       (save-all-vals)
                       (save-env)
                       (push-continuation (ratork i 'apply))))
-      ((ko (applyk rator) κ)
+      ((ck (ko (applyk rator)) κ)
        (let ((i (length (program-state-v program-state))))
          (execute/trace program-state
-                        (ev rator (cons (ratork i 'apply) κ))
+                        (ev rator)
                         (guard-same-nr-of-args i rator (inc-guard-id!))
                         (save-all-vals)
                         (save-env)
                         (push-continuation (ratork i 'apply)))))
-      ((ko (can-close-loopk) (cons φ κ))
+      ((ck (ko (can-close-loopk)) (cons φ κ))
        (execute/trace-with-annotation program-state
-                                      (ko φ κ)
+                                      (ko φ)
                                       (can-close-loop-encountered (program-state-v program-state))
                                       (pop-continuation)))
-      ((ko (can-start-loopk label '()) κ)
+      ((ck (ko (can-start-loopk label '())) κ)
        (execute/trace program-state
-                      (ev label (cons (can-start-loopk '() (program-state-v program-state)) κ))
+                      (ev label)
                       (push-continuation (can-start-loopk '() (program-state-v program-state)))))
-      ((ko (can-start-loopk '() debug-info) (cons φ κ))
+      ((ck (ko (can-start-loopk '() debug-info)) (cons φ κ))
        (execute/trace-with-annotation program-state
-                                      (ko φ κ)
+                                      (ko φ)
                                       (can-start-loop-encountered (program-state-v program-state)
                                                                   debug-info)
                                       (pop-continuation)))
-      ((ko (closure-guard-failedk i) κ)
+      ((ck (ko (closure-guard-failedk i)) κ)
        (do-function-call program-state i κ))
-      ((ko (condk pes '()) κ)
+      ((ck (ko (condk pes '())) κ)
        (if (program-state-v program-state)
            (begin (execute/trace program-state
-                                 (ev `(begin ,@pes) κ)
+                                 (ev `(begin ,@pes))
                                  (restore-env)
                                  (guard-true (inc-guard-id!) '())))
            (begin (execute/trace program-state
-                                 (ko (car κ) (cdr κ))
+                                 (ko (car κ))
                                  (restore-env)
                                  (guard-false (inc-guard-id!) `(begin ,@pes))
                                  (literal-value '())
                                  (pop-continuation)))))
-      ((ko (condk pes `((else . ,else-es))) κ)
+      ((ck (ko (condk pes `((else . ,else-es)))) κ)
        (if (program-state-v program-state)
            (begin (execute/trace program-state
-                                 (ev `(begin ,@pes) κ)
+                                 (ev `(begin ,@pes))
                                  (restore-env)
                                  (guard-true (inc-guard-id!) `(begin ,@else-es))))
            (begin (execute/trace program-state
-                                 (ev `(begin ,@else-es) κ)
+                                 (ev `(begin ,@else-es))
                                  (restore-env)
                                  (guard-false (inc-guard-id!) `(begin ,@pes))))))
-      ((ko (condk pes `((,pred . ,pred-es) . ,es)) κ)
+      ((ck (ko (condk pes `((,pred . ,pred-es) . ,es))) κ)
        (if (program-state-v program-state)
            (begin (execute/trace program-state
-                                 (ev `(begin ,@pes) κ)
+                                 (ev `(begin ,@pes))
                                  (restore-env)
                                  (guard-true (inc-guard-id!) `(cond ,@es))))
            (begin (execute/trace program-state
-                                 (ev pred (cons (condk pred-es es) κ))
+                                 (ev pred)
                                  (restore-env)
                                  (guard-false (inc-guard-id!) `(begin ,@pes))
                                  (save-env)
                                  (push-continuation (condk pred-es es))))))
-      ((ko (definevk x) (cons φ κ))
+      ((ck (ko (definevk x)) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (restore-env)
                       (alloc-var x)
                       (pop-continuation)))
-      ((ko (haltk) _)
+      ((ck (ko (haltk)) _)
        (cesk-abnormal-return (cesk-stopped)))
-      ((ko (ifk e1 e2) κ)
+      ((ck (ko (ifk e1 e2)) κ)
        (let ((new-guard-id (inc-guard-id!)))
          (if (program-state-v program-state)
              (begin (execute/trace program-state
-                                   (ev e1 κ)
+                                   (ev e1)
                                    (restore-env)
                                    (guard-true new-guard-id (if (null? e2)
                                                                 '()
@@ -341,78 +345,78 @@
              ;; If the guard fails, the predicate was true, so e1 should be evaluated
              (if (null? e2)
                  (begin (execute/trace program-state
-                                       (ko (car κ) (cdr κ))
+                                       (ko (car κ))
                                        (restore-env)
                                        (guard-false new-guard-id e1)
                                        (pop-continuation)
                                        (literal-value '())))
                  (execute/trace program-state
-                                (ev (car e2) κ)
+                                (ev (car e2))
                                 (restore-env)
                                 (guard-false new-guard-id e1))))))
       ;; Evaluate annotations in step* instead of step
       ;; Annotations might not lead to recursive call to step*
-      ((ko (is-evaluatingk) (cons φ κ))
+      ((ck (ko (is-evaluatingk)) (cons φ κ))
        (execute/trace-with-annotation program-state
-                                      (ko φ κ)
+                                      (ko φ)
                                       (is-evaluating-encountered (program-state-v program-state))
                                       (pop-continuation)))
-      ((ko (letk x es) κ)
+      ((ck (ko (letk x es)) κ)
        (execute/trace program-state
-                      (ev `(begin ,@es) κ)
+                      (ev `(begin ,@es))
                       (restore-env)
                       (alloc-var x)))
-      ((ko (let*k x '() es) κ)
+      ((ck (ko (let*k x '() es)) κ)
        (execute/trace program-state
-                      (ev `(begin ,@es) κ)
+                      (ev `(begin ,@es))
                       (restore-env)
                       (alloc-var x)))
-      ((ko (let*k x `((,var ,val) . ,bds) es) κ)
+      ((ck (ko (let*k x `((,var ,val) . ,bds) es)) κ)
        (execute/trace program-state
-                      (ev val (cons (let*k var bds es) κ))
+                      (ev val)
                       (restore-env)
                       (alloc-var x)
                       (save-env)
                       (push-continuation (let*k var bds es))))
-      ((ko (letreck x '() es) κ)
+      ((ck (ko (letreck x '() es)) κ)
        (execute/trace program-state
-                      (ev `(begin ,@es) κ)
+                      (ev `(begin ,@es))
                       (restore-env)
                       (set-var x)))
-      ((ko (letreck x `((,var ,val) . ,bds) es) κ)
+      ((ck (ko (letreck x `((,var ,val) . ,bds) es)) κ)
        (execute/trace program-state
-                      (ev val (cons (letreck var bds es) κ))
+                      (ev val)
                       (restore-env)
                       (set-var x)
                       (alloc-var var)
                       (save-env)
                       (push-continuation (letreck var bds es))))
-      ((ko (ork '()) κ)
+      ((ck (ko (ork '())) κ)
        (execute/trace program-state
-                      (ko (car κ) (cdr κ))
+                      (ko (car κ))
                       (pop-continuation)))
-      ((ko (ork es) κ)
+      ((ck (ko (ork es)) κ)
        (if (program-state-v program-state)
            (begin (execute/trace program-state
-                                 (ko (car κ) (cdr κ))
+                                 (ko (car κ))
                                  (pop-continuation)))
            (execute/trace program-state
-                          (ev `(or ,@es) κ))))
-      ((ko (randk rator '() i) κ)
+                          (ev `(or ,@es)))))
+      ((ck (ko (randk rator '() i)) κ)
        (execute/trace program-state
-                      (ev rator (cons (ratork i 'regular) κ))
+                      (ev rator)
                       (restore-env)
                       (save-val)
                       (save-env)
                       (push-continuation (ratork i 'regular))))
-      ((ko (randk rator rands i) κ)
+      ((ck (ko (randk rator rands i)) κ)
        (execute/trace program-state
-                      (ev (car rands) (cons (randk rator (cdr rands) (+ i 1)) κ))
+                      (ev (car rands))
                       (restore-env)
                       (save-val)
                       (save-env)
                       (push-continuation (randk rator (cdr rands) (+ i 1)))))
-      ((ko (ratork i debug) κ) ;TODO code duplication: inlined do-function-call!!!
+      ((ck (ko (ratork i debug)) κ) ;TODO code duplication: inlined do-function-call!!!
        (match (program-state-v program-state)
          ((clo (lam x es) ρ)
           (let loop ((i i) (x x) (instructions (list (restore-env)
@@ -424,7 +428,7 @@
                  (error "Incorrect number of args: " (lam x es) ", i = " i))
                (apply execute/trace
                       (append (list program-state
-                                    (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                                    (ev `(begin ,@es)))
                               instructions
                               (list (push-continuation (applicationk (lam x es)))))))
               ((cons x xs)
@@ -438,30 +442,30 @@
                  (error "Incorrect number of args: " (lam x es) "case 3"))
                (apply execute/trace
                       (append (list program-state
-                                    (ev `(begin ,@es) (cons (applicationk (lam x es)) κ)))
+                                    (ev `(begin ,@es)))
                               instructions
                               (list (restore-vals i)
                                     (alloc-var x)
                                     (push-continuation (applicationk (lam x es))))))))))
          (_
           (execute/trace program-state
-                         (ko (car κ) (cdr κ))
+                         (ko (car κ))
                          (restore-env)
                          (guard-same-closure (program-state-v program-state) i (inc-guard-id!))
                          (apply-native i)
                          (pop-continuation)))))
-      ((ko (seqk '()) (cons φ κ)) ; No tailcall optimization!
+      ((ck (ko (seqk '())) (cons φ κ)) ; No tailcall optimization!
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (restore-env)
                       (pop-continuation)))
-      ((ko (seqk (cons e exps)) κ)
+      ((ck (ko (seqk (cons e exps))) κ)
        (execute/trace program-state
-                      (ev e (cons (seqk exps) κ))
+                      (ev e)
                       (push-continuation (seqk exps))))
-      ((ko (setk x) (cons φ κ))
+      ((ck (ko (setk x)) (cons φ κ))
        (execute/trace program-state
-                      (ko φ κ)
+                      (ko φ)
                       (restore-env)
                       (set-var x)
                       (pop-continuation)))))

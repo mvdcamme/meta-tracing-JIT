@@ -12,6 +12,9 @@
   ;;; Represents the control of a program when following a continuation φ.
   (struct ko (φ) #:transparent)
   
+  ;;; Represents the ck of a program.
+  (struct ck (c κ))
+  
   ;
   ; Program state
   ;
