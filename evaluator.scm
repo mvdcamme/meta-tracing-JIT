@@ -125,12 +125,12 @@
              (trace-executing (evaluator-state-struct-trace-executing evaluator-state))
              (trace (trace-assoc-trace trace-executing))
              (old-program-state (evaluator-state-struct-program-state evaluator-state)))
-        (define (guard-failed ck-constructor)
+        (define (guard-failed new-c)
           (let* ((temp-tracer-context (set-regular-interpreting-state tracer-context))
-                 (τ-κ (program-state-τ-κ old-program-state))
-                 (new-ck (ck-constructor τ-κ))
+                 (κ (program-state-κ old-program-state))
                  (new-program-state (program-state-copy old-program-state
-                                                        (ck new-ck))))
+                                                        (c new-c)
+                                                        (κ κ))))
             (evaluator-state-struct temp-tracer-context
                                     new-program-state
                                     #f)))
@@ -141,9 +141,9 @@
                                  (trace-executing (trace-assoc-copy (evaluator-state-struct-trace-executing evaluator-state)
                                                                     (trace (cdr trace))))))
           ((error-return (guard-failed-with-ev guard-id e))
-           (guard-failed (lambda (τ-κ) (ev e τ-κ))))
+           (guard-failed (ev e)))
           ((error-return (guard-failed-with-ko guard-id φ))
-           (guard-failed (lambda (τ-κ) (ko φ τ-κ))))
+           (guard-failed (ko φ)))
           ((error-return (trace-loops))
            (let* ((old-trace-assoc (evaluator-state-struct-trace-executing evaluator-state))
                   (label (trace-assoc-label old-trace-assoc))
