@@ -31,14 +31,6 @@
            ;; Adding traces
            add-label-trace
            
-           ;; Handling state
-           is-executing-trace?
-           set-executing-trace-state
-           is-regular-interpreting?
-           set-regular-interpreting-state
-           is-tracing?
-           set-tracing-state
-           
            ;; Recording trace
            append-trace
            clear-trace
@@ -57,38 +49,6 @@
     (syntax-rules ()
       ((_ a-tracer-context ...)
        (struct-copy tracer-context a-tracer-context ...))))
-  
-  ;
-  ; States
-  ;
-  
-  (define EXECUTING_TRACE_STATE 'executing-trace)
-  (define REGULAR_INTERPRETATION_STATE 'regular-interpretation)
-  (define TRACING_STATE 'tracing)
-  
-  (define (state-equals? tracer-context state)
-    (eq? (tracer-context-state tracer-context) state))
-  
-  (define (is-executing-trace? tracer-context)
-    (state-equals? tracer-context EXECUTING_TRACE_STATE))
-  
-  (define (set-executing-trace-state tracer-context)
-    (set-state tracer-context EXECUTING_TRACE_STATE))
-  
-  (define (is-regular-interpreting? tracer-context)
-    (state-equals? tracer-context REGULAR_INTERPRETATION_STATE))
-  
-  (define (set-regular-interpreting-state tracer-context)
-    (set-state tracer-context REGULAR_INTERPRETATION_STATE))
-  
-  (define (is-tracing? tracer-context)
-    (state-equals? tracer-context TRACING_STATE))
-  
-  (define (set-tracing-state tracer-context)
-    (set-state tracer-context TRACING_STATE))
-  
-  (define (set-state tracer-context new-state)
-    (tracer-context-copy tracer-context (state new-state)))
   
   ;
   ; Trace register
@@ -138,15 +98,13 @@
   ; Tracer context
   ;
   
-  (struct tracer-context (state
-                          trace-key
+  (struct tracer-context (trace-key
                           labels-encountered
                           trace-nodes
                           τ) #:transparent)
   
   (define (new-tracer-context)
-    (tracer-context REGULAR_INTERPRETATION_STATE
-                    #f
+    (tracer-context #f
                     '()
                     '()
                     '()))
@@ -195,7 +153,7 @@
     (let ((temp-tracer-context
            (tracer-context-copy tracer-context
                                 (trace-key (make-label-trace-key label debug-info)))))
-      (set-tracing-state (clear-trace temp-tracer-context))))
+      (clear-trace temp-tracer-context)))
   
   ;
   ; Stop tracing
