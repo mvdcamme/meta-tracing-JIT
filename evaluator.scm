@@ -155,7 +155,6 @@
     (define (do-cesk-interpreter-step)
       (cesk-step (evaluator-state-struct-program-state evaluator-state)))
     (define (do-trace-executing-step)
-      ; TODO check of trace null
       (let* ((trace-assoc (evaluator-state-struct-trace-executing evaluator-state))
              (trace (trace-assoc-trace trace-assoc))
              (label (trace-assoc-label trace-assoc)))
@@ -163,7 +162,7 @@
             (set-interpreting-state (evaluator-state-copy evaluator-state
                                                           (trace-executing #f)))
             (let* ((instruction (car trace))
-                   (program-state ;(begin (display "### HERE: ") (display instruction) (newline)
+                   (program-state
                     (evaluator-state-struct-program-state evaluator-state)))
               (handle-response-executing (instruction program-state))))))
     (define (handle-response-executing response)
@@ -176,7 +175,7 @@
                  (new-program-state (program-state-copy old-program-state
                                                         (c new-c)
                                                         (κ κ))))
-            (evaluator-state-struct TRACING_STATE
+            (evaluator-state-struct INTERPRETING_STATE
                                     tracer-context
                                     new-program-state
                                     #f)))
