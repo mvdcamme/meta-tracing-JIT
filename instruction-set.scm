@@ -32,7 +32,7 @@
   (define (guard-false guard-id e)
     (lambda (program-state)
       (if (program-state-v program-state)
-          (begin (output "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
+          (begin (displayln "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
           (begin (output "Guard passed") (output-newline) (return-normal program-state)))))
   
   ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
@@ -40,7 +40,7 @@
     (lambda (program-state)
       (if (program-state-v program-state)
           (begin (output "Guard passed") (output-newline) (return-normal program-state))
-          (begin (output "Guard-true failed") (output-newline) (return-error (guard-failed-with-ev guard-id e))))))
+          (begin (displayln "Guard-true failed") (output-newline) (return-error (guard-failed-with-ev guard-id e))))))
   
   ;;; Check whether the register v currently contains the same closure as it did when this guard
   ;;; was recorded. If it does, do nothing, else handle this guard failure.

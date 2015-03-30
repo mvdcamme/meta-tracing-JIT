@@ -76,7 +76,8 @@
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   (define (step-can-close-loop-encountered-regular label new-program-state tracer-context)
-    (output "closing annotation: tracing loop ") (output label) (output-newline)
+    (displayln label)
+    (displayln "reg closing annotation: tracing loop ") (output label) (output-newline)
     (evaluator-state-struct INTERPRETING_STATE
                             tracer-context
                             new-program-state
@@ -85,7 +86,8 @@
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   (define (step-can-close-loop-encountered-tracing label new-program-state tracer-context)
-    (output "closing annotation: tracing loop ") (output label) (output-newline)
+    (displayln label)
+    (displayln "tracing closing annotation: tracing loop ") (output label) (output-newline)
     (if (is-tracing-label? tracer-context label)
         (evaluator-state-struct INTERPRETING_STATE
                                 (stop-tracing tracer-context #f)
@@ -108,14 +110,16 @@
     (define (can-start-tracing-label?)
       (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
     (cond ((label-trace-exists? tracer-context label)
-           (output "----------- EXECUTING TRACE -----------") (output-newline)
+           (displayln label)
+           (displayln "reg ----------- EXECUTING TRACE -----------") (output-newline)
            (evaluator-state-struct EXECUTING_STATE
                                    tracer-context
                                    new-program-state
                                    (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
           ((can-start-tracing-label?)
-           (output "----------- STARTED TRACING -----------") (output-newline)
+           (displayln label)
+           (displayln "reg ----------- STARTED TRACING -----------") (output-newline)
            (evaluator-state-struct TRACING_STATE
                                    (start-tracing-label tracer-context label debug-info)
                                    new-program-state
@@ -130,7 +134,8 @@
   
   (define (step-can-start-loop-encountered-tracing label debug-info new-program-state tracer-context)
     (cond ((is-tracing-label? tracer-context label)
-           (output "----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
+           (displayln label)
+           (displayln "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
            (let* ((temp-tracer-context (stop-tracing tracer-context #t)))
              (evaluator-state-struct EXECUTING_STATE
                                      temp-tracer-context
