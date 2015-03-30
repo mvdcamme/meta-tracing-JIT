@@ -91,7 +91,7 @@
                                 (stop-tracing tracer-context #f)
                                 new-program-state
                                 #f)
-        (evaluator-state-struct INTERPRETING_STATE
+        (evaluator-state-struct TRACING_STATE
                                 tracer-context
                                 new-program-state
                                 #f)))
