@@ -149,6 +149,9 @@
                                    new-program-state
                                    #f))))
   
+  (define previous-state INTERPRETING_STATE)
+  (define current-state #f)
+  
   (define (evaluate evaluator-state)
     (define (continue-with-program-state-regular new-program-state)
       (evaluate (evaluator-state-copy evaluator-state
@@ -164,8 +167,9 @@
              (trace (trace-assoc-trace trace-assoc))
              (label (trace-assoc-label trace-assoc)))
         (if (null? trace)
-            (set-interpreting-state (evaluator-state-copy evaluator-state
-                                                          (trace-executing #f)))
+            (begin (displayln "trace ended")
+                   (set-interpreting-state (evaluator-state-copy evaluator-state
+                                                                 (trace-executing #f))))
             (let* ((instruction (car trace))
                    (program-state
                     (evaluator-state-struct-program-state evaluator-state)))
@@ -247,6 +251,10 @@
         ((? is-interpreting?) (handle-response-regular (do-cesk-interpreter-step)))
         ((? is-tracing?) (handle-response-tracing (do-cesk-interpreter-step)))
         (_ (error "Unknown state" (evaluator-state-struct-state evaluator-state)))))
+    (set! current-state (evaluator-state-struct-state evaluator-state))
+    (when (not (eq? current-state previous-state))
+      (printf "STATE CHANGED from ~a to ~a~n" previous-state current-state))
+    (set! previous-state current-state)
     (step))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
