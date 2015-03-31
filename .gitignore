@@ -14,3 +14,6 @@ benchmarks/Benchmarking output/output *.txt
 benchmarks/benchmarks/Benchmarking output/output *.txt
 benchmarks/input_file_nested.scm
 input_file_nested.scm
+*.aux
+*.toc
+Thesis/*.synctex.gz
