@@ -347,8 +347,8 @@
                  (begin (execute/trace program-state
                                        (ko (car κ))
                                        (restore-env)
-                                       (guard-false new-guard-id e1)
                                        (pop-continuation)
+                                       (guard-false new-guard-id e1)
                                        (literal-value '())))
                  (execute/trace program-state
                                 (ev (car e2))
