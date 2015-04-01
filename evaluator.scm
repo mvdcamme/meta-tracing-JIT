@@ -106,7 +106,7 @@
       ((_ a-trace-assoc ...)
        (struct-copy trace-assoc a-trace-assoc ...))))
   
-  (define (step-can-start-loop-encountered-regular label debug-info new-program-state tracer-context)
+  (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
     (define (can-start-tracing-label?)
       (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
     (cond ((label-trace-exists? tracer-context label)
@@ -128,24 +128,24 @@
           ;; (i.e., we raise the 'hotness' of this loop).
           (else
            (evaluator-state-struct INTERPRETING_STATE
-                                   (inc-times-label-encountered tracer-context label)
+                                   (append-trace (inc-times-label-encountered tracer-context label) trace)
                                    new-program-state
                                    #f))))
   
-  (define (step-can-start-loop-encountered-tracing label debug-info new-program-state tracer-context)
+  (define (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)
     (cond ((is-tracing-label? tracer-context label)
            (displayln label)
            (displayln "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
            (let* ((temp-tracer-context (stop-tracing tracer-context #t)))
              (evaluator-state-struct EXECUTING_STATE
-                                     temp-tracer-context
+                                     (append-trace temp-tracer-context trace)
                                      new-program-state
                                      (trace-assoc label (trace-node-trace (get-label-trace temp-tracer-context label))))))
           ;; Increase the counter for the number of times this label has been encountered
           ;; (i.e., we raise the 'hotness' of this loop).
           (else
            (evaluator-state-struct TRACING_STATE
-                                   (inc-times-label-encountered tracer-context label)
+                                   (append-trace (inc-times-label-encountered tracer-context label) tracer-context)
                                    new-program-state
                                    #f))))
   
@@ -202,23 +202,25 @@
              (evaluator-state-copy evaluator-state
                                    (trace-executing full-trace-executing-assoc)))))))
     (define (handle-annotation-signal-regular new-program-state trace annotation-signal)
-      (match annotation-signal
-        ((is-evaluating-encountered _)
-         ;; TODO Just ignore for the moment
-         (continue-with-program-state-regular new-program-state))
-        ((can-start-loop-encountered label debug-info)
-         (evaluate (step-can-start-loop-encountered-regular label debug-info new-program-state (evaluator-state-struct-tracer-context evaluator-state))))
-        ((can-close-loop-encountered label)
-         (evaluate (step-can-close-loop-encountered-regular label new-program-state (evaluator-state-struct-tracer-context evaluator-state))))))
+      (let ((tracer-context (evaluator-state-struct-tracer-context evaluator-state)))
+        (match annotation-signal
+          ((is-evaluating-encountered _)
+           ;; TODO Just ignore for the moment
+           (continue-with-program-state-regular new-program-state))
+          ((can-start-loop-encountered label debug-info)
+           (evaluate (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)))
+          ((can-close-loop-encountered label)
+           (evaluate (step-can-close-loop-encountered-regular label new-program-state tracer-context))))))
     (define (handle-annotation-signal-tracing new-program-state trace annotation-signal)
-      (match annotation-signal
-        ((is-evaluating-encountered _)
-         ;; TODO Just ignore for the moment
-         (continue-with-program-state-tracing new-program-state trace))
-        ((can-start-loop-encountered label debug-info)
-         (evaluate (step-can-start-loop-encountered-tracing label debug-info new-program-state (append-trace (evaluator-state-struct-tracer-context evaluator-state) trace))))
-        ((can-close-loop-encountered label)
-         (evaluate (step-can-close-loop-encountered-tracing label new-program-state (append-trace (evaluator-state-struct-tracer-context evaluator-state) trace))))))
+      (let ((tracer-context (evaluator-state-struct-tracer-context evaluator-state)))
+        (match annotation-signal
+          ((is-evaluating-encountered _)
+           ;; TODO Just ignore for the moment
+           (continue-with-program-state-tracing new-program-state trace))
+          ((can-start-loop-encountered label debug-info)
+           (evaluate (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)))
+          ((can-close-loop-encountered label)
+           (evaluate (step-can-close-loop-encountered-tracing label new-program-state (append-trace tracer-context trace)))))))
     (define (handle-response-abnormal response)
       (match response
         ((cesk-abnormal-return (cesk-stopped))
