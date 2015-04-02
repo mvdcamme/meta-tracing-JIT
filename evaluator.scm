@@ -145,7 +145,7 @@
           ;; (i.e., we raise the 'hotness' of this loop).
           (else
            (evaluator-state-struct TRACING_STATE
-                                   (append-trace (inc-times-label-encountered tracer-context label) tracer-context)
+                                   (append-trace (inc-times-label-encountered tracer-context label) trace)
                                    new-program-state
                                    #f))))
   
