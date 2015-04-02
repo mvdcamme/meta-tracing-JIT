@@ -32,7 +32,7 @@
   (define (guard-false guard-id e)
     (lambda (program-state)
       (if (program-state-v program-state)
-          (begin (displayln "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
+          (begin (output "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
           (begin (output "Guard passed") (output-newline) (return-normal program-state)))))
   
   ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
