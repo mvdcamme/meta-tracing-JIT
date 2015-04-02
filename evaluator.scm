@@ -128,7 +128,7 @@
           ;; (i.e., we raise the 'hotness' of this loop).
           (else
            (evaluator-state-struct INTERPRETING_STATE
-                                   (append-trace (inc-times-label-encountered tracer-context label) trace)
+                                   (inc-times-label-encountered tracer-context label)
                                    new-program-state
                                    #f))))
   
