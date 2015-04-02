@@ -172,10 +172,18 @@
              (trace (trace-assoc-trace trace-assoc))
              (label (trace-assoc-label trace-assoc)))
         (if (null? trace)
-            (begin (displayln "TRACE FINISHED")
-                   (displayln (take (program-state-κ (evaluator-state-struct-program-state evaluator-state)) 10))
-                   (set-interpreting-state (evaluator-state-copy evaluator-state
-                                                          (trace-executing #f))))
+            (begin ;(displayln "TRACE FINISHED")
+                   ;(displayln (take (program-state-κ (evaluator-state-struct-program-state evaluator-state)) 10))
+                   (let* ((program-state (evaluator-state-struct-program-state evaluator-state))
+                          (κ (program-state-κ program-state))
+                          (new-c (ko (car κ)))
+                          (new-κ (cdr κ))
+                          (new-program-state (program-state-copy program-state
+                                                                 (c new-c)
+                                                                 (κ new-κ))))
+                     (set-interpreting-state (evaluator-state-copy evaluator-state
+                                                                   (program-state new-program-state)
+                                                                   (trace-executing #f)))))
             (let* ((instruction (car trace))
                    (program-state
                     (evaluator-state-struct-program-state evaluator-state)))
