@@ -32,7 +32,14 @@
   (define (guard-false guard-id e)
     (lambda (program-state)
       (if (program-state-v program-state)
-          (begin (output "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
+          (begin (displayln "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
+          (begin (output "Guard passed") (output-newline) (return-normal program-state)))))
+  
+  ;;; Check the value of the register v. If it is #f, do nothing, else handle this guard failure.
+  (define (guard-ffalse guard-id e)
+    (lambda (program-state)
+      (if (program-state-v program-state)
+          (begin (displayln "Guard-ffalse failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
           (begin (output "Guard passed") (output-newline) (return-normal program-state)))))
   
   ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
@@ -48,7 +55,7 @@
     (lambda (program-state)
       (if (clo-equal? (program-state-v program-state) clo)
           (return-normal program-state)
-          (begin (output "Closure guard failed, expected: ") (output clo)
+          (begin (displayln "Closure guard failed, expected: ") (output clo)
                  (output ", evaluated: ") (output (program-state-v program-state)) (output-newline)
                  (return-error (guard-failed-with-ko guard-id (closure-guard-failedk i)))))))
   
@@ -59,7 +66,7 @@
       (let ((current-i (length (program-state-v program-state))))
         (if (= i current-i)
             (return-normal program-state)
-            (begin (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
+            (begin (displayln "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
                    (return-error (guard-failed-with-ko (cons guard-id current-i) (apply-failedk rator current-i))))))))
   
   ;;; Save the value in the register v to the stack θ.
