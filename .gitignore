@@ -17,3 +17,6 @@ input_file_nested.scm
 *.aux
 *.toc
 Thesis/*.synctex.gz
+*.bbl
+*.bib
+*.blg
