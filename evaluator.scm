@@ -109,17 +109,25 @@
   (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
     (define (can-start-tracing-label?)
       (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
+    ;(displayln label)
     (cond ((label-trace-exists? tracer-context label)
            (output label)
-           (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
+           (displayln "reg ----------- EXECUTING TRACE -----------") (output-newline)
            (evaluator-state-struct EXECUTING_STATE
                                    tracer-context
                                    new-program-state
                                    (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
+          ((equal? label '((display (+ param 10))))
+           (displayln label)
+           (displayln "reg special ----------- STARTED TRACING -----------") (output-newline)
+           (evaluator-state-struct TRACING_STATE
+                                   (append-trace (start-tracing-label tracer-context label debug-info) trace)
+                                   new-program-state
+                                   #f))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
           ((can-start-tracing-label?)
-           (output label)
-           (output "reg ----------- STARTED TRACING -----------") (output-newline)
+           (displayln label)
+           (displayln "reg ----------- STARTED TRACING -----------") (output-newline)
            (evaluator-state-struct TRACING_STATE
                                    (start-tracing-label tracer-context label debug-info)
                                    new-program-state
@@ -164,8 +172,10 @@
              (trace (trace-assoc-trace trace-assoc))
              (label (trace-assoc-label trace-assoc)))
         (if (null? trace)
-            (set-interpreting-state (evaluator-state-copy evaluator-state
-                                                          (trace-executing #f)))
+            (begin (displayln "TRACE FINISHED")
+                   (displayln (take (program-state-κ (evaluator-state-struct-program-state evaluator-state)) 10))
+                   (set-interpreting-state (evaluator-state-copy evaluator-state
+                                                          (trace-executing #f))))
             (let* ((instruction (car trace))
                    (program-state
                     (evaluator-state-struct-program-state evaluator-state)))
@@ -220,7 +230,7 @@
           ((can-start-loop-encountered label debug-info)
            (evaluate (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)))
           ((can-close-loop-encountered label)
-           (evaluate (step-can-close-loop-encountered-tracing label new-program-state (append-trace tracer-context trace)))))))
+           (evaluate (step-can-close-loop-encountered-tracing label new-program-state tracer-context))))))
     (define (handle-response-abnormal response)
       (match response
         ((cesk-abnormal-return (cesk-stopped))
