@@ -136,9 +136,9 @@
     (cond ((is-tracing-label? tracer-context label)
            (displayln label)
            (displayln "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-           (let* ((temp-tracer-context (stop-tracing tracer-context #t)))
+           (let* ((temp-tracer-context (stop-tracing (append-trace tracer-context trace) #t)))
              (evaluator-state-struct EXECUTING_STATE
-                                     (append-trace temp-tracer-context trace)
+                                     temp-tracer-context
                                      new-program-state
                                      (trace-assoc label (trace-node-trace (get-label-trace temp-tracer-context label))))))
           ;; Increase the counter for the number of times this label has been encountered
