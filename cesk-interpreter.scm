@@ -353,7 +353,7 @@
                  (execute/trace program-state
                                 (ev (car e2))
                                 (restore-env)
-                                (guard-ffalse new-guard-id e1))))))
+                                (guard-false new-guard-id e1))))))
       ;; Evaluate annotations in step* instead of step
       ;; Annotations might not lead to recursive call to step*
       ((ck (ko (is-evaluatingk)) (cons φ κ))
