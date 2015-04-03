@@ -195,16 +195,11 @@
                       (save-env)
                       (push-continuation (letk var es))))
       ((ck (ev `(let* () . ,expressions)) κ)
-       (execute/trace program-state
-                      (ev `(begin ,@expressions))
-                      (save-env)
-                      (push-continuation (let*k-done))))
+       (eval-seq program-state expressions κ))
       ((ck (ev `(let* ((,var ,val) . ,bds) . ,es)) κ)
        (execute/trace program-state
                       (ev val)
                       (save-env)
-                      (save-env)
-                      (push-continuation (let*k-done))
                       (push-continuation (let*k var bds es))))
       ((ck (ev `(letrec ((,x ,e) . ,bds) . ,es)) κ)
        (execute/trace program-state
@@ -357,8 +352,8 @@
                                        (literal-value '())))
                  (execute/trace program-state
                                 (ev (car e2))
-                                (guard-ffalse new-guard-id e1)
-                                (restore-env))))))
+                                (restore-env)
+                                (guard-ffalse new-guard-id e1))))))
       ;; Evaluate annotations in step* instead of step
       ;; Annotations might not lead to recursive call to step*
       ((ck (ko (is-evaluatingk)) (cons φ κ))
@@ -371,11 +366,6 @@
                       (ev `(begin ,@es))
                       (restore-env)
                       (alloc-var x)))
-      ((ck (ko (let*k-done)) (cons φ κ))
-       (execute/trace program-state
-                      (ko φ)
-                      (restore-env)
-                      (pop-continuation)))
       ((ck (ko (let*k x '() es)) κ)
        (execute/trace program-state
                       (ev `(begin ,@es))

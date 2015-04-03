@@ -17,7 +17,6 @@
   (struct ifk (e1 e2) #:transparent)
   (struct letk (x es) #:transparent)
   (struct let*k (x bds es) #:transparent)
-  (struct let*k-done () #:transparent)
   (struct letreck (x bds es) #:transparent)
   (struct ork (es) #:transparent)
   (struct randk (e es i) #:transparent)
