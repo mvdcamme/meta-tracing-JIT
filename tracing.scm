@@ -14,10 +14,6 @@
            new-tracer-context
            tracer-context-copy
            
-           ;; Times label encountered
-           get-times-label-encountered
-           inc-times-label-encountered
-           
            ;; Start tracing
            start-tracing-label
            
@@ -99,13 +95,11 @@
   ;
   
   (struct tracer-context (trace-key
-                          labels-encountered
                           trace-nodes
                           τ) #:transparent)
   
   (define (new-tracer-context)
     (tracer-context #f
-                    '()
                     '()
                     '()))
   
@@ -116,34 +110,6 @@
   (define (is-tracing-label? tracer-context label)
     (and (tracer-context-trace-key tracer-context)
          (equal? (trace-key-label (tracer-context-trace-key tracer-context)) label)))
-  
-  ;
-  ; Loop hotness
-  ;
-  
-  (define (get-times-label-encountered tracer-context label)
-    (let ((pair (assoc label (tracer-context-labels-encountered tracer-context))))
-      (if pair
-          (cdr pair)
-          0)))
-  
-  (define (inc-times-label-encountered tracer-context label)
-    (let* ((labels-encountered (tracer-context-labels-encountered tracer-context))
-           (pair (assoc label (tracer-context-labels-encountered tracer-context))))
-      (define (find-label-function assoc)
-        (equal? (car assoc) label))
-      (define (add-new-label-encountered)
-        (tracer-context-copy tracer-context 
-                             (labels-encountered (cons (cons label 1) labels-encountered))))
-      (define (replace-times-label-encountered)
-        (let* ((old-counter (cdr (findf find-label-function (tracer-context-labels-encountered tracer-context))))
-               (filtered-times-labels-encountered-list (filter find-label-function (tracer-context-labels-encountered tracer-context)))
-               (new-times-labels-encountered-list (cons (cons label (+ old-counter 1)) filtered-times-labels-encountered-list)))
-          (tracer-context-copy tracer-context
-                               (labels-encountered new-times-labels-encountered-list))))
-      (if pair
-          (replace-times-label-encountered)
-          (add-new-label-encountered))))
   
   ;
   ; Start tracing

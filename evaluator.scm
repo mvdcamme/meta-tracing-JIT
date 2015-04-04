@@ -12,13 +12,6 @@
   (provide inject
            run)
   
-  
-  ;
-  ; Constants
-  ;
-  
-  (define TRACING_THRESHOLD 5)
-  
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
   ;                                           Evaluator state                                            ;
@@ -107,8 +100,6 @@
        (struct-copy trace-assoc a-trace-assoc ...))))
   
   (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
-    (define (can-start-tracing-label?)
-      (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
     (cond ((label-trace-exists? tracer-context label)
            (output label)
            (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
@@ -117,18 +108,11 @@
                                    new-program-state
                                    (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
-          ((can-start-tracing-label?)
+          (else
            (output label)
            (output "reg ----------- STARTED TRACING -----------") (output-newline)
            (evaluator-state-struct TRACING_STATE
                                    (start-tracing-label tracer-context label debug-info)
-                                   new-program-state
-                                   #f))
-          ;; Increase the counter for the number of times this label has been encountered
-          ;; (i.e., we raise the 'hotness' of this loop).
-          (else
-           (evaluator-state-struct INTERPRETING_STATE
-                                   (inc-times-label-encountered tracer-context label)
                                    new-program-state
                                    #f))))
   
@@ -141,11 +125,9 @@
                                      temp-tracer-context
                                      new-program-state
                                      (trace-assoc label (trace-node-trace (get-label-trace temp-tracer-context label))))))
-          ;; Increase the counter for the number of times this label has been encountered
-          ;; (i.e., we raise the 'hotness' of this loop).
           (else
            (evaluator-state-struct TRACING_STATE
-                                   (append-trace (inc-times-label-encountered tracer-context label) trace)
+                                   (append-trace tracer-context trace)
                                    new-program-state
                                    #f))))
   
@@ -292,6 +274,4 @@
   
   ;;; Reads an s-expression from the console and runs the evaluator on it.
   (define (start)
-    (run (inject (read))))
-  
-  )
+    (run (inject (read)))))
