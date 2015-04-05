@@ -18,15 +18,15 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
-  (struct evaluator-state-struct (state
-                                  tracer-context
-                                  program-state
-                                  trace-executing) #:transparent)
+  (struct evaluator-state (state
+                           tracer-context
+                           program-state
+                           trace-executing) #:transparent)
   
   (define-syntax evaluator-state-copy
     (syntax-rules ()
       ((_ an-evaluator-state ...)
-       (struct-copy evaluator-state-struct an-evaluator-state ...))))
+       (struct-copy evaluator-state an-evaluator-state ...))))
   
   ;
   ; States
@@ -37,7 +37,7 @@
   (define TRACING_STATE 'tracing)
   
   (define (state-equals? evaluator-state state)
-    (eq? (evaluator-state-struct-state evaluator-state) state))
+    (eq? (evaluator-state-state evaluator-state) state))
   
   (define (is-executing? evaluator-state)
     (state-equals? evaluator-state EXECUTING_STATE))
@@ -60,6 +60,19 @@
   (define (set-state evaluator-state new-state)
     (evaluator-state-copy evaluator-state (state new-state)))
   
+  ;
+  ; Constructors
+  ;
+  
+  (define (make-executing-state tracer-context program-state trace-assoc)
+    (evaluator-state EXECUTING_STATE tracer-context program-state trace-assoc))
+  
+  (define (make-interpreting-state tracer-context program-state)
+    (evaluator-state INTERPRETING_STATE tracer-context program-state #f))
+  
+  (define (make-tracing-state tracer-context program-state)
+    (evaluator-state TRACING_STATE tracer-context program-state #f))
+  
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
   ;                                          Running evaluator                                           ;
@@ -71,10 +84,7 @@
   (define (step-can-close-loop-encountered-regular label new-program-state tracer-context)
     (output label)
     (output "reg closing annotation: tracing loop ") (output label) (output-newline)
-    (evaluator-state-struct INTERPRETING_STATE
-                            tracer-context
-                            new-program-state
-                            #f))
+    (make-interpreting-state tracer-context new-program-state))
   
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
   ;;; regular interpretation with the given state.
@@ -82,14 +92,8 @@
     (output label)
     (output "tracing closing annotation: tracing loop ") (output label) (output-newline)
     (if (is-tracing-label? tracer-context label)
-        (evaluator-state-struct INTERPRETING_STATE
-                                (stop-tracing tracer-context #f)
-                                new-program-state
-                                #f)
-        (evaluator-state-struct TRACING_STATE
-                                (append-trace tracer-context trace)
-                                new-program-state
-                                #f)))
+        (make-interpreting-state (stop-tracing tracer-context #f) new-program-state)
+        (make-tracing-state (append-trace tracer-context trace) new-program-state #f)))
   
   (struct trace-assoc (label
                        trace) #:transparent)
@@ -103,33 +107,21 @@
     (cond ((label-trace-exists? tracer-context label)
            (output label)
            (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
-           (evaluator-state-struct EXECUTING_STATE
-                                   tracer-context
-                                   new-program-state
-                                   (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
+           (make-executing-state tracer-context new-program-state (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
           (else
            (output label)
            (output "reg ----------- STARTED TRACING -----------") (output-newline)
-           (evaluator-state-struct TRACING_STATE
-                                   (start-tracing-label tracer-context label debug-info)
-                                   new-program-state
-                                   #f))))
+           (make-tracing-state (start-tracing-label tracer-context label debug-info) new-program-state))))
   
   (define (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)
     (cond ((is-tracing-label? tracer-context label)
            (output label)
            (output "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
            (let* ((temp-tracer-context (stop-tracing (append-trace tracer-context trace) #t)))
-             (evaluator-state-struct EXECUTING_STATE
-                                     temp-tracer-context
-                                     new-program-state
-                                     (trace-assoc label (trace-node-trace (get-label-trace temp-tracer-context label))))))
+             (make-executing-state temp-tracer-context new-program-state (trace-assoc label (trace-node-trace (get-label-trace temp-tracer-context label))))))
           (else
-           (evaluator-state-struct TRACING_STATE
-                                   (append-trace tracer-context trace)
-                                   new-program-state
-                                   #f))))
+           (make-tracing-state (append-trace tracer-context trace) new-program-state))))
   
   (define (evaluate evaluator-state)
     (define (continue-with-program-state-regular new-program-state)
@@ -137,16 +129,16 @@
                                       (program-state new-program-state))))
     (define (continue-with-program-state-tracing new-program-state new-trace)
       (evaluate (evaluator-state-copy evaluator-state
-                                      (tracer-context (append-trace (evaluator-state-struct-tracer-context evaluator-state) new-trace))
+                                      (tracer-context (append-trace (evaluator-state-tracer-context evaluator-state) new-trace))
                                       (program-state new-program-state))))
     (define (do-cesk-interpreter-step)
-      (cesk-step (evaluator-state-struct-program-state evaluator-state)))
+      (cesk-step (evaluator-state-program-state evaluator-state)))
     (define (do-trace-executing-step)
-      (let* ((trace-assoc (evaluator-state-struct-trace-executing evaluator-state))
+      (let* ((trace-assoc (evaluator-state-trace-executing evaluator-state))
              (trace (trace-assoc-trace trace-assoc))
              (label (trace-assoc-label trace-assoc)))
         (if (null? trace)
-            (let* ((program-state (evaluator-state-struct-program-state evaluator-state))
+            (let* ((program-state (evaluator-state-program-state evaluator-state))
                    (κ (program-state-κ program-state))
                    (new-c (ko (car κ)))
                    (new-κ (cdr κ))
@@ -158,41 +150,38 @@
                                                             (trace-executing #f))))
             (let* ((instruction (car trace))
                    (program-state
-                    (evaluator-state-struct-program-state evaluator-state)))
+                    (evaluator-state-program-state evaluator-state)))
               (handle-response-executing (instruction program-state))))))
     (define (handle-response-executing response)
-      (let* ((tracer-context (evaluator-state-struct-tracer-context evaluator-state))
-             (trace-executing (evaluator-state-struct-trace-executing evaluator-state))
+      (let* ((tracer-context (evaluator-state-tracer-context evaluator-state))
+             (trace-executing (evaluator-state-trace-executing evaluator-state))
              (trace (trace-assoc-trace trace-executing))
-             (old-program-state (evaluator-state-struct-program-state evaluator-state)))
+             (old-program-state (evaluator-state-program-state evaluator-state)))
         (define (guard-failed new-c)
           (let* ((κ (program-state-κ old-program-state))
                  (new-program-state (program-state-copy old-program-state
                                                         (c new-c)
                                                         (κ κ))))
-            (evaluator-state-struct INTERPRETING_STATE
-                                    tracer-context
-                                    new-program-state
-                                    #f)))
+            (make-interpreting-state tracer-context new-program-state)))
         (match response
           ((normal-return new-program-state)
            (evaluator-state-copy evaluator-state
                                  (program-state new-program-state)
-                                 (trace-executing (trace-assoc-copy (evaluator-state-struct-trace-executing evaluator-state)
+                                 (trace-executing (trace-assoc-copy (evaluator-state-trace-executing evaluator-state)
                                                                     (trace (cdr trace))))))
           ((error-return (guard-failed-with-ev guard-id e))
            (guard-failed (ev e)))
           ((error-return (guard-failed-with-ko guard-id φ))
            (guard-failed (ko φ)))
           ((error-return (trace-loops))
-           (let* ((old-trace-assoc (evaluator-state-struct-trace-executing evaluator-state))
+           (let* ((old-trace-assoc (evaluator-state-trace-executing evaluator-state))
                   (label (trace-assoc-label old-trace-assoc))
                   (full-trace-executing (trace-node-trace (get-label-trace tracer-context label)))
                   (full-trace-executing-assoc (trace-assoc label full-trace-executing)))
              (evaluator-state-copy evaluator-state
                                    (trace-executing full-trace-executing-assoc)))))))
     (define (handle-annotation-signal-regular new-program-state trace annotation-signal)
-      (let ((tracer-context (evaluator-state-struct-tracer-context evaluator-state)))
+      (let ((tracer-context (evaluator-state-tracer-context evaluator-state)))
         (match annotation-signal
           ((is-evaluating-encountered _)
            ;; TODO Just ignore for the moment
@@ -202,7 +191,7 @@
           ((can-close-loop-encountered label)
            (evaluate (step-can-close-loop-encountered-regular label new-program-state tracer-context))))))
     (define (handle-annotation-signal-tracing new-program-state trace annotation-signal)
-      (let ((tracer-context (evaluator-state-struct-tracer-context evaluator-state)))
+      (let ((tracer-context (evaluator-state-tracer-context evaluator-state)))
         (match annotation-signal
           ((is-evaluating-encountered _)
            ;; TODO Just ignore for the moment
@@ -214,7 +203,7 @@
     (define (handle-response-abnormal response)
       (match response
         ((cesk-abnormal-return (cesk-stopped))
-         (program-state-v (evaluator-state-struct-program-state evaluator-state)))
+         (program-state-v (evaluator-state-program-state evaluator-state)))
         ((cesk-abnormal-return signal)
          (error "Abnormal return value from cesk interpreter" signal))))
     (define (handle-response-regular response)
@@ -238,7 +227,7 @@
         ((? is-executing?) (evaluate (do-trace-executing-step)))
         ((? is-interpreting?) (handle-response-regular (do-cesk-interpreter-step)))
         ((? is-tracing?) (handle-response-tracing (do-cesk-interpreter-step)))
-        (_ (error "Unknown state" (evaluator-state-struct-state evaluator-state)))))
+        (_ (error "Unknown state" (evaluator-state-state evaluator-state)))))
     (step))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -264,10 +253,7 @@
                    `(,(haltk))))
   
   (define (inject e)
-    (evaluator-state-struct INTERPRETING_STATE
-                            (new-tracer-context)
-                            (inject-program-state e)
-                            #f))
+    (make-interpreting-state (new-tracer-context) (inject-program-state e)))
   
   (define (run evaluator-state)
     (evaluate evaluator-state))
