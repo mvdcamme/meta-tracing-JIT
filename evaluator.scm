@@ -79,6 +79,8 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (struct evaluation-done (value) #:transparent)
+  
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   (define (step-can-close-loop-encountered-regular label new-program-state tracer-context)
@@ -125,12 +127,12 @@
   
   (define (evaluate evaluator-state)
     (define (continue-with-program-state-regular new-program-state)
-      (evaluate (evaluator-state-copy evaluator-state
-                                      (program-state new-program-state))))
+      (evaluator-state-copy evaluator-state
+                            (program-state new-program-state)))
     (define (continue-with-program-state-tracing new-program-state new-trace)
-      (evaluate (evaluator-state-copy evaluator-state
-                                      (tracer-context (append-trace (evaluator-state-tracer-context evaluator-state) new-trace))
-                                      (program-state new-program-state))))
+      (evaluator-state-copy evaluator-state
+                            (tracer-context (append-trace (evaluator-state-tracer-context evaluator-state) new-trace))
+                            (program-state new-program-state)))
     (define (do-cesk-interpreter-step)
       (cesk-step (evaluator-state-program-state evaluator-state)))
     (define (do-trace-executing-step)
@@ -151,7 +153,7 @@
             (let* ((instruction (car trace))
                    (program-state
                     (evaluator-state-program-state evaluator-state)))
-              (handle-response-executing (instruction program-state))))))
+              (instruction program-state)))))
     (define (handle-response-executing response)
       (let* ((tracer-context (evaluator-state-tracer-context evaluator-state))
              (trace-executing (evaluator-state-trace-executing evaluator-state))
@@ -187,9 +189,9 @@
            ;; TODO Just ignore for the moment
            (continue-with-program-state-regular new-program-state))
           ((can-start-loop-encountered label debug-info)
-           (evaluate (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)))
+           (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context))
           ((can-close-loop-encountered label)
-           (evaluate (step-can-close-loop-encountered-regular label new-program-state tracer-context))))))
+           (step-can-close-loop-encountered-regular label new-program-state tracer-context)))))
     (define (handle-annotation-signal-tracing new-program-state trace annotation-signal)
       (let ((tracer-context (evaluator-state-tracer-context evaluator-state)))
         (match annotation-signal
@@ -197,13 +199,13 @@
            ;; TODO Just ignore for the moment
            (continue-with-program-state-tracing new-program-state trace))
           ((can-start-loop-encountered label debug-info)
-           (evaluate (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)))
+           (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context))
           ((can-close-loop-encountered label)
-           (evaluate (step-can-close-loop-encountered-tracing label new-program-state trace tracer-context))))))
+           (step-can-close-loop-encountered-tracing label new-program-state trace tracer-context)))))
     (define (handle-response-abnormal response)
       (match response
         ((cesk-abnormal-return (cesk-stopped))
-         (program-state-v (evaluator-state-program-state evaluator-state)))
+         (evaluation-done (program-state-v (evaluator-state-program-state evaluator-state))))
         ((cesk-abnormal-return signal)
          (error "Abnormal return value from cesk interpreter" signal))))
     (define (handle-response-regular response)
@@ -224,11 +226,13 @@
          (handle-response-abnormal response))))
     (define (step)
       (match evaluator-state
-        ((? is-executing?) (evaluate (do-trace-executing-step)))
+        ((? is-executing?) (handle-response-executing (do-trace-executing-step)))
         ((? is-interpreting?) (handle-response-regular (do-cesk-interpreter-step)))
         ((? is-tracing?) (handle-response-tracing (do-cesk-interpreter-step)))
         (_ (error "Unknown state" (evaluator-state-state evaluator-state)))))
-    (step))
+    (if (evaluation-done? evaluator-state)
+        (evaluation-done-value evaluator-state)
+        (evaluate (step))))
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
