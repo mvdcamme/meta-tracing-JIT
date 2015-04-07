@@ -5,6 +5,7 @@
   
   (run-benchmarks 1 (list fac-benchmark-path
                           fib-benchmark-path
+                          closed-benchmark-path
                           rsa-benchmark-path
                           nqueens-2-benchmark-path
                           rotate-benchmark-path
