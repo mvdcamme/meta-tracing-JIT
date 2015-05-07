@@ -124,6 +124,11 @@
   
   (define (step program-state)
     (match (make-ck program-state)
+      ((ck (ev `(and)) (cons φ κ))
+       (execute/trace program-state
+                      (ko φ)
+                      (literal-value #t)
+                      (pop-continuation)))
       ((ck (ev `(and ,e . ,es)) κ)
        (execute/trace program-state
                       (ev e)
@@ -208,6 +213,11 @@
                       (alloc-var x)
                       (save-env)
                       (push-continuation (letreck x bds es))))
+      ((ck (ev `(or)) (cons φ κ))
+       (execute/trace program-state
+                      (ko φ)
+                      (literal-value #f)
+                      (pop-continuation)))
       ((ck (ev `(or ,e . ,es)) κ)
        (execute/trace program-state
                       (ev e)

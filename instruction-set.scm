@@ -28,19 +28,58 @@
       (set! gencounter (+ gencounter 1))
       temp))
   
+  (define (>>= program-state instructions)
+    (cond ((null? instructions) (return-normal program-state))
+          ;; Assumes that no abnormal actions can take place during
+          ;; regular program interpretation.
+          ;; TODO This should be reasonable but check nonetheless
+          (else (>>= (normal-return-program-state ((car instructions) program-state))
+                     (cdr instructions)))))
+  
+  ;;; Allocate a new variable in the environment and the store with the name x and
+  ;;; as current value, the value in the register v.
+  (define (alloc-var x)
+    (lambda (program-state)
+      (let ((ρ (program-state-ρ program-state))
+            (σ (program-state-σ program-state))
+            (a (new-gencounter!))
+            (v (program-state-v program-state)))
+        (return-normal (program-state-copy program-state
+                                           (ρ (add-var-to-env ρ x a))
+                                           (σ (cons (cons a v) σ)))))))
+  
+  ;;; Apply the native procedure currently stored in the register v to the first
+  ;;; i values on the stack θ.
+  (define (apply-native i)
+    (lambda (program-state)
+      (let* ((v (program-state-v program-state))
+             (θ (program-state-θ program-state))
+             (rands (take θ i)))
+        (when (contains-env? rands)
+          (error "Apply-native: rands contains an environment"))
+        (return-normal (program-state-copy program-state
+                                           (θ (drop θ i))
+                                           (v (apply v rands)))))))
+  
+  ;;; Creates a closure with the arguments x, and the body es and places this new closure
+  ;;; in the register v.
+  (define (create-closure x es)
+    (lambda (program-state)
+      (let ((ρ (program-state-ρ program-state)))
+        (return-normal (program-state-copy program-state
+                                           (v (clo (lam x es) ρ)))))))
+  
+  ;;; Used for debugging, allows you to place a breakpoint, stopping the debugger whenever this
+  ;;; function is called.
+  (define (debug)
+    (= 1 1))
+  
   ;;; Check the value of the register v. If it is #f, do nothing, else handle this guard failure.
   (define (guard-false guard-id e)
     (lambda (program-state)
       (if (program-state-v program-state)
           (begin (output "Guard-false failed") (output-newline) (return-error (guard-failed-with-ev guard-id e)))
           (begin (output "Guard passed") (output-newline) (return-normal program-state)))))
-  
-  ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
-  (define (guard-true guard-id e)
-    (lambda (program-state)
-      (if (program-state-v program-state)
-          (begin (output "Guard passed") (output-newline) (return-normal program-state))
-          (begin (output "Guard-true failed") (output-newline) (return-error (guard-failed-with-ev guard-id e))))))
   
   ;;; Check whether the register v currently contains the same closure as it did when this guard
   ;;; was recorded. If it does, do nothing, else handle this guard failure.
@@ -62,51 +101,66 @@
             (begin (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
                    (return-error (guard-failed-with-ko (cons guard-id current-i) (apply-failedk rator current-i))))))))
   
-  ;;; Save the value in the register v to the stack θ.
-  (define (save-val)
+  ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
+  (define (guard-true guard-id e)
     (lambda (program-state)
-      (let ((v (program-state-v program-state))
-            (θ (program-state-θ program-state)))
-        (when (env? v)
-          (error "Save-val: saved an environment instead of a val!"))
-        (return-normal (program-state-copy program-state (θ (cons v θ)))))))
+      (if (program-state-v program-state)
+          (begin (output "Guard passed") (output-newline) (return-normal program-state))
+          (begin (output "Guard-true failed") (output-newline) (return-error (guard-failed-with-ev guard-id e))))))
   
-  ;;; Save the first i elements of the list currently stored in the register v to the stack θ
-  ;;; and drop these elements from the list in v.
-  (define (save-vals i)
+  ;;; Place the value e in the register v.
+  (define (literal-value e)
     (lambda (program-state)
-      (let ((v (program-state-v program-state))
-            (θ (program-state-θ program-state)))
-        (when (contains-env? v)
-          (error "Save-vals: saved an environment instead of a val!"))
-        (return-normal (program-state-copy program-state
-                                           (θ (append (take v i) θ))
-                                           (v (drop v i)))))))
+      (return-normal (program-state-copy program-state
+                                         (v e)))))
   
-  ;;; Save all elements of the list currently stored in the register v to the stack θ.
-  (define (save-all-vals)
-    (lambda (program-state)
-      (let ((v (program-state-v program-state))
-            (θ (program-state-θ program-state)))
-        (when (contains-env? v)
-          (error "Save-all-vals: saved an environment instead of a val!"))
-        (return-normal (program-state-copy program-state
-                                           (θ (append v θ)))))))
-  
-  ;;; Save the environment currently stored in ρ to the stack θ.
-  (define (save-env)
+  ;;;  Looks up the current value of the variable x and stores in the register v.
+  (define (lookup-var x)
     (lambda (program-state)
       (let ((ρ (program-state-ρ program-state))
-            (θ (program-state-θ program-state)))
-        (return-normal (program-state-copy program-state
-                                           (θ (cons ρ θ)))))))
+            (σ (program-state-σ program-state)))
+        ;; If the variable currently evaluated was called 'debug', call the debug function.
+        ;; This is especially useful for meta-level debugging: interesting locations in the code
+        ;; of the meta-level interpreter canbe debugged by simply using the variable 'debug.
+        (when (eq? x 'debug) (debug))
+        (let ((binding (assoc x (env-lst ρ))))
+          (match binding
+            ((cons _ a) (return-normal (program-state-copy program-state
+                                                           (v (cdr (assoc a σ))))))
+            (_ (return-normal (program-state-copy program-state
+                                                  (v (eval x))))))))))
   
-  ;;; Replace the environment currently stored in ρ by ρ*.
-  (define (set-env ρ*)
+  ;;; Pop the first continuation from the continuation stack τ-κ.
+  (define (pop-continuation)
     (lambda (program-state)
-      (let ((ρ (program-state-ρ program-state)))
+      (let ((κ (program-state-κ program-state)))
         (return-normal (program-state-copy program-state
-                                           (ρ ρ*))))))
+                                           (κ (cdr κ)))))))
+  
+  ;;; Prepares for an application of the closure currently stored in the register v
+  ;;; by saving the current environment, popping the first i elements from the stack θ
+  ;;; and switching to the lexical environment of the closure to be called.
+  (define (prepare-function-call i)
+    (lambda (program-state)
+      (let ((clo (program-state-v program-state)))
+        (>>= program-state
+             (list (restore-vals i)
+                   (save-env)
+                   (save-vals i)
+                   (set-env (clo-ρ clo)))))))
+  
+  ;;; Push the continuation φ to the continuation stack τ-κ.
+  (define (push-continuation φ)
+    (lambda (program-state)
+      (let ((κ (program-state-κ program-state)))
+        (return-normal (program-state-copy program-state
+                                           (κ (cons φ κ)))))))
+  
+  ;;; Place the value e in the register v.
+  (define (quote-value e)
+    (lambda (program-state)
+      (return-normal (program-state-copy program-state
+                                         (v e)))))
   
   ;;; Pop the environment from the stack θ and store it in ρ.
   (define (restore-env)
@@ -139,17 +193,51 @@
                                            (v (take θ i))
                                            (θ (drop θ i)))))))
   
-  ;;; Allocate a new variable in the environment and the store with the name x and
-  ;;; as current value, the value in the register v.
-  (define (alloc-var x)
+  ;;; Save all elements of the list currently stored in the register v to the stack θ.
+  (define (save-all-vals)
+    (lambda (program-state)
+      (let ((v (program-state-v program-state))
+            (θ (program-state-θ program-state)))
+        (when (contains-env? v)
+          (error "Save-all-vals: saved an environment instead of a val!"))
+        (return-normal (program-state-copy program-state
+                                           (θ (append v θ)))))))
+  
+  ;;; Save the environment currently stored in ρ to the stack θ.
+  (define (save-env)
     (lambda (program-state)
       (let ((ρ (program-state-ρ program-state))
-            (σ (program-state-σ program-state))
-            (a (new-gencounter!))
-            (v (program-state-v program-state)))
+            (θ (program-state-θ program-state)))
         (return-normal (program-state-copy program-state
-                                           (ρ (add-var-to-env ρ x a))
-                                           (σ (cons (cons a v) σ)))))))
+                                           (θ (cons ρ θ)))))))
+  
+  ;;; Save the value in the register v to the stack θ.
+  (define (save-val)
+    (lambda (program-state)
+      (let ((v (program-state-v program-state))
+            (θ (program-state-θ program-state)))
+        (when (env? v)
+          (error "Save-val: saved an environment instead of a val!"))
+        (return-normal (program-state-copy program-state (θ (cons v θ)))))))
+  
+  ;;; Save the first i elements of the list currently stored in the register v to the stack θ
+  ;;; and drop these elements from the list in v.
+  (define (save-vals i)
+    (lambda (program-state)
+      (let ((v (program-state-v program-state))
+            (θ (program-state-θ program-state)))
+        (when (contains-env? v)
+          (error "Save-vals: saved an environment instead of a val!"))
+        (return-normal (program-state-copy program-state
+                                           (θ (append (take v i) θ))
+                                           (v (drop v i)))))))
+  
+  ;;; Replace the environment currently stored in ρ by ρ*.
+  (define (set-env ρ*)
+    (lambda (program-state)
+      (let ((ρ (program-state-ρ program-state)))
+        (return-normal (program-state-copy program-state
+                                           (ρ ρ*))))))
   
   ;;; Assign the value currently in the register v to the variable x.
   (define (set-var x)
@@ -159,91 +247,4 @@
              (v (program-state-v program-state))
              (a (cdr (assoc x (env-lst ρ)))))
         (return-normal (program-state-copy program-state
-                                           (σ (cons (cons a v) σ)))))))
-  
-  ;;; Used for debugging, allows you to place a breakpoint, stopping the debugger whenever this
-  ;;; function is called.
-  (define (debug)
-    (= 1 1))
-  
-  ;;;  Looks up the current value of the variable x and stores in the register v.
-  (define (lookup-var x)
-    (lambda (program-state)
-      (let ((ρ (program-state-ρ program-state))
-            (σ (program-state-σ program-state)))
-        ;; If the variable currently evaluated was called 'debug', call the debug function.
-        ;; This is especially useful for meta-level debugging: interesting locations in the code
-        ;; of the meta-level interpreter canbe debugged by simply using the variable 'debug.
-        (when (eq? x 'debug) (debug))
-        (let ((binding (assoc x (env-lst ρ))))
-          (match binding
-            ((cons _ a) (return-normal (program-state-copy program-state
-                                                           (v (cdr (assoc a σ))))))
-            (_ (return-normal (program-state-copy program-state
-                                                  (v (eval x))))))))))
-  
-  ;;; Creates a closure with the arguments x, and the body es and places this new closure
-  ;;; in the register v.
-  (define (create-closure x es)
-    (lambda (program-state)
-      (let ((ρ (program-state-ρ program-state)))
-        (return-normal (program-state-copy program-state
-                                           (v (clo (lam x es) ρ)))))))
-  
-  ;;; Place the value e in the register v.
-  (define (literal-value e)
-    (lambda (program-state)
-      (return-normal (program-state-copy program-state
-                                         (v e)))))
-  
-  ;;; Place the value e in the register v.
-  (define (quote-value e)
-    (lambda (program-state)
-      (return-normal (program-state-copy program-state
-                                         (v e)))))
-  
-  ;;; Apply the native procedure currently stored in the register v to the first
-  ;;; i values on the stack θ.
-  (define (apply-native i)
-    (lambda (program-state)
-      (let* ((v (program-state-v program-state))
-             (θ (program-state-θ program-state))
-             (rands (take θ i)))
-        (when (contains-env? rands)
-          (error "Apply-native: rands contains an environment"))
-        (return-normal (program-state-copy program-state
-                                           (θ (drop θ i))
-                                           (v (apply v rands)))))))
-  (define (>>= program-state instructions)
-    (cond ((null? instructions) (return-normal program-state))
-          ;; Assumes that no abnormal actions can take place during
-          ;; regular program interpretation.
-          ;; TODO This should be reasonable but check nonetheless
-          (else (>>= (normal-return-program-state ((car instructions) program-state))
-                     (cdr instructions)))))
-  
-  ;;; Prepares for an application of the closure currently stored in the register v
-  ;;; by saving the current environment, popping the first i elements from the stack θ
-  ;;; and switching to the lexical environment of the closure to be called.
-  (define (prepare-function-call i)
-    (lambda (program-state)
-      (let ((clo (program-state-v program-state)))
-        (>>= program-state
-             (list (restore-vals i)
-                   (save-env)
-                   (save-vals i)
-                   (set-env (clo-ρ clo)))))))
-  
-  ;;; Push the continuation φ to the continuation stack τ-κ.
-  (define (push-continuation φ)
-    (lambda (program-state)
-      (let ((κ (program-state-κ program-state)))
-        (return-normal (program-state-copy program-state
-                                           (κ (cons φ κ)))))))
-  
-  ;;; Pop the first continuation from the continuation stack τ-κ.
-  (define (pop-continuation)
-    (lambda (program-state)
-      (let ((κ (program-state-κ program-state)))
-        (return-normal (program-state-copy program-state
-                                           (κ (cdr κ))))))))
+                                           (σ (cons (cons a v) σ))))))))
