@@ -64,8 +64,8 @@
   ; Constructors
   ;
   
-  (define (make-executing-state tracer-context program-state trace-assoc)
-    (evaluator-state EXECUTING_STATE tracer-context program-state trace-assoc))
+  (define (make-executing-state tracer-context program-state trace-node)
+    (evaluator-state EXECUTING_STATE tracer-context program-state trace-node))
   
   (define (make-interpreting-state tracer-context program-state)
     (evaluator-state INTERPRETING_STATE tracer-context program-state #f))
@@ -97,19 +97,11 @@
         (make-interpreting-state (stop-tracing tracer-context #f) new-program-state)
         (make-tracing-state (append-trace tracer-context trace) new-program-state)))
   
-  (struct trace-assoc (label
-                       trace) #:transparent)
-  
-  (define-syntax trace-assoc-copy
-    (syntax-rules ()
-      ((_ a-trace-assoc ...)
-       (struct-copy trace-assoc a-trace-assoc ...))))
-  
   (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
     (cond ((label-trace-exists? tracer-context label)
            (output label)
            (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
-           (make-executing-state tracer-context new-program-state (trace-assoc label (trace-node-trace (get-label-trace tracer-context label)))))
+           (make-executing-state tracer-context new-program-state (get-label-trace tracer-context label)))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
           (else
            (output label)
@@ -121,7 +113,7 @@
            (output label)
            (output "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
            (let* ((temp-tracer-context (stop-tracing (append-trace tracer-context trace) #t)))
-             (make-executing-state temp-tracer-context new-program-state (trace-assoc label (trace-node-trace (get-label-trace temp-tracer-context label))))))
+             (make-executing-state temp-tracer-context new-program-state (get-label-trace temp-tracer-context label))))
           (else
            (make-tracing-state (append-trace tracer-context trace) new-program-state))))
   
@@ -136,9 +128,9 @@
     (define (do-cesk-interpreter-step)
       (cesk-step (evaluator-state-program-state evaluator-state)))
     (define (do-trace-executing-step)
-      (let* ((trace-assoc (evaluator-state-trace-executing evaluator-state))
-             (trace (trace-assoc-trace trace-assoc))
-             (label (trace-assoc-label trace-assoc)))
+      (let* ((trace-node (evaluator-state-trace-executing evaluator-state))
+             (trace (trace-node-trace trace-node))
+             (label (trace-key-label (trace-node-trace-key trace-node))))
         (if (null? trace)
             (let* ((program-state (evaluator-state-program-state evaluator-state))
                    (κ (program-state-κ program-state))
@@ -157,7 +149,7 @@
     (define (handle-response-executing response)
       (let* ((tracer-context (evaluator-state-tracer-context evaluator-state))
              (trace-executing (evaluator-state-trace-executing evaluator-state))
-             (trace (trace-assoc-trace trace-executing))
+             (trace (trace-node-trace trace-executing))
              (old-program-state (evaluator-state-program-state evaluator-state)))
         (define (guard-failed new-c)
           (let* ((κ (program-state-κ old-program-state))
@@ -169,19 +161,18 @@
           ((normal-return new-program-state)
            (evaluator-state-copy evaluator-state
                                  (program-state new-program-state)
-                                 (trace-executing (trace-assoc-copy (evaluator-state-trace-executing evaluator-state)
+                                 (trace-executing (trace-node-copy (evaluator-state-trace-executing evaluator-state)
                                                                     (trace (cdr trace))))))
           ((error-return (guard-failed-with-ev guard-id e))
            (guard-failed (ev e)))
           ((error-return (guard-failed-with-ko guard-id φ))
            (guard-failed (ko φ)))
           ((error-return (trace-loops))
-           (let* ((old-trace-assoc (evaluator-state-trace-executing evaluator-state))
-                  (label (trace-assoc-label old-trace-assoc))
-                  (full-trace-executing (trace-node-trace (get-label-trace tracer-context label)))
-                  (full-trace-executing-assoc (trace-assoc label full-trace-executing)))
+           (let* ((old-trace-node (evaluator-state-trace-executing evaluator-state))
+                  (label (trace-key-label (trace-node-trace-key old-trace-node)))
+                  (new-trace-node (get-label-trace tracer-context label)))
              (evaluator-state-copy evaluator-state
-                                   (trace-executing full-trace-executing-assoc)))))))
+                                   (trace-executing new-trace-node)))))))
     (define (handle-annotation-signal-regular new-program-state trace annotation-signal)
       (let ((tracer-context (evaluator-state-tracer-context evaluator-state)))
         (match annotation-signal

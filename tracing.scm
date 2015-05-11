@@ -8,6 +8,7 @@
    (struct-out trace-node)
    make-label-trace
    add-execution!
+   trace-node-copy
    
    ;; Tracer-context
    (struct-out tracer-context)
@@ -79,7 +80,7 @@
   
   (struct trace-node (trace-key
                       trace
-                      (executions #:mutable)))
+                      (executions #:mutable)) )
   
   (define (make-label-trace trace-key trace)
     (trace-node trace-key trace '()))
@@ -89,6 +90,16 @@
     (let ((old-executions (trace-node-executions trace-node))
           (time (current-seconds)))
       (set-trace-node-executions! trace-node (cons time old-executions))))
+  
+  
+  ;
+  ; trace-node-copy
+  ;
+  
+  (define-syntax trace-node-copy
+    (syntax-rules ()
+      ((_ a-trace-node ...)
+       (struct-copy trace-node a-trace-node ...))))
   
   ;
   ; Tracer context
