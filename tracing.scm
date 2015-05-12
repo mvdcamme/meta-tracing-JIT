@@ -31,7 +31,11 @@
    ;; Recording trace
    append-trace
    clear-trace
-   is-tracing-label?)
+   is-tracing-label?
+   
+   ;; Loop hotness
+   get-times-label-encountered
+   inc-times-label-encountered)
   
   (require "dictionary.scm"
            "interaction.scm"
@@ -106,11 +110,13 @@
   ;
   
   (struct tracer-context (trace-key
+                          label-counters
                           trace-nodes
                           τ) #:transparent)
   
   (define (new-tracer-context)
     (tracer-context #f
+                    '()
                     '()
                     '()))
   
@@ -173,7 +179,7 @@
   (define (search-label-trace tracer-context label)
     (define (loop trace-nodes)
       (cond ((null? trace-nodes) #f)
-            ((equal? (trace-key-label (trace-node-trace-key (car trace-nodes))) label) (car trace-nodes)) ;TODO verander equal? naar eq?
+            ((equal? (trace-key-label (trace-node-trace-key (car trace-nodes))) label) (car trace-nodes))
             (else (loop (cdr trace-nodes)))))
     (loop (tracer-context-trace-nodes tracer-context)))
   
@@ -204,4 +210,44 @@
         #f))
   
   (define (label-trace-exists? tracer-context label)
-    (trace-exists? (search-label-trace tracer-context label))))
+    (trace-exists? (search-label-trace tracer-context label)))
+  
+  ;
+  ; Loop hotness
+  ;
+  
+  (struct label-counter (label counter) #:transparent)
+  
+  ;;; Retrieves the number of times a label has been encountered.
+  ;;; In other words, this function returns the 'hotness' of a label.
+  (define (get-times-label-encountered tracer-context label)
+    (let* ((label-counters (tracer-context-label-counters tracer-context))
+           (result (findf (lambda (label-counter)
+                            (eq? (label-counter-label label-counter) label))
+                          label-counters)))
+      (if result
+          (label-counter-counter result)
+          ;; Label has not been encountered yet, so counter is 0
+          0)))
+      
+  ;;; Increments the number of times a label has been encountered.
+  ;;; In other words, this function increases the 'hotness' of a loop.
+  (define (inc-times-label-encountered tracer-context label)
+    (let*-values (((old-label-counters) (tracer-context-label-counters tracer-context))
+                  ((head tail) (splitf-at old-label-counters
+                                          (lambda (label-counter)
+                                            (not (eq? (label-counter-label label-counter) label)))))
+                  ((label-counter-found) (if (null? tail) #f (car tail))))
+      (if label-counter-found
+          ;; Remove the old label-counter, create a new label-counter with an incremented count and add it to the list of label-counters
+          (let* ((new-label-counter (label-counter (label-counter-label label-counter-found)
+                                                   (+ (label-counter-counter label-counter-found) 1)))
+                 (new-label-counters (cons new-label-counter (append head (cdr tail))))) ; Add new-label-counter
+                                                                                         ; Use (cdr tail) to filter out the old label-counter
+            (tracer-context-copy tracer-context
+                                 (label-counters new-label-counters)))
+          ;; No label-counter tuple exists yet for this label, so create a new one with count 1
+          (let* ((new-label-counter (label-counter label 1))
+                 (new-label-counters (cons new-label-counter old-label-counters)))
+            (tracer-context-copy tracer-context
+                                 (label-counters new-label-counters)))))))

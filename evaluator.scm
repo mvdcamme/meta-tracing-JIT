@@ -12,6 +12,12 @@
   (provide inject
            run)
   
+  ;
+  ; Constants
+  ;
+  
+  (define TRACING_THRESHOLD 5)
+  
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;                                                                                                      ;
   ;                                           Evaluator state                                            ;
@@ -98,15 +104,20 @@
         (make-tracing-state (append-trace tracer-context trace) new-program-state)))
   
   (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
+    (define (can-start-tracing?)
+      (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
     (cond ((label-trace-exists? tracer-context label)
            (output label)
            (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
            (make-executing-state tracer-context new-program-state (get-label-trace tracer-context label)))
           ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
-          (else
+          ((can-start-tracing?)
            (output label)
            (output "reg ----------- STARTED TRACING -----------") (output-newline)
-           (make-tracing-state (start-tracing-label tracer-context label debug-info) new-program-state))))
+           (make-tracing-state (start-tracing-label tracer-context label debug-info) new-program-state))
+          ;; Loop is not hot yet, increase hotness counter and continue interpreting
+          (else
+           (make-interpreting-state (inc-times-label-encountered tracer-context label) new-program-state))))
   
   (define (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)
     (cond ((is-tracing-label? tracer-context label)
