@@ -145,7 +145,7 @@
             (let* ((instruction (car trace))
                    (program-state
                     (evaluator-state-program-state evaluator-state)))
-              (instruction program-state)))))
+              (handle-response-executing (instruction program-state))))))
     (define (handle-response-executing response)
       (let* ((tracer-context (evaluator-state-tracer-context evaluator-state))
              (trace-executing (evaluator-state-trace-executing evaluator-state))
@@ -215,7 +215,7 @@
          (handle-response-abnormal response))))
     (define (step)
       (match evaluator-state
-        ((? is-executing?) (handle-response-executing (do-trace-executing-step)))
+        ((? is-executing?) (do-trace-executing-step))
         ((? is-interpreting?) (handle-response-regular (do-cesk-interpreter-step)))
         ((? is-tracing?) (handle-response-tracing (do-cesk-interpreter-step)))
         (_ (error "Unknown state" (evaluator-state-state evaluator-state)))))
