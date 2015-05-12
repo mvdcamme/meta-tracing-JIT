@@ -104,29 +104,31 @@
         (make-tracing-state (append-trace tracer-context trace) new-program-state)))
   
   (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
-    (define (can-start-tracing?)
-      (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
-    (cond ((label-trace-exists? tracer-context label)
-           (output label)
-           (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
-           (make-executing-state tracer-context new-program-state (get-label-trace tracer-context label)))
-          ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
-          ((can-start-tracing?)
-           (output label)
-           (output "reg ----------- STARTED TRACING -----------") (output-newline)
-           (make-tracing-state (start-tracing-label tracer-context label debug-info) new-program-state))
-          ;; Loop is not hot yet, increase hotness counter and continue interpreting
-          (else
-           (make-interpreting-state (inc-times-label-encountered tracer-context label) new-program-state))))
+    (let ((trace-key (make-label-trace-key label debug-info)))
+      (define (can-start-tracing?)
+        (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
+      (cond ((trace-exists? tracer-context trace-key)
+             (output label)
+             (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
+             (make-executing-state tracer-context new-program-state (get-trace tracer-context trace-key)))
+            ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
+            ((can-start-tracing?)
+             (output label)
+             (output "reg ----------- STARTED TRACING -----------") (output-newline)
+             (make-tracing-state (start-tracing-label tracer-context label debug-info) new-program-state))
+            ;; Loop is not hot yet, increase hotness counter and continue interpreting
+            (else
+             (make-interpreting-state (inc-times-label-encountered tracer-context label) new-program-state)))))
   
   (define (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)
-    (cond ((is-tracing-label? tracer-context label)
-           (output label)
-           (output "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
-           (let* ((temp-tracer-context (stop-tracing (append-trace tracer-context trace) #t)))
-             (make-executing-state temp-tracer-context new-program-state (get-label-trace temp-tracer-context label))))
-          (else
-           (make-tracing-state (append-trace tracer-context trace) new-program-state))))
+    (let ((trace-key (make-label-trace-key label debug-info)))
+      (cond ((is-tracing-label? tracer-context label)
+             (output label)
+             (output "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
+             (let* ((temp-tracer-context (stop-tracing (append-trace tracer-context trace) #t)))
+               (make-executing-state temp-tracer-context new-program-state (get-trace temp-tracer-context trace-key))))
+            (else
+             (make-tracing-state (append-trace tracer-context trace) new-program-state)))))
   
   (define (evaluate evaluator-state)
     (define (continue-with-program-state-regular new-program-state)
@@ -160,26 +162,39 @@
     (define (handle-response-executing response)
       (let* ((tracer-context (evaluator-state-tracer-context evaluator-state))
              (trace-executing (evaluator-state-trace-executing evaluator-state))
+             (trace-key (trace-node-trace-key trace-executing))
              (trace (trace-node-trace trace-executing))
              (old-program-state (evaluator-state-program-state evaluator-state)))
-        (define (do-guard-failure new-c)
-          (let* ((κ (program-state-κ old-program-state))
-                 (new-program-state (program-state-copy old-program-state
-                                                        (c new-c)
-                                                        (κ κ))))
-            (make-interpreting-state tracer-context new-program-state)))
+        (define (do-guard-failure guard-id new-c)
+          (if (trace-exists? tracer-context (make-guard-trace-key (trace-key-label trace-key) (trace-key-debug-info trace-key) guard-id))
+              ;; A guard trace already exists, start executing it
+              (let* ((guard-trace (get-trace tracer-context (make-guard-trace-key (trace-key-label trace-key)
+                                                                                    (trace-key-debug-info trace-key)
+                                                                                    guard-id))))
+                (make-executing-state tracer-context old-program-state guard-trace))
+              ;; A guard trace does not exist yet, start tracing it
+              (let* ((trace-node-executing-trace-key (trace-node-trace-key trace-executing))
+                     (label (trace-key-label trace-node-executing-trace-key))
+                     (debug-info (trace-key-debug-info trace-node-executing-trace-key))
+                     (κ (program-state-κ old-program-state))
+                     (new-program-state (program-state-copy old-program-state
+                                                            (c new-c)
+                                                            (κ κ))))
+                (make-tracing-state (start-tracing-guard tracer-context label debug-info guard-id) new-program-state))))
         (match response
           ((normal-return new-program-state)
            (evaluator-state-copy evaluator-state
                                  (program-state new-program-state)
                                  (trace-executing (trace-node-copy (evaluator-state-trace-executing evaluator-state)
-                                                                    (trace (cdr trace))))))
+                                                                   (trace (cdr trace))))))
           ((error-return (guard-failed guard-id c))
-           (do-guard-failure c))
+           (do-guard-failure guard-id c))
           ((error-return (trace-loops))
            (let* ((old-trace-node (evaluator-state-trace-executing evaluator-state))
-                  (label (trace-key-label (trace-node-trace-key old-trace-node)))
-                  (new-trace-node (get-label-trace tracer-context label)))
+                  (old-trace-key (trace-node-trace-key old-trace-node))
+                  (trace-key (make-label-trace-key (trace-key-label old-trace-key)
+                                                   (trace-key-debug-info old-trace-key))) ; We are definitely looking for a label-trace here, so make a label-trace-key
+                  (new-trace-node (get-trace tracer-context trace-key)))
              (evaluator-state-copy evaluator-state
                                    (trace-executing new-trace-node)))))))
     (define (handle-annotation-signal-regular new-program-state trace annotation-signal)
@@ -239,7 +254,7 @@
   ;                                         Starting evaluator                                           ;
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    
+  
   ;;; Creates a new store that contains all predefined functions/variables.
   (define (make-new-store)
     '())
