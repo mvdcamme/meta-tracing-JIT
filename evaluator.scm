@@ -90,15 +90,13 @@
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   (define (step-can-close-loop-encountered-regular label new-program-state tracer-context)
-    (output label)
-    (output "reg closing annotation: tracing loop ") (output label) (output-newline)
+    (outputln "reg closing annotation: tracing loop " 'd) (outputln label 'd) (output-newline 'd)
     (make-interpreting-state tracer-context new-program-state))
   
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
   ;;; regular interpretation with the given state.
   (define (step-can-close-loop-encountered-tracing label new-program-state trace tracer-context)
-    (output label)
-    (output "tracing closing annotation: tracing loop ") (output label) (output-newline)
+    (outputln "tracing closing annotation: tracing loop " 'd) (outputln label 'd)
     (if (is-tracing-label? tracer-context label)
         (make-interpreting-state (stop-tracing tracer-context #f) new-program-state)
         (make-tracing-state (append-trace tracer-context trace) new-program-state)))
@@ -108,13 +106,13 @@
       (define (can-start-tracing?)
         (>= (get-times-label-encountered tracer-context label) TRACING_THRESHOLD))
       (cond ((trace-exists? tracer-context trace-key)
-             (output label)
-             (output "reg ----------- EXECUTING TRACE -----------") (output-newline)
+             (outputln label 'd)
+             (outputln "reg ----------- EXECUTING TRACE -----------" 'd)
              (make-executing-state tracer-context new-program-state (get-trace tracer-context trace-key)))
             ;; We have determined that it is worthwile to trace this label/loop, so start tracing.
             ((can-start-tracing?)
-             (output label)
-             (output "reg ----------- STARTED TRACING -----------") (output-newline)
+             (outputln label 'd)
+             (outputln "reg ----------- STARTED TRACING -----------" 'd)
              (make-tracing-state (start-tracing-label tracer-context label debug-info) new-program-state))
             ;; Loop is not hot yet, increase hotness counter and continue interpreting
             (else
@@ -123,8 +121,8 @@
   (define (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context)
     (let ((trace-key (make-label-trace-key label debug-info)))
       (cond ((is-tracing-label? tracer-context label)
-             (output label)
-             (output "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------") (output-newline)
+             (outputln label 'd)
+             (outputln "tracing ----------- TRACING FINISHED; EXECUTING TRACE -----------" 'd)
              (let* ((temp-tracer-context (stop-tracing (append-trace tracer-context trace) #t)))
                (make-executing-state temp-tracer-context new-program-state (get-trace temp-tracer-context trace-key))))
             (else
@@ -241,9 +239,9 @@
          (handle-response-abnormal response))))
     (define (step)
       (match evaluator-state
-        ((? is-executing?) (do-trace-executing-step))
-        ((? is-interpreting?) (handle-response-regular (do-cesk-interpreter-step)))
-        ((? is-tracing?) (handle-response-tracing (do-cesk-interpreter-step)))
+        ((? is-executing?) (outputln "executing") (do-trace-executing-step))
+        ((? is-interpreting?) (outputln "interpreting") (handle-response-regular (do-cesk-interpreter-step)))
+        ((? is-tracing?) (outputln "tracing") (handle-response-tracing (do-cesk-interpreter-step)))
         (_ (error "Unknown state" (evaluator-state-state evaluator-state)))))
     (if (evaluation-done? evaluator-state)
         (evaluation-done-value evaluator-state)
