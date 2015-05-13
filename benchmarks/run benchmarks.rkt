@@ -198,7 +198,7 @@
       ;(run-rec-slip-interpreter-traced-meta-interpreted)
       ;(run-trace-metrics)
       
-      (run-rec-slip-interpreter-traced-no-merging-meta-interpreted)
+      (run-rec-slip-interpreter-traced-meta-interpreted)
       ;(run-trace-metrics)
       
       (output-benchmark-end)))

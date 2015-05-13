@@ -213,6 +213,11 @@
                       (alloc-var x)
                       (save-env)
                       (push-continuation (letreck x bds es))))
+      ((ck (ev `(merges-control-flow)) (cons φ κ))
+       (execute/trace-with-annotation program-state
+                                      (ko φ)
+                                      (merges-cf-encountered)
+                                      (pop-continuation)))
       ((ck (ev `(or)) (cons φ κ))
        (execute/trace program-state
                       (ko φ)
@@ -232,6 +237,11 @@
                       (ev e)
                       (save-env)
                       (push-continuation  (setk x))))
+      ((ck (ev `(splits-control-flow)) (cons φ κ))
+       (execute/trace-with-annotation program-state
+                                      (ko φ)
+                                      (splits-cf-encountered)
+                                      (pop-continuation)))
       ((ck (ev `(,rator)) κ)
        (execute/trace program-state
                       (ev rator)

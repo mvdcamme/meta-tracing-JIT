@@ -5,6 +5,7 @@
            "continuations.scm"
            "environment.scm"
            "interaction.scm"
+           "instruction-set.scm"
            "output.scm"
            "predefined-functions.scm"
            "tracing.scm")
@@ -85,6 +86,9 @@
   ;                                                                                                      ;
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   
+  (define prev-state 'interpreting)
+  (define curr-state #f)
+  
   (struct evaluation-done (value) #:transparent)
   
   ;;; Handles the (can-close-loop label) annotation and afterwards continues
@@ -100,6 +104,31 @@
     (if (is-tracing-label? tracer-context label)
         (make-interpreting-state (stop-tracing tracer-context #f) new-program-state)
         (make-tracing-state (append-trace tracer-context trace) new-program-state)))
+  
+  (define (step-merges-cf-encountered-tracing new-program-state trace tracer-context)
+    (outputln "tracing: merges-cf annotation" 'd)
+    (let* ((current-trace-key (tracer-context-trace-key tracer-context))
+           (label (trace-key-label current-trace-key))
+           (debug-info (trace-key-debug-info current-trace-key))
+           (mp-id (top-splits-cf-tc tracer-context))
+           (mp-trace-key (make-mp-trace-key label debug-info mp-id))
+           (appended-tracer-context (append-trace tracer-context (append trace (list (pop-splits-cf)))))
+           (stopped-tracer-context (stop-tracing appended-tracer-context #f))
+           (popped-tracer-context (pop-splits-cf-tc stopped-tracer-context)))
+      (if (trace-exists? popped-tracer-context mp-trace-key)
+          (let ((mp-trace-node (get-trace popped-tracer-context mp-trace-key)))
+            (outputln "mp-trace-node found" 'e)
+            (make-executing-state popped-tracer-context new-program-state mp-trace-node))
+          (begin (outputln "mp-trace-node NOT found" 'e)
+                 (make-tracing-state (start-tracing-mp popped-tracer-context label debug-info mp-id)
+                              new-program-state)))))
+  
+  (define (step-splits-cf-encountered-tracing new-program-state trace tracer-context)
+    (outputln "tracing: splits-cf annotation" 'e)
+    (let ((new-mp-id (inc-splits-cf-id!)))
+      (make-tracing-state (push-splits-cf-tc (append-trace tracer-context (append trace (list (push-splits-cf new-mp-id))))
+                                             new-mp-id)
+                          new-program-state)))
   
   (define (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context)
     (let ((trace-key (make-label-trace-key label debug-info)))
@@ -185,13 +214,34 @@
                                  (program-state new-program-state)
                                  (trace-executing (trace-node-copy (evaluator-state-trace-executing evaluator-state)
                                                                    (trace (cdr trace))))))
+          ((error-return (do-push-splits-cf mp-id))
+           (let* ((trace-node-executing (evaluator-state-trace-executing evaluator-state))
+                  (trace-executing (trace-node-trace trace-node-executing))
+                  (new-trace-node-executing (trace-node-copy trace-node-executing
+                                                             (trace (cdr trace-executing)))))
+             (evaluator-state-copy evaluator-state
+                                   (tracer-context (push-splits-cf-tc tracer-context mp-id))
+                                   (trace-executing new-trace-node-executing))))
+          ((error-return (do-pop-splits-cf))
+           (let* ((mp-id (top-splits-cf-tc tracer-context))
+                  (current-trace-key-executing (trace-node-trace-key (evaluator-state-trace-executing evaluator-state)))
+                  (label (trace-key-label current-trace-key-executing))
+                  (debug-info (trace-key-debug-info current-trace-key-executing))
+                  (mp-trace-key (make-mp-trace-key label debug-info mp-id))
+                  (mp-trace-node (get-trace tracer-context mp-trace-key))
+                  (popped-tracer-context (pop-splits-cf-tc tracer-context)))
+             (outputln "Executing mp trace" 'e)
+             (evaluator-state-copy evaluator-state
+                                   (tracer-context popped-tracer-context)
+                                   (trace-executing mp-trace-node))))
           ((error-return (guard-failed guard-id c))
            (do-guard-failure guard-id c))
           ((error-return (trace-loops))
            (let* ((old-trace-node (evaluator-state-trace-executing evaluator-state))
                   (old-trace-key (trace-node-trace-key old-trace-node))
+                             ;; We are definitely looking for a label-trace here, so make a label-trace-key
                   (trace-key (make-label-trace-key (trace-key-label old-trace-key)
-                                                   (trace-key-debug-info old-trace-key))) ; We are definitely looking for a label-trace here, so make a label-trace-key
+                                                   (trace-key-debug-info old-trace-key))) 
                   (new-trace-node (get-trace tracer-context trace-key)))
              (evaluator-state-copy evaluator-state
                                    (trace-executing new-trace-node)))))))
@@ -204,7 +254,11 @@
           ((can-start-loop-encountered label debug-info)
            (step-can-start-loop-encountered-regular label debug-info new-program-state trace tracer-context))
           ((can-close-loop-encountered label)
-           (step-can-close-loop-encountered-regular label new-program-state tracer-context)))))
+           (step-can-close-loop-encountered-regular label new-program-state tracer-context))
+          ((merges-cf-encountered)
+           (make-interpreting-state (pop-splits-cf-tc tracer-context) new-program-state))
+          ((splits-cf-encountered)
+           (make-interpreting-state (push-splits-cf-tc tracer-context (inc-splits-cf-id!)) new-program-state)))))
     (define (handle-annotation-signal-tracing new-program-state trace annotation-signal)
       (let ((tracer-context (evaluator-state-tracer-context evaluator-state)))
         (match annotation-signal
@@ -214,7 +268,11 @@
           ((can-start-loop-encountered label debug-info)
            (step-can-start-loop-encountered-tracing label debug-info new-program-state trace tracer-context))
           ((can-close-loop-encountered label)
-           (step-can-close-loop-encountered-tracing label new-program-state trace tracer-context)))))
+           (step-can-close-loop-encountered-tracing label new-program-state trace tracer-context))
+          ((merges-cf-encountered)
+           (step-merges-cf-encountered-tracing new-program-state trace tracer-context))
+          ((splits-cf-encountered)
+           (step-splits-cf-encountered-tracing new-program-state trace tracer-context)))))
     (define (handle-response-abnormal response)
       (match response
         ((cesk-abnormal-return (cesk-stopped))
@@ -239,9 +297,12 @@
          (handle-response-abnormal response))))
     (define (step)
       (match evaluator-state
-        ((? is-executing?) (outputln "executing") (do-trace-executing-step))
-        ((? is-interpreting?) (outputln "interpreting") (handle-response-regular (do-cesk-interpreter-step)))
-        ((? is-tracing?) (outputln "tracing") (handle-response-tracing (do-cesk-interpreter-step)))
+        ((? is-executing?) ;(outputln "executing" 'v)
+                           (do-trace-executing-step))
+        ((? is-interpreting?) ;(outputln "interpreting" 'd)
+                              (handle-response-regular (do-cesk-interpreter-step)))
+        ((? is-tracing?) ;(outputln "tracing" 'd)
+                         (handle-response-tracing (do-cesk-interpreter-step)))
         (_ (error "Unknown state" (evaluator-state-state evaluator-state)))))
     (if (evaluation-done? evaluator-state)
         (evaluation-done-value evaluator-state)

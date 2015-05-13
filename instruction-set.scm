@@ -137,6 +137,10 @@
         (return-normal (program-state-copy program-state
                                            (κ (cdr κ)))))))
   
+  (define (pop-splits-cf)
+    (lambda (program-state)
+      (return-error (do-pop-splits-cf))))
+  
   ;;; Prepares for an application of the closure currently stored in the register v
   ;;; by saving the current environment, popping the first i elements from the stack θ
   ;;; and switching to the lexical environment of the closure to be called.
@@ -155,6 +159,10 @@
       (let ((κ (program-state-κ program-state)))
         (return-normal (program-state-copy program-state
                                            (κ (cons φ κ)))))))
+  
+  (define (push-splits-cf mp-id)
+    (lambda (program-state)
+      (return-error (do-push-splits-cf mp-id))))
   
   ;;; Place the value e in the register v.
   (define (quote-value e)

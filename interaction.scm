@@ -42,6 +42,8 @@
   (struct can-close-loop-encountered (label) #:transparent)
   (struct can-start-loop-encountered (label debug-info) #:transparent)
   (struct is-evaluating-encountered (expression) #:transparent)
+  (struct splits-cf-encountered () #:transparent)
+  (struct merges-cf-encountered () #:transparent)
   
   ;
   ; Return types
@@ -77,6 +79,8 @@
   ;
   
   (struct guard-failed (guard-id c) #:transparent)
+  (struct do-pop-splits-cf ())
+  (struct do-push-splits-cf (mp-id))
   
   ;
   ; Signaling loops

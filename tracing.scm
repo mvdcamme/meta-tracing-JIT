@@ -4,6 +4,7 @@
    (struct-out trace-key)
    make-guard-trace-key
    make-label-trace-key
+   make-mp-trace-key
    
    ;; Trace-node
    (struct-out trace-node)
@@ -18,6 +19,7 @@
    ;; Start tracing
    start-tracing-guard
    start-tracing-label
+   start-tracing-mp
    
    ;;Stop tracing
    stop-tracing
@@ -33,7 +35,13 @@
    
    ;; Loop hotness
    get-times-label-encountered
-   inc-times-label-encountered)
+   inc-times-label-encountered
+   
+   ;; Trace merging
+   inc-splits-cf-id!
+   pop-splits-cf-tc
+   push-splits-cf-tc
+   top-splits-cf-tc)
   
   (require "dictionary.scm"
            "interaction.scm"
@@ -51,21 +59,28 @@
   ;
   
   (struct trace-key (label debug-info) #:transparent)
-  (struct label-trace-key trace-key ())
   (struct guard-trace-key trace-key (guard-id))
+  (struct label-trace-key trace-key ())
+  (struct mp-trace-key trace-key (mp-id))
+  
+  (define (make-guard-trace-key label debug-info guard-id)
+    (guard-trace-key label debug-info guard-id))
   
   (define (make-label-trace-key label debug-info)
     (label-trace-key label debug-info))
   
-  (define (make-guard-trace-key label debug-info guard-id)
-    (guard-trace-key label debug-info guard-id))
+  (define (make-mp-trace-key label debug-info mp-id)
+    (mp-trace-key label debug-info mp-id))
   
   (define (trace-keys-equal? trace-key-1 trace-key-2)
     (or (and (label-trace-key? trace-key-1) (label-trace-key? trace-key-2)
              (equal? (trace-key-label trace-key-1) (trace-key-label trace-key-2)))
         (and (guard-trace-key? trace-key-1) (guard-trace-key? trace-key-2)
              (equal? (trace-key-label trace-key-1) (trace-key-label trace-key-2))
-             (equal? (guard-trace-key-guard-id trace-key-1) (guard-trace-key-guard-id trace-key-2)))))
+             (equal? (guard-trace-key-guard-id trace-key-1) (guard-trace-key-guard-id trace-key-2)))
+        (and (mp-trace-key? trace-key-1) (mp-trace-key? trace-key-2)
+             (equal? (trace-key-label trace-key-1) (trace-key-label trace-key-2))
+             (equal? (mp-trace-key-mp-id trace-key-1) (mp-trace-key-mp-id trace-key-2)))))
   
   ;
   ; Trace nodes
@@ -96,10 +111,12 @@
   (struct tracer-context (trace-key
                           label-counters
                           trace-nodes
+                          splits-cf-stack
                           τ) #:transparent)
   
   (define (new-tracer-context)
     (tracer-context #f
+                    '()
                     '()
                     '()
                     '()))
@@ -123,6 +140,12 @@
     (let ((temp-tracer-context
            (tracer-context-copy tracer-context
                                 (trace-key (make-label-trace-key label debug-info)))))
+      (clear-trace temp-tracer-context)))
+  
+  (define (start-tracing-mp tracer-context label debug-info mp-id)
+    (let ((temp-tracer-context
+           (tracer-context-copy tracer-context
+                                (trace-key (make-mp-trace-key label debug-info mp-id)))))
       (clear-trace temp-tracer-context)))
   
   ;
@@ -239,6 +262,30 @@
                                  (label-counters new-label-counters))))))
   
   ;
+  ; Trace merging
+  ;
+  
+  (define splits-cf-id 0)
+  
+  (define (inc-splits-cf-id!)
+    (define temp splits-cf-id)
+    (set! splits-cf-id (+ splits-cf-id 1))
+    temp)
+  
+  (define (pop-splits-cf-tc tracer-context)
+    (let ((old-splits-cf-stack (tracer-context-splits-cf-stack tracer-context)))
+      (tracer-context-copy tracer-context
+                           (splits-cf-stack (cdr old-splits-cf-stack)))))
+  
+  (define (push-splits-cf-tc tracer-context mp-id)
+    (let ((old-splits-cf-stack (tracer-context-splits-cf-stack tracer-context)))
+      (tracer-context-copy tracer-context
+                           (splits-cf-stack (cons mp-id old-splits-cf-stack)))))
+  
+  (define (top-splits-cf-tc tracer-context)
+    (car (tracer-context-splits-cf-stack tracer-context)))
+  
+  ;
   ; Adding traces
   ;
   
@@ -247,6 +294,7 @@
           (debug-info (trace-key-debug-info trace-key)))
       (cond ((label-trace-key? trace-key) (write-label-trace label (gensym) trace debug-info))
             ((guard-trace-key? trace-key) (write-guard-trace (guard-trace-key-guard-id trace-key) trace))
+            ((mp-trace-key? trace-key) (write-mp-tail-trace (mp-trace-key-mp-id trace-key) trace))
             (else (error "Trace-key not recognized:" trace-key)))))
   
   (define (add-trace tracer-context trace-key transformed-trace)
