@@ -242,11 +242,18 @@
   ; Adding traces
   ;
   
+  (define (write-trace trace-key trace)
+    (let ((label (trace-key-label trace-key))
+          (debug-info (trace-key-debug-info trace-key)))
+      (cond ((label-trace-key? trace-key) (write-label-trace label (gensym) trace debug-info))
+            ((guard-trace-key? trace-key) (write-guard-trace (guard-trace-key-guard-id trace-key) trace))
+            (else (error "Trace-key not recognized:" trace-key)))))
+  
   (define (add-trace tracer-context trace-key transformed-trace)
     (let* ((label (trace-key-label trace-key))
            (debug-info (trace-key-debug-info trace-key))
            (trace-node (make-trace-node trace-key transformed-trace))
            (trace-nodes-list (tracer-context-trace-nodes tracer-context)))
-      (write-label-trace label (gensym) transformed-trace debug-info)
+      (write-trace trace-key transformed-trace)
       (tracer-context-copy tracer-context
                            (trace-nodes (cons trace-node trace-nodes-list))))))
