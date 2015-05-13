@@ -78,7 +78,7 @@
   (define (guard-false guard-id e)
     (lambda (program-state)
       (if (program-state-v program-state)
-          (begin (output "Guard-false failed") (output-newline) (return-error (guard-failed guard-id (ev e))))
+          (begin (output "Guard-false failed" 'd) (output-newline) (return-error (guard-failed guard-id (ev e))))
           (begin (output "Guard passed") (output-newline) (return-normal program-state)))))
   
   ;;; Check whether the register v currently contains the same closure as it did when this guard
@@ -87,8 +87,8 @@
     (lambda (program-state)
       (if (clo-equal? (program-state-v program-state) clo)
           (return-normal program-state)
-          (begin (output "Closure guard failed, expected: ") (output clo)
-                 (output ", evaluated: ") (output (program-state-v program-state)) (output-newline)
+          (begin (output "Closure guard failed, expected: " 'd) (output clo)
+                 (output ", evaluated: " 'd) (output (program-state-v program-state)) (output-newline)
                  (return-error (guard-failed guard-id (ko (closure-guard-failedk i))))))))
   
   ;;; Check whether the register v currently contains a list that has the same length as it did
@@ -98,7 +98,7 @@
       (let ((current-i (length (program-state-v program-state))))
         (if (= i current-i)
             (return-normal program-state)
-            (begin (output "Argument guard failed, expected: ") (output i) (output ", evaluated: ") (output current-i) (output-newline)
+            (begin (output "Argument guard failed, expected: " 'd) (output i) (output ", evaluated: " 'd) (output current-i) (output-newline)
                    (return-error (guard-failed (cons guard-id current-i) (ko (apply-failedk rator current-i)))))))))
   
   ;;; Check the value of the register v. If it is #t, do nothing, else handle this guard failure.
@@ -106,7 +106,7 @@
     (lambda (program-state)
       (if (program-state-v program-state)
           (begin (output "Guard passed") (output-newline) (return-normal program-state))
-          (begin (output "Guard-true failed") (output-newline) (return-error (guard-failed guard-id (ev e)))))))
+          (begin (output "Guard-true failed" 'd) (output-newline) (return-error (guard-failed guard-id (ev e)))))))
   
   ;;; Place the value e in the register v.
   (define (literal-value e)
