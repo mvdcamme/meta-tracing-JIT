@@ -56,7 +56,8 @@
                    (append (list program-state
                                  (ev `(begin ,@es)))
                            instructions
-                           (list (push-continuation (applicationk (lam x es)))))))
+                           (list (push-continuation (stop-tracingk es))
+                                 (push-continuation (applicationk es (lam x es)))))))
            ((cons x xs)
             (when (< i 0)
               (error "Incorrect number of args: " (lam x es) ", i = " i ", args left = " (cons x xs)))
@@ -72,7 +73,8 @@
                            instructions
                            (list (restore-vals i)
                                  (alloc-var x)
-                                 (push-continuation (applicationk (lam x es))))))))))
+                                 (push-continuation (stop-tracingk es))
+                                 (push-continuation (applicationk es (lam x es))))))))))
       (_
        (execute/trace program-state
                          (ko (car κ))
@@ -213,11 +215,11 @@
                       (alloc-var x)
                       (save-env)
                       (push-continuation (letreck x bds es))))
-      ((ck (ev `(merges-control-flow)) (cons φ κ))
-       (execute/trace-with-annotation program-state
-                                      (ko φ)
-                                      (merges-cf-encountered)
-                                      (pop-continuation)))
+;      ((ck (ev `(merges-control-flow)) (cons φ κ))
+;       (execute/trace-with-annotation program-state
+;                                      (ko φ)
+;                                      (merges-cf-encountered)
+;                                      (pop-continuation)))
       ((ck (ev `(or)) (cons φ κ))
        (execute/trace program-state
                       (ko φ)
@@ -237,11 +239,11 @@
                       (ev e)
                       (save-env)
                       (push-continuation  (setk x))))
-      ((ck (ev `(splits-control-flow)) (cons φ κ))
-       (execute/trace-with-annotation program-state
-                                      (ko φ)
-                                      (splits-cf-encountered)
-                                      (pop-continuation)))
+;      ((ck (ev `(splits-control-flow)) (cons φ κ))
+;       (execute/trace-with-annotation program-state
+;                                      (ko φ)
+;                                      (splits-cf-encountered)
+;                                      (pop-continuation)))
       ((ck (ev `(,rator)) κ)
        (execute/trace program-state
                       (ev rator)
@@ -279,6 +281,11 @@
                       (ko (car κ))
                       (restore-env)
                       (pop-continuation)))
+      ((ck (ko (stop-tracingk es)) (cons φ κ))
+       (execute/trace-with-annotation program-state
+                                      (ko φ)
+                                      (can-close-loop-encountered es)
+                                      (pop-continuation)))
       ((ck (ko (apply-failedk rator i)) κ)
        (execute/trace program-state
                       (ev rator)
@@ -293,21 +300,21 @@
                         (save-all-vals)
                         (save-env)
                         (push-continuation (ratork i 'apply)))))
-      ((ck (ko (can-close-loopk)) (cons φ κ))
-       (execute/trace-with-annotation program-state
-                                      (ko φ)
-                                      (can-close-loop-encountered (program-state-v program-state))
-                                      (pop-continuation)))
-      ((ck (ko (can-start-loopk label '())) κ)
-       (execute/trace program-state
-                      (ev label)
-                      (push-continuation (can-start-loopk '() (program-state-v program-state)))))
-      ((ck (ko (can-start-loopk '() debug-info)) (cons φ κ))
-       (execute/trace-with-annotation program-state
-                                      (ko φ)
-                                      (can-start-loop-encountered (program-state-v program-state)
-                                                                  debug-info)
-                                      (pop-continuation)))
+;      ((ck (ko (can-close-loopk)) (cons φ κ))
+;       (execute/trace-with-annotation program-state
+;                                      (ko φ)
+;                                      (can-close-loop-encountered (program-state-v program-state))
+;                                      (pop-continuation)))
+;      ((ck (ko (can-start-loopk label '())) κ)
+;       (execute/trace program-state
+;                      (ev label)
+;                      (push-continuation (can-start-loopk '() (program-state-v program-state)))))
+;      ((ck (ko (can-start-loopk '() debug-info)) (cons φ κ))
+;       (execute/trace-with-annotation program-state
+;                                      (ko φ)
+;                                      (can-start-loop-encountered (program-state-v program-state)
+;                                                                  debug-info)
+;                                      (pop-continuation)))
       ((ck (ko (closure-guard-failedk i)) κ)
        (do-function-call program-state i κ))
       ((ck (ko (condk pes '())) κ)
@@ -374,13 +381,11 @@
                                 (ev (car e2))
                                 (restore-env)
                                 (guard-false new-guard-id e1))))))
-      ;; Evaluate annotations in step* instead of step
-      ;; Annotations might not lead to recursive call to step*
-      ((ck (ko (is-evaluatingk)) (cons φ κ))
-       (execute/trace-with-annotation program-state
-                                      (ko φ)
-                                      (is-evaluating-encountered (program-state-v program-state))
-                                      (pop-continuation)))
+;      ((ck (ko (is-evaluatingk)) (cons φ κ))
+;       (execute/trace-with-annotation program-state
+;                                      (ko φ)
+;                                      (is-evaluating-encountered (program-state-v program-state))
+;                                      (pop-continuation)))
       ((ck (ko (letk x es)) κ)
        (execute/trace program-state
                       (ev `(begin ,@es))
@@ -446,11 +451,13 @@
               ('()
                (unless (= i 0)
                  (error "Incorrect number of args: " (lam x es) ", i = " i))
-               (apply execute/trace
+               (apply execute/trace-with-annotation
                       (append (list program-state
-                                    (ev `(begin ,@es)))
+                                    (ev `(begin ,@es))
+                                    (can-start-loop-encountered es 'debug-info))
                               instructions
-                              (list (push-continuation (applicationk (lam x es)))))))
+                              (list (push-continuation (stop-tracingk es))
+                                    (push-continuation (applicationk (lam x es)))))))
               ((cons x xs)
                (when (< i 0)
                  (error "Incorrect number of args: " (lam x es) ", i = " i ", args left = " (cons x xs)))
@@ -460,13 +467,15 @@
               ((? symbol? x)
                (when (< i 0)
                  (error "Incorrect number of args: " (lam x es) "case 3"))
-               (apply execute/trace
+               (apply execute/trace-with-annotation
                       (append (list program-state
-                                    (ev `(begin ,@es)))
+                                    (ev `(begin ,@es))
+                                    (can-start-loop-encountered es 'debug-info-var-arity))
                               instructions
                               (list (restore-vals i)
                                     (alloc-var x)
-                                    (push-continuation (applicationk (lam x es))))))))))
+                                    (push-continuation (stop-tracingk es))
+                                    (push-continuation (applicationk es (lam x es))))))))))
          (_
           (execute/trace program-state
                          (ko (car κ))

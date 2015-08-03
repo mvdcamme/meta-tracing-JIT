@@ -23,6 +23,7 @@
   (struct ratork (i debug) #:transparent)
   (struct seqk (es) #:transparent)
   (struct setk (x) #:transparent)
+  (struct stop-tracingk (es) #:transparent)
   
   ;
   ; Tracing annotations continuations

@@ -179,11 +179,10 @@
       (define (output-interpreter-start interpreter-name)
         (output "interpreter started: ") (output interpreter-name)
         (newline))
+      
       (define (run-tracing-interpreter)
         (run-interpreter (lambda () (run (inject s-exp))) tracing-interpreter-name))
       (define (run-rec-slip-interpreter-normal)
-        (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
-      (define (run-rec-slip-interpreter-normal-meta-interpreted)
         (run-interpreter (lambda () (eval rec-interpreter-direct-exp)) rec-slip-interpreter-normal-name))
       (define (run-rec-slip-interpreter-traced-meta-interpreted)
         (run-interpreter-timed (lambda () (run (inject rec-interpreter-traced-merging-duplication-exp))) rec-slip-interpreter-traced-name))
@@ -198,7 +197,7 @@
       ;(run-rec-slip-interpreter-traced-meta-interpreted)
       ;(run-trace-metrics)
       
-      (run-rec-slip-interpreter-traced-meta-interpreted)
+      ;(run-rec-slip-interpreter-traced-meta-interpreted)
       ;(run-trace-metrics)
       
       (output-benchmark-end)))
